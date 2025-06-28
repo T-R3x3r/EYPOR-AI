@@ -1,17 +1,70 @@
 # 🤖 EY Project - AI-Powered Operations Research Platform
 
+<!-- WORKFLOW_DIAGRAM_START -->
+
+```mermaid
+graph TD
+    %% Data Analyst Agent Workflow
+    A[START] --> B[analyze_request]
+    B --> C{Request Type?}
+    
+    C -->|SQL Query| D[execute_sql_query]
+    C -->|Visualization| E[create_visualization]
+    C -->|DB Modification| F[prepare_db_modification]
+    C -->|Direct Response| G[respond]
+    
+    D --> H[execute_file]
+    E --> H
+    
+    H --> I{Execution Result?}
+    I -->|Success| G
+    I -->|Retry| J[code_fixer]
+    I -->|Error| G
+    
+    J --> K{Fix Type?}
+    K -->|Execute| H
+    K -->|Major Fix| E
+    K -->|Give Up| G
+    
+    F --> L[execute_db_modification]
+    L --> G
+    
+    G --> M[END]
+    
+    %% Database Modifier Agent Workflow
+    N[START] --> O[analyze_modification]
+    O --> P[prepare_modification]
+    P --> Q[execute_modification]
+    Q --> R[respond]
+    R --> S[END]
+    
+    %% Styling
+    classDef startEnd fill:#e1f5fe
+    classDef decision fill:#fff3e0
+    classDef process fill:#f3e5f5
+    classDef error fill:#ffebee
+    
+    class A,M,N,S startEnd
+    class C,I,K decision
+    class B,D,E,F,G,H,J,L,O,P,Q,R process
+```
+
+<!-- WORKFLOW_DIAGRAM_END -->
+
+
 ## 🎯 Overview
 
-The EY Project is a comprehensive AI-powered platform for operations research, featuring advanced database management, visualization capabilities, and automated model execution. Built with Angular frontend and Python backend, it provides an intuitive interface for data analysis and optimization.
+The EY Project is a comprehensive AI-powered platform for operations research, featuring advanced database management, visualization capabilities, and intelligent data analysis. Built with Angular frontend and Python backend, it provides an intuitive interface for data analysis, visualization, and database parameter management.
 
 ## 🚀 Key Features
 
 - **Multi-Agent AI System**: Specialized agents for different operations
 - **Database Integration**: Direct SQL execution and parameter management
 - **Visualization Engine**: Dynamic chart and graph generation
-- **Model Execution**: Automated Python model discovery and execution
+- **Query-Specific File Tracking**: Only shows files generated during current query
 - **Memory Management**: LangGraph-based conversation persistence
-- **Model Selection**: User-controlled model execution after database changes
+- **Error Recovery**: Automatic code fixing and retry mechanisms
+- **Intelligent Routing**: Automatically determines operation type from user requests
 
 ## 🏗️ Architecture
 
@@ -20,7 +73,7 @@ The EY Project is a comprehensive AI-powered platform for operations research, f
 - **File Management**: Upload, edit, and organize project files
 - **Chat Interface**: Natural language interaction with AI agents
 - **Database Browser**: Intuitive database exploration and management
-- **Model Selection**: Interactive model execution interface
+- **Output Display**: Query-specific file generation tracking
 
 ### Backend (Python/FastAPI)
 - **LangGraph Agents**: Multi-agent workflow orchestration
@@ -33,13 +86,20 @@ The EY Project is a comprehensive AI-powered platform for operations research, f
 
 ### Data Analyst Agent (Primary)
 - **Role**: Main intelligence for routing and coordination
-- **Capabilities**: SQL queries, visualizations, database modifications
+- **Capabilities**: 
+  - SQL queries with Python script execution
+  - Visualization generation (matplotlib, plotly, seaborn)
+  - Database parameter modifications
+  - Error recovery and code fixing
 - **Memory**: LangGraph-based conversation persistence
 
 ### Database Modifier Agent (Specialist)
 - **Role**: Specialized database parameter management
-- **Capabilities**: Parameter changes, data updates, model discovery
-- **Model Selection**: User-controlled model execution after changes
+- **Capabilities**: 
+  - Direct database modifications without approval
+  - SQL UPDATE statement execution
+  - Transaction-safe database operations
+  - Immediate response after modifications
 
 ## 🔄 Workflow
 
@@ -49,6 +109,12 @@ User Request → Agent Classification → Specialized Processing → Results
 Natural Language → SQL/Visualization → Database/Model → Formatted Output
 ```
 
+### Execution Paths
+1. **SQL Queries**: Python script creation and execution with formatted results
+2. **Visualizations**: Python script creation and execution with error handling
+3. **Database Changes**: Direct modification without automatic model execution
+4. **Error Recovery**: Automatic code fixing for failed executions
+
 ## 📁 Project Structure
 
 ```
@@ -56,6 +122,10 @@ EYProjectGit/
 ├── frontend/                 # Angular application
 │   ├── src/app/
 │   │   ├── components/       # UI components
+│   │   │   ├── chat/         # Chat interface
+│   │   │   ├── file-tree/    # File management
+│   │   │   ├── output-display/ # Execution results
+│   │   │   └── sql-query/    # Database browser
 │   │   ├── services/         # API services
 │   │   └── pipes/           # Data transformation
 │   └── package.json
@@ -115,32 +185,32 @@ EYProjectGit/
 
 5. **Access the application**
    - Frontend: http://localhost:4200
-   - Backend API: http://localhost:8000
+   - Backend API: http://localhost:8001
 
 ## 🎯 Usage Examples
 
 ### Database Queries
 ```
 User: "Show me the top 10 records from the inventory table"
-System: [Formatted SQL results with pagination]
+System: [Creates Python script → Executes SQL → Returns formatted results]
 ```
 
 ### Visualizations
 ```
 User: "Create a bar chart showing sales by region"
-System: [Python script generation → Chart display]
+System: [Generates Python visualization script → Executes → Displays chart]
 ```
 
 ### Database Modifications
 ```
 User: "Change the maximum capacity to 5000"
-System: [Database update → Model discovery → Model selection dialog]
+System: [Identifies parameter → Executes UPDATE → Confirms modification]
 ```
 
-### Model Selection
+### Error Recovery
 ```
-User: "Update the price parameter to 15.99"
-System: [Database modification → Available models listed → User selection → Execution]
+User: "Create a complex visualization"
+System: [Generates script → Execution fails → Auto-fixes code → Retries → Success]
 ```
 
 ## 🔧 Configuration
@@ -173,10 +243,12 @@ MEMORY_TYPE = "sqlite"  # or "memory"
 - **[Setup Guide](docs/SETUP_GUIDE.md)** - Complete installation instructions
 - **[Frontend Guide](docs/FRONTEND_STARTUP_GUIDE.md)** - Angular development guide
 - **[SQL Integration](docs/SQL_INTEGRATION_GUIDE.md)** - Database query capabilities
-- **[Parameter Synchronization](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md)** - Database parameter management
-- **[Model Selection Implementation](docs/HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY.md)** - Model execution workflows
+- **[Database Browser](docs/DATABASE_BROWSER_IMPLEMENTATION.md)** - Database management features
 - **[LangGraph Memory](docs/LANGGRAPH_MEMORY_IMPLEMENTATION.md)** - Conversation persistence
-- **[Agent Workflow](docs/NEW_AGENT_WORKFLOW_IMPLEMENTATION.md)** - Multi-agent architecture
+- **[Chat Persistence](docs/CHAT_PERSISTENCE_IMPLEMENTATION.md)** - Chat state management
+- **[File Management](docs/TEMP_FILE_MANAGEMENT.md)** - Temporary file handling
+- **[Query-Specific File Tracking](docs/QUERY_SPECIFIC_FILE_TRACKING.md)** - File generation tracking
+- **[Execution Output Fixes](docs/EXECUTION_OUTPUT_FIXES.md)** - Output display improvements
 
 ## 🧪 Testing
 
@@ -198,76 +270,25 @@ ng test
 python tests/integration_test.py
 ```
 
-## 🔄 Development Workflow
+## 🔍 Key Components
 
-### Adding New Features
-1. **Backend**: Implement in `backend/langgraph_agent.py`
-2. **API**: Add endpoints in `backend/main.py`
-3. **Frontend**: Create components in `frontend/src/app/components/`
-4. **Testing**: Add tests in respective test directories
+### LangGraph Workflow
+The system uses LangGraph for workflow orchestration with two main agents:
 
-### Code Style
-- **Python**: PEP 8 with Black formatting
-- **TypeScript**: ESLint with Angular style guide
-- **Documentation**: Comprehensive docstrings and README updates
+1. **Data Analyst Agent**: Handles SQL queries, visualizations, and database modifications
+2. **Database Modifier Agent**: Specialized for direct database parameter changes
 
-## 🚀 Deployment
+### File Generation Tracking
+- Only shows files created during the current query
+- Prevents confusion from files generated in previous queries
+- Provides clear context for generated outputs
 
-### Production Setup
-```bash
-# Build frontend
-cd frontend
-ng build --prod
+### Error Recovery System
+- Automatic code fixing for failed script executions
+- Retry mechanisms with intelligent error analysis
+- Fallback strategies for different error types
 
-# Deploy backend
-cd backend
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
-```
-
-### Docker Deployment
-```bash
-# Build and run with Docker
-docker-compose up -d
-```
-
-## 🤝 Contributing
-
-1. **Fork the repository**
-2. **Create feature branch**: `git checkout -b feature/new-feature`
-3. **Commit changes**: `git commit -am 'Add new feature'`
-4. **Push branch**: `git push origin feature/new-feature`
-5. **Submit pull request**
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
-- **Documentation**: [Project Wiki](https://github.com/your-repo/wiki)
-- **Email**: support@eyproject.com
-
-## 🎯 Roadmap
-
-### Phase 1 (Current)
-- ✅ Multi-agent workflow implementation
-- ✅ Database integration and parameter management
-- ✅ Model selection and execution
-- ✅ LangGraph memory system
-
-### Phase 2 (Next)
-- 🔄 Advanced visualization options
-- 🔄 Real-time collaboration features
-- 🔄 Batch operation support
-- 🔄 Performance optimization
-
-### Phase 3 (Future)
-- 📋 Machine learning model integration
-- 📋 Advanced analytics dashboard
-- 📋 Mobile application
-- 📋 Cloud deployment options
-
----
-
-**Built with ❤️ by the EY Project Team** 
+### Memory Management
+- LangGraph-based conversation persistence
+- Thread-based memory isolation
+- Automatic cleanup of old sessions
