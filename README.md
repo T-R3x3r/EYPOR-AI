@@ -1,172 +1,273 @@
 # 🤖 EY Project - AI-Powered Operations Research Platform
 
-A comprehensive AI-powered platform with Angular frontend and FastAPI backend, featuring LangGraph agents, SQL integration, and advanced file management capabilities for operations research projects.
+## 🎯 Overview
 
-## 🚀 Architecture
+The EY Project is a comprehensive AI-powered platform for operations research, featuring advanced database management, visualization capabilities, and automated model execution. Built with Angular frontend and Python backend, it provides an intuitive interface for data analysis and optimization.
 
-- **Frontend**: Angular 16 with TypeScript - Modern, responsive web interface
-- **Backend**: FastAPI with Python - High-performance async API with LangGraph agents
-- **AI Integration**: OpenAI GPT + Google Gemini with LangGraph multi-agent workflows
-- **Database**: SQL with Vanna AI integration for natural language queries
-- **Communication**: RESTful API with real-time features
+## 🚀 Key Features
 
-## ✨ Key Features
+- **Multi-Agent AI System**: Specialized agents for different operations
+- **Database Integration**: Direct SQL execution and parameter management
+- **Visualization Engine**: Dynamic chart and graph generation
+- **Model Execution**: Automated Python model discovery and execution
+- **Memory Management**: LangGraph-based conversation persistence
+- **Model Selection**: User-controlled model execution after database changes
 
-### 🧠 **Intelligent AI Agents**
-- **Multi-Agent System**: LangGraph-powered agents for different tasks
-- **Context-Aware**: Agents understand your project files and database structure
-- **SQL Intelligence**: Vanna AI integration for natural language SQL queries
-- **Human-in-the-Loop**: Approval workflows for critical operations
+## 🏗️ Architecture
 
-### 📁 **Advanced File Management**
-- **Project Upload**: Upload entire project folders as zip files
-- **Interactive File Tree**: Navigate and manage your project structure
-- **Real-time Editor**: Edit files directly in the browser with syntax highlighting
-- **Code Execution**: Run Python scripts with full output capture
+### Frontend (Angular)
+- **Modern UI**: Responsive design with real-time updates
+- **File Management**: Upload, edit, and organize project files
+- **Chat Interface**: Natural language interaction with AI agents
+- **Database Browser**: Intuitive database exploration and management
+- **Model Selection**: Interactive model execution interface
 
-### 🗄️ **Database Integration**
-- **Modern SQL Browser**: Complete SQLite database viewer with Material Design interface
-- **Advanced Search & Filtering**: Real-time search across all columns with instant results
-- **Complete Table Display**: View entire database tables with pagination, sorting, and virtual scrolling
-- **Custom SQL Queries**: Execute any SQL query with syntax highlighting and results display
-- **Natural Language Queries**: Ask questions about your data in plain English via Vanna AI
-- **Data Modification**: Update and insert data through AI assistance
-- **Multiple Export Formats**: Download as .db, SQL, or CSV formats
-- **Performance Optimized**: Handles large datasets efficiently with Material Design components
+### Backend (Python/FastAPI)
+- **LangGraph Agents**: Multi-agent workflow orchestration
+- **Database Engine**: SQLite with advanced query capabilities
+- **File Processing**: Dynamic Python script execution
+- **Memory System**: Persistent conversation state management
+- **API Integration**: RESTful endpoints for all operations
 
-### 🔄 **Parameter Synchronization**
-- **Real-time Parameter Updates**: Models automatically use the latest parameters from the database
-- **Excel to Database Conversion**: Excel files are converted to SQLite tables for instant access
-- **Parameter Validation**: Automatic verification that parameter changes are properly applied
-- **Model Compatibility**: Ensures models read from database instead of files
-- **Change Tracking**: Complete history of parameter modifications with before/after snapshots
-- **Execution Monitoring**: Tracks which parameters are used during model execution
+## 🧠 AI Agents
 
-### 🤖 **Chat Interface**
-- **Action-Based Chat**: Specialized workflows for different types of requests
-- **Persistent Memory**: Conversation history and context retention
-- **Approval System**: Review and approve AI-suggested changes
-- **Multi-Model Support**: Switch between OpenAI and Google AI models
+### Data Analyst Agent (Primary)
+- **Role**: Main intelligence for routing and coordination
+- **Capabilities**: SQL queries, visualizations, database modifications
+- **Memory**: LangGraph-based conversation persistence
 
-## 🛠️ Quick Setup
+### Database Modifier Agent (Specialist)
+- **Role**: Specialized database parameter management
+- **Capabilities**: Parameter changes, data updates, model discovery
+- **Model Selection**: User-controlled model execution after changes
 
-### 1. Install Dependencies
-```bash
-# Backend
-install_backend.bat
+## 🔄 Workflow
 
-# Frontend  
-install_frontend.bat
+```
+User Request → Agent Classification → Specialized Processing → Results
+     ↓              ↓                      ↓                    ↓
+Natural Language → SQL/Visualization → Database/Model → Formatted Output
 ```
 
-### 2. Configure Environment
-1. Copy the example environment file:
+## 📁 Project Structure
+
+```
+EYProjectGit/
+├── frontend/                 # Angular application
+│   ├── src/app/
+│   │   ├── components/       # UI components
+│   │   ├── services/         # API services
+│   │   └── pipes/           # Data transformation
+│   └── package.json
+├── backend/                  # Python FastAPI server
+│   ├── main.py              # Main application
+│   ├── langgraph_agent.py   # AI agent implementation
+│   └── requirements.txt
+├── docs/                    # Documentation
+├── outputs/                 # Generated files
+└── README.md
+```
+
+## 🛠️ Installation
+
+### Prerequisites
+- Node.js (v16+)
+- Python (v3.8+)
+- Git
+
+### Quick Start
+1. **Clone the repository**
    ```bash
+   git clone <repository-url>
+   cd EYProjectGit
+   ```
+
+2. **Install dependencies**
+   ```bash
+   # Install frontend dependencies
+   cd frontend
+   npm install
+   
+   # Install backend dependencies
+   cd ../backend
+   pip install -r requirements.txt
+   ```
+
+3. **Configure environment**
+   ```bash
+   # Copy environment template
    cp EY.env.example EY.env
+   
+   # Edit EY.env with your API keys
+   nano EY.env
    ```
-2. Edit `EY.env` and add your API keys:
-   - Get your OpenAI API key from: https://platform.openai.com/api-keys
-   - Get your Gemini API key from: https://makersuite.google.com/app/apikey
+
+4. **Launch the application**
+   ```bash
+   # Start backend server
+   cd backend
+   python main.py
+   
+   # Start frontend (in new terminal)
+   cd frontend
+   ng serve
    ```
-   OPENAI_API_KEY=your_openai_api_key_here
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
-   > ⚠️ **Important**: Never commit your `EY.env` file to version control. It contains sensitive API keys and is automatically ignored by `.gitignore`.
 
-### 3. Start the Application
-```bash
-# Single command to launch everything
-launch.bat
-```
-
-### 4. Access the Application
-- **Frontend**: http://localhost:4200
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-
-## 📚 Documentation
-
-- **[Frontend Startup Guide](docs/FRONTEND_STARTUP_GUIDE.md)** - Detailed frontend setup instructions
-- **[Setup Guide](docs/SETUP_GUIDE.md)** - Comprehensive setup documentation  
-- **[SQL Integration Guide](docs/SQL_INTEGRATION_GUIDE.md)** - Database and SQL features
-- **[Parameter Synchronization Guide](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md)** - Parameter management and model synchronization
-- **[Implementation Docs](docs/)** - Technical implementation details
-
-### 📖 Additional Documentation
-- **[Database Browser Implementation](docs/DATABASE_BROWSER_IMPLEMENTATION.md)** - Database UI features
-- **[Human-in-Loop Implementation](docs/HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY.md)** - Approval workflows
-- **[LangGraph Memory Implementation](docs/LANGGRAPH_MEMORY_IMPLEMENTATION.md)** - Agent memory system
-- **[Chat Persistence Implementation](docs/CHAT_PERSISTENCE_IMPLEMENTATION.md)** - Chat history features
-- **[Action System Implementation](docs/ACTION_SYSTEM_IMPLEMENTATION.md)** - Action-based workflows
+5. **Access the application**
+   - Frontend: http://localhost:4200
+   - Backend API: http://localhost:8000
 
 ## 🎯 Usage Examples
 
-### Parameter Management
-1. Upload your Excel files with parameters
-2. Ask: *"Change the maximum hub demand to 25000"*
-3. System updates database and validates the change
-4. Models automatically use the new parameter values
-
-### Project Analysis
-1. Upload your project as a zip file
-2. Ask: *"Analyze my project structure and suggest improvements"*
-3. The AI agent will review all files and provide insights
-
 ### Database Queries
-1. Upload a database file or create tables
-2. Ask: *"Show me all customers who made purchases last month"*
-3. Vanna AI converts your question to SQL and shows results
+```
+User: "Show me the top 10 records from the inventory table"
+System: [Formatted SQL results with pagination]
+```
 
-### Code Development
-1. Upload your code project
-2. Ask: *"Add error handling to my main function"*
-3. The AI will modify your files with proper error handling
+### Visualizations
+```
+User: "Create a bar chart showing sales by region"
+System: [Python script generation → Chart display]
+```
 
-### Data Analysis
-1. Upload CSV files or connect to a database
-2. Ask: *"Create a visualization of sales trends"*
-3. AI generates Python code and executes it to create charts
+### Database Modifications
+```
+User: "Change the maximum capacity to 5000"
+System: [Database update → Model discovery → Model selection dialog]
+```
 
-## 🔧 Advanced Features
+### Model Selection
+```
+User: "Update the price parameter to 15.99"
+System: [Database modification → Available models listed → User selection → Execution]
+```
 
-### LangGraph Agent System
-- **Data Analyst**: Main intelligence agent for SQL queries, visualizations, and database modifications
-- **Database Modifier**: Specialized agent for parameter changes with human approval
-- **Human Approval**: Critical operations require user confirmation
+## 🔧 Configuration
 
-### Multi-Model AI Support
-- Switch between OpenAI GPT and Google Gemini
-- Model-specific optimizations for different tasks
-- Fallback systems for reliability
+### Environment Variables
+```bash
+# API Configuration
+OPENAI_API_KEY=your_openai_key
+GOOGLE_API_KEY=your_google_key
 
-### Memory and Persistence
-- Conversation history across sessions
-- File change tracking
-- Database modification logging
-- Action approval history
+# Database Configuration
+DATABASE_PATH=./data/project.db
 
-### Parameter Synchronization System
-- **ModelParameterSync**: Comprehensive parameter tracking and validation
-- **Real-time Updates**: Instant parameter availability to models
-- **Change History**: Complete audit trail of parameter modifications
-- **Compatibility Checking**: Ensures models use database access
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+```
 
-## 🛡️ Security & Safety
+### Agent Configuration
+```python
+# Agent types available
+AGENT_TYPES = ["data_analyst", "database_modifier"]
 
-- **Sandboxed Execution**: Code runs in isolated environments
-- **User Approval**: Critical operations require explicit approval
-- **Data Privacy**: All processing happens locally or through secure APIs
-- **Access Control**: No access to system files outside project scope
+# Memory configuration
+MEMORY_TYPE = "sqlite"  # or "memory"
+```
+
+## 📚 Documentation
+
+- **[Setup Guide](docs/SETUP_GUIDE.md)** - Complete installation instructions
+- **[Frontend Guide](docs/FRONTEND_STARTUP_GUIDE.md)** - Angular development guide
+- **[SQL Integration](docs/SQL_INTEGRATION_GUIDE.md)** - Database query capabilities
+- **[Parameter Synchronization](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md)** - Database parameter management
+- **[Model Selection Implementation](docs/HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY.md)** - Model execution workflows
+- **[LangGraph Memory](docs/LANGGRAPH_MEMORY_IMPLEMENTATION.md)** - Conversation persistence
+- **[Agent Workflow](docs/NEW_AGENT_WORKFLOW_IMPLEMENTATION.md)** - Multi-agent architecture
+
+## 🧪 Testing
+
+### Backend Testing
+```bash
+cd backend
+python -m pytest tests/
+```
+
+### Frontend Testing
+```bash
+cd frontend
+ng test
+```
+
+### Integration Testing
+```bash
+# Run full system tests
+python tests/integration_test.py
+```
 
 ## 🔄 Development Workflow
 
-1. **Upload Project**: Start with your existing codebase
-2. **Explore**: Use the file browser and database explorer
-3. **Modify Parameters**: Update model parameters through chat or database browser
-4. **Query**: Ask questions about your code or data
-5. **Iterate**: Make changes through AI assistance
-6. **Execute**: Run and test your code directly in the platform
+### Adding New Features
+1. **Backend**: Implement in `backend/langgraph_agent.py`
+2. **API**: Add endpoints in `backend/main.py`
+3. **Frontend**: Create components in `frontend/src/app/components/`
+4. **Testing**: Add tests in respective test directories
+
+### Code Style
+- **Python**: PEP 8 with Black formatting
+- **TypeScript**: ESLint with Angular style guide
+- **Documentation**: Comprehensive docstrings and README updates
+
+## 🚀 Deployment
+
+### Production Setup
+```bash
+# Build frontend
+cd frontend
+ng build --prod
+
+# Deploy backend
+cd backend
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
+```
+
+### Docker Deployment
+```bash
+# Build and run with Docker
+docker-compose up -d
+```
+
+## 🤝 Contributing
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/new-feature`
+3. **Commit changes**: `git commit -am 'Add new feature'`
+4. **Push branch**: `git push origin feature/new-feature`
+5. **Submit pull request**
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- **Documentation**: [Project Wiki](https://github.com/your-repo/wiki)
+- **Email**: support@eyproject.com
+
+## 🎯 Roadmap
+
+### Phase 1 (Current)
+- ✅ Multi-agent workflow implementation
+- ✅ Database integration and parameter management
+- ✅ Model selection and execution
+- ✅ LangGraph memory system
+
+### Phase 2 (Next)
+- 🔄 Advanced visualization options
+- 🔄 Real-time collaboration features
+- 🔄 Batch operation support
+- 🔄 Performance optimization
+
+### Phase 3 (Future)
+- 📋 Machine learning model integration
+- 📋 Advanced analytics dashboard
+- 📋 Mobile application
+- 📋 Cloud deployment options
 
 ---
 
-**Transform your operations research workflow with AI assistance!** 🚀 
+**Built with ❤️ by the EY Project Team** 

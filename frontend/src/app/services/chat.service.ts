@@ -17,6 +17,7 @@ export interface ChatState {
   isLoading: boolean;
   threadId: string;
   pendingApproval?: ChatMessage;
+  pendingModelSelection?: ChatMessage;
 }
 
 @Injectable({
@@ -94,7 +95,7 @@ export class ChatService {
     return newThreadId;
   }
 
-  // Human-in-the-loop: Set pending approval message
+  // Model selection: Set pending model selection message
   setPendingApproval(message: ChatMessage): void {
     const currentState = this.getCurrentState();
     this.updateState({
@@ -103,7 +104,7 @@ export class ChatService {
     });
   }
 
-  // Human-in-the-loop: Clear pending approval
+  // Model selection: Clear pending model selection
   clearPendingApproval(): void {
     const currentState = this.getCurrentState();
     this.updateState({
@@ -112,9 +113,30 @@ export class ChatService {
     });
   }
 
-  // Human-in-the-loop: Get pending approval message
+  // Model selection: Get pending model selection message
   getPendingApproval(): ChatMessage | undefined {
     return this.getCurrentState().pendingApproval;
+  }
+
+  // Model selection: Set pending model selection message
+  setPendingModelSelection(message: ChatMessage): void {
+    this.updateState({
+      ...this.getCurrentState(),
+      pendingModelSelection: message
+    });
+  }
+
+  // Model selection: Clear pending model selection
+  clearPendingModelSelection(): void {
+    this.updateState({
+      ...this.getCurrentState(),
+      pendingModelSelection: undefined
+    });
+  }
+
+  // Model selection: Get pending model selection message
+  getPendingModelSelection(): ChatMessage | undefined {
+    return this.getCurrentState().pendingModelSelection;
   }
 
   // Load messages from LangGraph backend

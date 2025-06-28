@@ -956,7 +956,7 @@ The query completed successfully. Here are the raw results from your database.""
             return "execute"
 
     def _execution_router(self, state: AgentState) -> str:
-        """Route after file execution with human-in-the-loop checks"""
+        """Route after file execution with model selection checks"""
         print(f"DEBUG: Execution router - has_execution_error: {state.get('has_execution_error')}")
         print(f"DEBUG: Execution router - retry_count: {state.get('retry_count', 0)}")
         print(f"DEBUG: Execution router - last_error_type: {state.get('last_error_type', 'None')}")
@@ -971,12 +971,6 @@ The query completed successfully. Here are the raw results from your database.""
         if last_error_type in ["DuplicateRequest", "AlreadyProcessed", "FileNotFound"]:
             print(f"DEBUG: Execution router - Special error type '{last_error_type}', routing to success")
             return "success"
-        
-        # Check for dangerous operations that need approval
-        current_file = state.get("current_file", "")
-        if any(keyword in current_file.lower() for keyword in ["delete", "remove", "drop", "truncate"]):
-            print("DEBUG: Execution router - Dangerous operation, requesting approval")
-            return "request_approval"
         
         # Check retry count
         retry_count = state.get("retry_count", 0)
@@ -1902,10 +1896,8 @@ print(f"Found data files: {data_files}")
         if state.get("db_modification_result"):
             result = state["db_modification_result"]
             
-            # High-risk operations need approval
-            if result.get("requires_approval", False) or "python_code" in result:
-                return "request_approval"
-            elif result.get("success") and "python_code" in result:
+            # Check if modification was successful
+            if result.get("success") and "python_code" in result:
                 return "execute_file"
             elif result.get("success"):
                 return "success"

@@ -367,17 +367,16 @@ export class ApiService {
     return this.http.get<any>(`${this.baseUrl}/memory/threads`);
   }
 
-  // Human-in-the-loop Approval
-  respondToApproval(threadId: string, approvalResponse: string, approvalId?: string): Observable<any> {
-    return this.http.post<any>(`${this.baseUrl}/approval/respond`, {
+  // Model Selection
+  respondToModelSelection(threadId: string, selectionResponse: string): Observable<any> {
+    return this.http.post(`${this.baseUrl}/approval/respond`, {
       thread_id: threadId,
-      approval_response: approvalResponse,
-      approval_id: approvalId
+      approval_response: selectionResponse
     });
   }
 
-  getApprovalStatus(threadId: string): Observable<any> {
-    return this.http.get<any>(`${this.baseUrl}/approval/status/${threadId}`);
+  getModelSelectionStatus(threadId: string): Observable<any> {
+    return this.http.get(`${this.baseUrl}/approval/status/${threadId}`);
   }
 
   // Model discovery and execution for human-in-the-loop

@@ -1,311 +1,355 @@
 # New Agent Workflow Implementation
 
-## Overview
+## 🎯 Overview
 
-This document describes the completely redesigned agent workflow that replaces the previous SQL Query Agent system with a more intelligent and flexible architecture centered around the **Data Analyst Agent**.
+This document describes the new multi-agent workflow implementation that replaces the previous single-agent approach. The system now uses specialized agents for different types of operations while maintaining a unified interface.
 
-## Key Changes
+## 🏗️ Architecture
 
-### ❌ **Removed Components**
-- **SQL Query Agent**: The specialized 4-step SQL pipeline has been removed
-- **Action-based routing**: Previous action classification system replaced
+### Agent Types
 
-### ✅ **New Architecture**
+1. **Data Analyst Agent** (Primary)
+   - **Role**: Main intelligence that routes and coordinates all operations
+   - **Capabilities**: SQL queries, visualizations, database modifications, model execution
+   - **Memory**: LangGraph-based conversation memory
 
-#### 1. **Data Analyst Agent** (Main Intelligence)
-- **Role**: Primary decision-maker for all database-related requests
-- **Capabilities**:
-  - Receives complete database schema
-  - Analyzes user requests to determine optimal response strategy
-  - Executes SQL queries directly for simple data requests
-  - Creates Python visualization scripts for complex visual requests
-  - Identifies and prepares database modification requests
+2. **Database Modifier Agent** (Specialist)
+   - **Role**: Handles database modifications with model selection
+   - **Capabilities**: Parameter changes, data updates, model discovery
+   - **Model Selection**: Asks user which models to run after changes
 
-#### 2. **Database Modifier Agent** (Specialist)
-- **Role**: Handles database modifications with human-in-the-loop approval
-- **Capabilities**:
-  - Receives modification requests from Data Analyst
-  - Prepares exact SQL UPDATE statements
-  - Requests human approval before making changes
-  - Executes approved modifications
-  - Automatically finds and runs model files after changes
+## 🔄 Workflow Design
 
-## New Workflow Architecture
+### Data Analyst Agent Workflow
 
-### 🔄 **Data Analyst Workflow**
-
-```mermaid
-graph TD
-    A[Start] --> B[Analyze Request]
-    B --> C{Request Type?}
-    
-    C -->|SQL Query| D[Execute SQL Query]
-    C -->|Visualization| E[Create Visualization Script]
-    C -->|DB Modification| F[Prepare DB Modification]
-    
-    D --> G[Respond]
-    E --> H[Execute File]
-    F --> I[Request Approval]
-    
-    H --> J{Execution Success?}
-    J -->|Success| G
-    J -->|Error| K[Code Fixer]
-    K --> H
-    
-    I --> L[Human Approval]
-    L --> M[Process Approval]
-    M --> N[Execute DB Modification]
-    N --> O[Find and Run Models]
-    
-    O --> P{Models Found?}
-    P -->|runall.py exists| Q[Execute runall.py]
-    P -->|Multiple files| R[Request Model Selection]
-    P -->|No models| G
-    
-    R --> S[Human Selection]
-    S --> T[Execute Selected Models]
-    Q --> G
-    T --> G
-    G --> U[End]
+```
+START
+  ↓
+analyze_request (classify request type)
+  ↓
+┌─────────────────┬─────────────────┬─────────────────┐
+│   SQL Query     │ Visualization   │ DB Modification │
+│     Path        │     Path        │     Path        │
+└─────────────────┴─────────────────┴─────────────────┘
+  ↓                 ↓                 ↓
+execute_sql_query  create_visualization  prepare_db_modification
+  ↓                 ↓                 ↓
+execute_file       execute_file       execute_db_modification
+  ↓                 ↓                 ↓
+respond            respond            find_and_run_models
+                                      ↓
+                                    request_model_selection (Model Selection)
+                                      ↓
+                                    execute_selected_models
+                                      ↓
+                                    respond
 ```
 
-## Request Type Classification
+### Database Modifier Agent Workflow
 
-### 🔍 **Intelligent Request Analysis**
-The Data Analyst Agent analyzes each request using the database schema and classifies it into one of three types:
-
-#### 1. **SQL_QUERY**
-- **Description**: Straightforward data requests requiring simple SQL execution
-- **Examples**:
-  - "Show me the top 10 hubs with highest demand"
-  - "What is the total demand by region?"
-  - "List all operating hubs"
-- **Response**: Direct SQL execution with formatted results
-
-#### 2. **VISUALIZATION**
-- **Description**: Requests requiring charts, graphs, or visual representations
-- **Examples**:
-  - "Create a chart showing demand distribution"
-  - "Visualize hub performance over time"
-  - "Show a map of hub locations"
-- **Response**: Python script generation with matplotlib/seaborn/plotly
-
-#### 3. **DATABASE_MODIFICATION**
-- **Description**: Requests to change parameters or data in the database
-- **Examples**:
-  - "Change maximum hub demand to 20000"
-  - "Update opening cost to 5000"
-  - "Set route supply limit to 15000"
-- **Response**: Table/column identification and delegation to Database Modifier
-
-## Database Modification Workflow
-
-### 🛠️ **Preparation Phase**
-1. **Request Analysis**: Data Analyst identifies what needs to be changed
-2. **Table/Column Identification**: Determines exact database locations
-3. **Current Value Retrieval**: Fetches existing values for comparison
-4. **Modification Request**: Structured data passed to Database Modifier
-
-### 🚨 **Human-in-the-Loop Approval**
-The Database Modifier requests explicit user approval showing:
-- **Table and Column**: Exact database location
-- **Current vs New Values**: What will change
-- **SQL Preview**: Exact UPDATE statement to be executed
-- **Impact Description**: Explanation of the change
-
-**Approval Format:**
 ```
-🚨 **Database Modification Request**
-
-**Change Summary:**
-- Table: parameters
-- Column: max_hub_demand
-- Current Value: 15000
-- New Value: 20000
-
-**Description:** Update maximum hub demand parameter
-
-**SQL to be executed:**
-```sql
-UPDATE parameters SET max_hub_demand = 20000
+START
+  ↓
+analyze_modification (parse modification request)
+  ↓
+prepare_modification (validate and prepare SQL)
+  ↓
+execute_modification (apply changes to database)
+  ↓
+find_models (discover available model files)
+  ↓
+request_model_selection (ask user which models to run)
+  ↓
+execute_models (run selected models)
+  ↓
+respond
 ```
 
-Do you approve this modification? (yes/no)
-```
+## 🔧 **Model Selection (Only Working HITL)**
 
-### ⚙️ **Execution Phase**
-After approval:
-1. **Database Update**: Execute the SQL modification
-2. **Model Discovery**: Search for Python model files
-3. **Automatic Execution**: 
-   - If `runall.py` exists → Execute automatically
-   - If multiple `.py` files → Request user selection
-   - If no models → Complete workflow
+The system includes model selection functionality that:
 
-### 📊 **Model Selection Interface**
-When multiple model files are found:
-```
-🔧 **Model Selection Required**
+1. **Automatically Discovers Models**: After database modifications, finds available Python model files
+2. **Prioritizes Runall Files**: Highlights and recommends runall files first
+3. **User Control**: Always asks user which models to execute
+4. **Workflow Interruption**: Pauses workflow for user input
 
-The following Python model files were found:
+### Model Selection Process
 
-1. optimization_model.py
-2. sensitivity_analysis.py
-3. results_generator.py
-4. visualization_suite.py
-
-Which models would you like to execute? (provide numbers separated by commas, or 'all' for all models)
-```
-
-## Technical Implementation
-
-### 🏗️ **Agent Configuration Changes**
-
-#### New Data Analyst Config:
 ```python
-"data_analyst": AgentConfig(
-    name="Advanced Data Analyst",
-    system_prompt="""You are an advanced data analyst that serves as the main intelligence for database operations and analysis.
-    
-    **REQUEST TYPES YOU HANDLE:**
-    1. **SIMPLE SQL QUERIES** - Execute SQL directly, return results
-    2. **VISUALIZATION REQUESTS** - Create Python scripts with visualizations  
-    3. **DATABASE MODIFICATION REQUESTS** - Identify tables and delegate to modifier agent
-    """,
-    tools_enabled=True,
-    memory_enabled=True
-)
+# After database modification
+if db_modification_detected:
+    available_models = discover_model_files()
+    if available_models:
+        return request_model_selection(available_models)
+    else:
+        return "No models found to run"
 ```
 
-#### New Database Modifier Config:
+## 🧠 Agent Intelligence
+
+### Data Analyst Agent
+
+**System Prompt**:
 ```python
-"database_modifier": AgentConfig(
-    name="Database Modification Specialist", 
-    system_prompt="""You are a database modification specialist with human-in-the-loop approval capabilities.
-    
-    **YOUR WORKFLOW:**
-    1. **ANALYZE MODIFICATION REQUEST**: Understand exactly what needs to be changed
-    2. **REQUEST HUMAN APPROVAL**: Present proposed changes for confirmation
-    3. **EXECUTE CHANGES**: If approved, execute database modifications
-    4. **MODEL EXECUTION**: Find and run appropriate .py model files
-    """,
-    tools_enabled=True,
-    memory_enabled=True
-)
+system_prompt="""You are a data analyst agent with comprehensive database and visualization capabilities.
+
+CAPABILITIES:
+1. **SQL Queries**: Execute complex database queries with proper error handling
+2. **Visualizations**: Create Python scripts for charts, graphs, and data displays
+3. **Database Modifications**: Update parameters and data with validation
+4. **Model Execution**: Discover and run Python model files after changes
+
+WORKFLOW:
+1. **ANALYZE**: Classify user request type (SQL, visualization, modification)
+2. **ROUTE**: Direct to appropriate specialized handler
+3. **EXECUTE**: Perform the requested operation
+4. **MODEL SELECTION**: After modifications, discover and present model options
+5. **RESPOND**: Provide clear, formatted results
+
+DATABASE SCHEMA:
+{schema_context}
+
+Always provide clear explanations and handle errors gracefully."""
 ```
 
-### 🔧 **New State Fields**
-Extended `AgentState` with fields for the enhanced workflow:
+### Database Modifier Agent
+
+**System Prompt**:
 ```python
-# Enhanced data analyst workflow fields
-request_type: str
-sql_query_result: str
-visualization_request: str
-modification_request: Dict[str, any]
-identified_tables: List[str]
-identified_columns: List[str]
-current_values: Dict[str, any]
-new_values: Dict[str, any]
-modification_sql: str
-available_models: List[str]
-selected_models: List[str]
-model_execution_results: List[str]
+system_prompt="""You are a database modification specialist with model selection capabilities.
+
+RESPONSIBILITIES:
+1. **VALIDATE CHANGES**: Ensure modifications are safe and valid
+2. **EXECUTE MODIFICATIONS**: Apply changes with proper SQL syntax
+3. **DISCOVER MODELS**: Find available Python model files
+4. **REQUEST MODEL SELECTION**: Ask user which models to run after changes
+
+WORKFLOW:
+1. **ANALYZE**: Parse modification request and identify target parameters
+2. **PREPARE**: Generate safe SQL UPDATE statements
+3. **EXECUTE**: Apply changes to database
+4. **DISCOVER**: Find available model files (prioritize runall files)
+5. **SELECT**: Present model options to user for selection
+6. **EXECUTE**: Run selected models and report results
+
+Always prioritize runall files and provide clear model selection options."""
 ```
 
-### 🎯 **Key Node Methods**
+## 🔧 Implementation Details
 
-#### Core Analysis:
-- `_analyze_data_request()`: Request type classification
-- `_route_data_request()`: Workflow routing logic
+### Core Nodes
 
-#### Execution Paths:
-- `_execute_sql_query_node()`: Direct SQL execution
-- `_create_visualization_node()`: Python script generation
-- `_prepare_db_modification_node()`: Modification preparation
+#### Data Analyst Agent Nodes
+- `_analyze_data_request()`: Request classification and routing
+- `_execute_sql_query_node()`: SQL query execution
+- `_create_visualization_node()`: Visualization script creation
+- `_prepare_db_modification_node()`: Database modification preparation
+- `_execute_db_modification_node()`: Database modification execution
+- `_find_and_run_models_node()`: Model discovery and execution
+- `_request_model_selection_node()`: Model selection requests
+- `_execute_selected_models_node()`: Selected model execution
 
-#### Database Modifications:
-- `_request_approval_node()`: Human approval requests
-- `_process_approval_node()`: Approval response handling
-- `_execute_db_modification_node()`: Database updates
+#### Database Modifier Agent Nodes
+- `_analyze_modification_request()`: Modification request parsing
+- `_prepare_modification_node()`: SQL preparation and validation
+- `_execute_modification_node()`: Database modification execution
+- `_find_models_node()`: Model file discovery
+- `_request_model_selection_node()`: Model selection requests
+- `_execute_models_node()`: Model execution
 
-#### Model Management:
-- `_find_and_run_models_node()`: Model discovery
-- `_request_model_selection_node()`: User selection interface
-- `_execute_selected_models_node()`: Model execution
+### Routing Logic
 
-## Benefits
-
-### 🎯 **Intelligent Decision Making**
-- Single agent analyzes context and chooses optimal response strategy
-- Schema-aware decision making for better accuracy
-- Automatic routing based on request complexity
-
-### 🛡️ **Enhanced Safety**
-- Human approval required for all database modifications
-- Clear preview of exact changes before execution
-- Transaction-safe database operations
-
-### 🔄 **Automated Model Execution**
-- Automatic discovery of model files after database changes
-- Priority system (runall.py → user selection → no models)
-- Comprehensive execution results reporting
-
-### 📊 **Improved User Experience**
-- Single entry point for all database operations
-- Clear feedback about request classification
-- Visual progress indicators for multi-step operations
-
-### 🧠 **Memory Integration**
-- LangGraph memory preserves conversation context
-- Thread-based conversations for multiple simultaneous sessions
-- Human-in-the-loop interrupts maintain state across interactions
-
-## Usage Examples
-
-### Example 1: Simple SQL Query
-```
-User: "Show me the top 5 hubs with highest demand"
-Agent: [Analyzes] → SQL_QUERY → [Executes SQL] → [Returns formatted results]
+```python
+def _route_data_request(self, state: AgentState) -> str:
+    """Route based on request classification"""
+    request_type = state.get("request_type", "")
+    
+    if request_type == "SQL_QUERY":
+        return "sql_query"
+    elif request_type == "VISUALIZATION":
+        return "visualization"
+    elif request_type == "DB_MODIFICATION":
+        return "db_modification"
+    else:
+        return "respond"
 ```
 
-### Example 2: Visualization Request
+### Model Selection Logic
+
+```python
+def _route_model_execution(self, state: AgentState) -> str:
+    """Route model execution based on available files"""
+    available_models = state.get("available_models", [])
+    selected_models = state.get("selected_models", [])
+    
+    if not available_models:
+        return "no_models"
+    elif selected_models and any(model.lower().endswith('runall.py') for model in selected_models):
+        return "run_all"
+    else:
+        return "select_models"
 ```
-User: "Create a bar chart of demand by region"
-Agent: [Analyzes] → VISUALIZATION → [Creates Python script] → [Executes] → [Shows chart]
+
+## 🎯 Key Features
+
+### 1. **Intelligent Routing**
+- Automatic request classification
+- Specialized agent selection
+- Context-aware workflow paths
+
+### 2. **Database Integration**
+- Direct SQL execution for queries
+- Safe parameter modifications
+- Transaction-safe operations
+
+### 3. **Visualization Support**
+- Python script generation
+- Error handling and retry logic
+- Multiple chart type support
+
+### 4. **Model Selection**
+- Automatic model discovery
+- Runall file prioritization
+- User-controlled execution
+
+### 5. **Memory Management**
+- LangGraph-based conversation memory
+- Thread-based conversations
+- Persistent state across sessions
+
+### 6. **Error Handling**
+- Graceful error recovery
+- Automatic code fixing
+- Clear error messages
+
+## 🔄 Workflow Interrupts
+
+The workflow includes strategic interrupts for:
+- **Model Selection**: User chooses which Python models to run after modifications
+- **State Preservation**: LangGraph memory maintains conversation context across interrupts
+
+## ⚡ Execution Paths
+
+**1. Simple Queries**: Direct SQL execution with formatted results
+**2. Visualizations**: Python script creation and execution with error handling
+**3. Database Changes**: Multi-step process with modification and model execution
+**4. Error Recovery**: Automatic code fixing for failed visualizations
+
+## 🧪 Testing Scenarios
+
+### Scenario 1: SQL Query
+```
+User: "Show me the top 10 records from the inventory table"
+Expected: Direct SQL execution with formatted results
 ```
 
-### Example 3: Database Modification
+### Scenario 2: Visualization
 ```
-User: "Change maximum hub demand to 25000"
-Agent: [Analyzes] → DATABASE_MODIFICATION → [Identifies table/column] → 
-       [Requests approval] → [User approves] → [Updates database] → 
-       [Finds runall.py] → [Executes model] → [Shows results]
+User: "Create a bar chart showing inventory by location"
+Expected: Python script creation, execution, and chart display
 ```
 
-## Code Output Integration
+### Scenario 3: Database Modification
+```
+User: "Change the maximum capacity to 5000"
+Expected: Database modification → Model discovery → Model selection → Model execution
+```
 
-### 📺 **Execution Window Display**
-All code execution output is automatically displayed in the execution window:
-- SQL query results
-- Python script execution output
-- Database modification confirmations
-- Model execution results
-- Error messages and debugging information
+### Scenario 4: Model Selection
+```
+User: "Update the price parameter to 15.99"
+Expected: Database modification → Dialog appears with runall files highlighted → User selects models → Execution
+```
 
-This ensures users can monitor all system activities and see exactly what operations are being performed.
+## 🎯 Benefits
 
-## Migration from Previous System
+### 1. **Specialized Intelligence**
+- Each agent optimized for specific tasks
+- Better error handling and validation
+- Improved response quality
 
-### ✅ **Compatibility**
-- Existing database schemas work without changes
-- Human-in-the-loop interrupts use the same API endpoints
-- Memory and conversation threading preserved
-- File upload and management unchanged
+### 2. **Flexible Workflows**
+- Dynamic routing based on request type
+- Context-aware execution paths
+- Seamless agent coordination
 
-### 🔄 **Behavioral Changes**
-- No more specialized SQL query agent
-- Database modifications now require explicit approval
-- Model execution after database changes is automatic
-- Request classification is now intelligent rather than pattern-based
+### 3. **User Control**
+- Model selection for database changes
+- Clear execution feedback
+- Transparent operation flow
 
-This new architecture provides a more intelligent, safe, and user-friendly approach to database operations while maintaining the flexibility and power of the previous system. 
+### 4. **Robust Memory**
+- Persistent conversation context
+- Thread-based organization
+- Automatic state management
+
+### 5. **Error Resilience**
+- Automatic retry mechanisms
+- Graceful failure handling
+- Clear error communication
+
+## 📋 Implementation Status
+
+### ✅ Completed
+- Multi-agent workflow architecture
+- Request classification and routing
+- SQL query execution
+- Visualization script generation
+- Database modification handling
+- Model discovery and selection
+- LangGraph memory integration
+- Error handling and recovery
+
+### 🔄 In Progress
+- Frontend model selection UI
+- Advanced error recovery
+- Performance optimization
+
+### 📋 Future Enhancements
+- Additional agent types
+- Advanced visualization options
+- Batch operation support
+- Real-time collaboration features
+
+## 🚀 Usage Examples
+
+### Basic SQL Query
+```typescript
+// User request
+"Show me all records from the inventory table"
+
+// System response
+"Here are the records from the inventory table:
+[formatted results]"
+```
+
+### Visualization Request
+```typescript
+// User request
+"Create a pie chart showing sales by region"
+
+// System response
+"Creating visualization script...
+[Python script created and executed]
+[Chart displayed]"
+```
+
+### Database Modification with Model Selection
+```typescript
+// User request
+"Change the maximum capacity to 5000"
+
+// System response
+"Database parameter updated successfully.
+Found 3 model files to run:
+1. runall_optimization.py
+2. model_analysis.py
+3. data_processor.py
+
+Which models would you like to execute?"
+```
+
+## 🎯 Conclusion
+
+The new multi-agent workflow provides a robust, intelligent system for database operations with specialized handling for different request types. The model selection functionality ensures user control over model execution while maintaining the efficiency of direct database modifications. 

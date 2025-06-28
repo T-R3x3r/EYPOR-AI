@@ -174,7 +174,7 @@ class ActionRequest(BaseModel):
 
 class ApprovalRequest(BaseModel):
     thread_id: str
-    approval_response: str  # "approve", "reject", or feedback text
+    approval_response: str  # Model selection response
     approval_id: Optional[str] = None
 
 class ModelExecutionRequest(BaseModel):
@@ -1542,55 +1542,55 @@ async def list_conversation_threads():
         return {"error": f"Failed to list conversation threads: {str(e)}"}
 
 @app.post("/approval/respond")
-async def respond_to_approval(request: ApprovalRequest):
-    """Respond to a human-in-the-loop approval request"""
+async def respond_to_model_selection(request: ApprovalRequest):
+    """Respond to a model selection request"""
     try:
-        print(f"DEBUG: Approval response received for thread {request.thread_id}: {request.approval_response}")
+        print(f"DEBUG: Model selection response received for thread {request.thread_id}: {request.approval_response}")
         
         agent = get_or_create_agent()
-        if not hasattr(agent, 'continue_after_approval'):
+        if not hasattr(agent, 'continue_after_model_selection'):
             return {
-                "error": "Agent does not support approval workflow",
+                "error": "Agent does not support model selection workflow",
                 "success": False
             }
         
-        # Continue the workflow with the approval response
-        response, created_files = agent.continue_after_approval(
+        # Continue the workflow with the model selection response
+        response, created_files = agent.continue_after_model_selection(
             thread_id=request.thread_id,
-            approval_response=request.approval_response
+            selection_response=request.approval_response
         )
         
-        # Check if this resulted in another approval request
-        if "APPROVAL_REQUIRED" in response:
+        # Check if this resulted in another model selection request
+        if "MODEL_SELECTION_REQUIRED" in response:
             return {
                 "response": response,
-                "requires_approval": True,
+                "requires_model_selection": True,
                 "success": True,
                 "created_files": created_files
             }
         else:
             return {
                 "response": response,
-                "requires_approval": False,
+                "requires_model_selection": False,
                 "success": True,
                 "created_files": created_files
             }
             
     except Exception as e:
-        print(f"DEBUG: Approval response error: {str(e)}")
+        print(f"DEBUG: Model selection response error: {str(e)}")
         return {
-            "error": f"Approval response error: {str(e)}",
+            "error": f"Model selection response error: {str(e)}",
             "success": False
         }
 
 @app.get("/approval/status/{thread_id}")
-async def get_approval_status(thread_id: str):
-    """Get the current approval status for a thread"""
+async def get_model_selection_status(thread_id: str):
+    """Get the current model selection status for a thread"""
     try:
         agent = get_or_create_agent()
         if not hasattr(agent, 'checkpointer') or not agent.checkpointer:
             return {
-                "has_pending_approval": False,
+                "has_pending_selection": False,
                 "message": "Memory not available"
             }
         
@@ -1599,22 +1599,22 @@ async def get_approval_status(thread_id: str):
         
         if checkpoint and "pending_approval" in checkpoint.values:
             pending = checkpoint.values["pending_approval"]
-            if pending:
+            if pending and pending.get("type") == "MODEL_SELECTION":
                 return {
-                    "has_pending_approval": True,
-                    "approval_data": pending,
+                    "has_pending_selection": True,
+                    "selection_data": pending,
                     "thread_id": thread_id
                 }
         
         return {
-            "has_pending_approval": False,
+            "has_pending_selection": False,
             "thread_id": thread_id
         }
         
     except Exception as e:
         return {
-            "error": f"Failed to get approval status: {str(e)}",
-            "has_pending_approval": False
+            "error": f"Failed to get model selection status: {str(e)}",
+            "has_pending_selection": False
         }
 
 @app.get("/discover-models")
