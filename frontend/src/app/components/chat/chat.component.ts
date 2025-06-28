@@ -163,20 +163,47 @@ Ask me anything about your data!`,
           this.messages.push(assistantMessage);
           
           // Handle execution results and output files
-          if (response.has_execution_results || response.output_files) {
+          if (response.has_execution_results || (response.output_files && response.output_files.length > 0)) {
             console.log('Processing execution results:', response);
             
-            // Emit execution result for output display component
-            const executionResult = {
-              command: 'Visualization Script Execution',
-              output: response.execution_output || '',
-              error: response.execution_error || '',
-              returnCode: response.execution_error ? 1 : 0,
-              outputFiles: response.output_files || []
-            };
-            
-            this.executionService.emitExecutionResult(executionResult);
-            console.log('Emitted execution result with output files:', response.output_files);
+            // Only emit execution result if there's actual output or error
+            if (response.execution_output || response.execution_error || (response.output_files && response.output_files.length > 0)) {
+              // Determine appropriate command name based on operation type
+              let commandName = 'Script Execution';
+              
+              // Check if this is a database modification (no execution output, just response)
+              if (!response.execution_output && !response.execution_error && response.response && 
+                  (response.response.includes('✅ Database modification successful') || 
+                   response.response.includes('❌ Database modification failed') ||
+                   response.response.includes('rows affected') ||
+                   response.response.includes('UPDATE') ||
+                   response.response.includes('SET'))) {
+                commandName = 'Database Modification';
+              } else if (response.output_files && response.output_files.length > 0) {
+                // Check if files are visualizations
+                const hasImages = response.output_files.some((file: any) => 
+                  file.filename && (file.filename.endsWith('.png') || file.filename.endsWith('.jpg') || 
+                                   file.filename.endsWith('.svg') || file.filename.endsWith('.html'))
+                );
+                if (hasImages) {
+                  commandName = 'Visualization Generation';
+                } else {
+                  commandName = 'File Generation';
+                }
+              }
+              
+              // Emit execution result for output display component
+              const executionResult = {
+                command: commandName,
+                output: response.execution_output || '',
+                error: response.execution_error || '',
+                returnCode: response.execution_error ? 1 : 0,
+                outputFiles: response.output_files || []
+              };
+              
+              this.executionService.emitExecutionResult(executionResult);
+              console.log('Emitted execution result with output files:', response.output_files);
+            }
           }
           
           // Emit files created event if files were created

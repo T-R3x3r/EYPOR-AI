@@ -270,9 +270,9 @@ body.resizing .resize-bar {
 }
 
 .output-files h5 {
-  margin: 0 0 0.5rem 0;
+  margin: 15px 0 10px 0;
   color: #495057;
-  font-size: 0.9rem;
+  font-size: 1.1em;
   font-weight: 600;
 }
 
@@ -481,4 +481,19 @@ body.resizing .resize-bar {
   to {
     opacity: 1;
   }
+}
+
+.no-files-message {
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #e9ecef;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.no-files-message p {
+  margin: 0;
+  color: #6c757d;
+  font-style: italic;
 } 

@@ -70,6 +70,10 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
           this.currentResult = newResult;
           this.executionResults.push(newResult);
           this.shouldScrollToBottom = !this.userHasScrolled;
+        } else {
+          // Remove any running results when execution completes
+          this.executionResults = this.executionResults.filter(result => !result.isRunning);
+          this.currentResult = null;
         }
       })
     );

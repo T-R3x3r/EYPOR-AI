@@ -21,6 +21,7 @@ import pandas as pd
 import glob
 import sqlite3
 from langgraph_agent import create_agent
+import time
 # Fallback agent functions
 def list_available_agents():
     return ["data_analyst", "code_fixer", "database_modifier"]
@@ -65,18 +66,17 @@ current_ai_model = "openai"  # Default to OpenAI
 
 # Global variables for file management
 uploaded_files = {}
-temp_directories = {}
 file_contents = {}
 ai_created_files = set()
-converted_files = set()  # Track files that have been converted to SQL
+current_database_path = None
+database_schema = None
+current_session_id = None
+temp_directories = {}
+query_start_time = None  # Track when each query starts
+
+# Global variables for execution context
 code_output = ""
 code_error = ""
-
-# Database handling
-current_database_path = None
-
-# Global database schema cache (automatically generated when database is created)
-database_schema = None
 
 # Global LangGraph agent
 langgraph_agent = None
@@ -85,7 +85,6 @@ use_langgraph_by_default = True
 
 # Temp directory management
 EYPROJECT_TEMP_BASE = os.path.join(tempfile.gettempdir(), "EYProject")
-current_session_id = None
 
 def ensure_eyproject_temp_dir():
     """Ensure the EYProject temp directory exists"""
@@ -326,10 +325,11 @@ def get_or_create_agent():
 
 def refresh_file_list():
     """Refresh the file list to include newly created files and outputs"""
-    global uploaded_files, file_contents, ai_created_files
+    global uploaded_files, file_contents, ai_created_files, query_start_time
     temp_dir = temp_directories.get('current')
     
     print(f"DEBUG: refresh_file_list called with temp_dir: {temp_dir}")
+    print(f"DEBUG: Current query_start_time: {query_start_time}")
     
     if temp_dir:
         # Scan for all files in the temp directory (including outputs)
@@ -346,7 +346,19 @@ def refresh_file_list():
                 if rel_path not in uploaded_files:
                     print(f"DEBUG: Adding new file: {rel_path}")
                     uploaded_files[rel_path] = abs_path
-                    ai_created_files.add(rel_path)  # Mark as AI-created
+                    
+                    # Only mark as AI-created if it was created during current query
+                    if query_start_time and os.path.exists(abs_path):
+                        file_creation_time = os.path.getctime(abs_path)
+                        if file_creation_time >= query_start_time:
+                            ai_created_files.add(rel_path)  # Mark as AI-created for current query
+                            print(f"DEBUG: Marking as AI-created (created during current query): {rel_path} (created: {file_creation_time}, query start: {query_start_time})")
+                        else:
+                            print(f"DEBUG: Not marking as AI-created (created before current query): {rel_path} (created: {file_creation_time}, query start: {query_start_time})")
+                    else:
+                        # Fallback: mark as AI-created if we can't determine creation time
+                        ai_created_files.add(rel_path)
+                        print(f"DEBUG: Marking as AI-created (no time check): {rel_path}")
                     
                     # Load file content for text files
                     if fname.endswith(('.py', '.txt', '.csv', '.html', '.json', '.md')):
@@ -835,10 +847,14 @@ async def get_current_ai():
 @app.post("/langgraph-chat")
 async def langgraph_chat(message: ChatMessage):
     """Chat endpoint using LangGraph agent that can create and execute files"""
-    global code_output, code_error
+    global code_output, code_error, query_start_time
     
     try:
         print(f"DEBUG: LangGraph chat started with message: {message.content}")
+        
+        # Set query start time for file tracking
+        query_start_time = time.time()
+        print(f"DEBUG: Query start time set to: {query_start_time}")
         
         # Clear execution context for each new request to avoid accumulation
         print(f"DEBUG: Clearing previous execution context")
@@ -880,7 +896,7 @@ async def langgraph_chat(message: ChatMessage):
         print(f"DEBUG: After refresh - uploaded_files: {list(uploaded_files.keys())}")
         print(f"DEBUG: After refresh - ai_created_files: {list(ai_created_files)}")
         
-        # Detect output files (visualizations, reports, etc.)
+        # Detect output files (visualizations, reports, etc.) - ONLY from current query
         output_files = []
         try:
             # Get the current temp directory
@@ -902,15 +918,25 @@ async def langgraph_chat(message: ChatMessage):
                             abs_path = os.path.join(root, file)
                             rel_path = os.path.relpath(abs_path, temp_dir)
                             rel_path = rel_path.replace('\\', '/')  # Normalize for web
-                            all_files.append((rel_path, abs_path))
-                            print(f"DEBUG: Found output file: {rel_path} -> {abs_path}")
+                            
+                            # Check if file was created during current query
+                            if query_start_time and os.path.exists(abs_path):
+                                file_creation_time = os.path.getctime(abs_path)
+                                if file_creation_time >= query_start_time:
+                                    all_files.append((rel_path, abs_path))
+                                    print(f"DEBUG: Found output file created during current query: {rel_path} -> {abs_path} (created: {file_creation_time}, query start: {query_start_time})")
+                                else:
+                                    print(f"DEBUG: Skipping file created before current query: {rel_path} (created: {file_creation_time}, query start: {query_start_time})")
+                            else:
+                                # Fallback: include file if we can't determine creation time
+                                all_files.append((rel_path, abs_path))
+                                print(f"DEBUG: Found output file (no time check): {rel_path} -> {abs_path}")
                 
-                print(f"DEBUG: All output files found: {all_files}")
+                print(f"DEBUG: All output files found (query-specific): {all_files}")
                 print(f"DEBUG: Current uploaded_files keys: {list(uploaded_files.keys())}")
                 print(f"DEBUG: New AI created files: {list(new_files)}")
                 
-                # Include ALL output files that are in uploaded_files (they were created by this execution)
-                # This ensures we don't miss files that were registered by refresh_file_list()
+                # Include output files that are in uploaded_files and were created during current query
                 output_files_to_include = []
                 for rel_path, abs_path in all_files:
                     # Only include actual output files, not input files
@@ -954,7 +980,7 @@ async def langgraph_chat(message: ChatMessage):
                             "type": file_type
                         })
             
-            print(f"DEBUG: Output files for frontend: {output_files}")
+            print(f"DEBUG: Output files for frontend (query-specific): {output_files}")
         except Exception as e:
             print(f"Error detecting output files: {e}")
             import traceback

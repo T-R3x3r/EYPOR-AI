@@ -185,9 +185,6 @@ class CodeExecutorAgent:
             workflow.add_node("prepare_db_modification", self._prepare_db_modification_node)
             workflow.add_node("database_modifier", self._database_modifier_node)
             workflow.add_node("execute_db_modification", self._execute_db_modification_node)
-            workflow.add_node("find_and_run_models", self._find_and_run_models_node)
-            workflow.add_node("request_model_selection", self._request_model_selection_node)
-            workflow.add_node("execute_selected_models", self._execute_selected_models_node)
             workflow.add_node("execute_file", self._execute_file)
             workflow.add_node("code_fixer", self._code_fixer_node)
             workflow.add_node("respond", self._respond)
@@ -217,19 +214,6 @@ class CodeExecutorAgent:
             workflow.add_edge("prepare_db_modification", "execute_db_modification")
             workflow.add_edge("execute_db_modification", "respond")
             
-            # Model execution path
-            workflow.add_conditional_edges(
-                "find_and_run_models",
-                self._route_model_execution,
-                {
-                    "run_all": "execute_selected_models",
-                    "select_models": "request_model_selection",
-                    "no_models": "respond"
-                }
-            )
-            workflow.add_edge("request_model_selection", END)  # Interrupt for model selection
-            workflow.add_edge("execute_selected_models", "respond")
-            
             # File execution and error handling
             workflow.add_conditional_edges(
                 "execute_file",
@@ -258,27 +242,12 @@ class CodeExecutorAgent:
             workflow.add_node("analyze_modification", self._analyze_modification_request)
             workflow.add_node("prepare_modification", self._prepare_modification_node)
             workflow.add_node("execute_modification", self._execute_modification_node)
-            workflow.add_node("find_models", self._find_models_node)
-            workflow.add_node("request_model_selection", self._request_model_selection_node)
-            workflow.add_node("execute_models", self._execute_models_node)
             workflow.add_node("respond", self._respond)
             
             workflow.add_edge(START, "analyze_modification")
             workflow.add_edge("analyze_modification", "prepare_modification")
             workflow.add_edge("prepare_modification", "execute_modification")
-            workflow.add_edge("execute_modification", "find_models")
-            
-            workflow.add_conditional_edges(
-                "find_models",
-                self._route_model_execution,
-                {
-                    "run_all": "execute_models",
-                    "select_models": "request_model_selection",
-                    "no_models": "respond"
-                }
-            )
-            workflow.add_edge("request_model_selection", END)  # Interrupt for model selection
-            workflow.add_edge("execute_models", "respond")
+            workflow.add_edge("execute_modification", "respond")
             workflow.add_edge("respond", END)
 
         else:
@@ -1236,10 +1205,27 @@ The query completed successfully. Here are the raw results from your database.""
         output_files = []
         if state["temp_dir"]:
             try:
+                import time
+                execution_start_time = time.time()  # Track when this execution started
+                
                 current_files = set(os.listdir(state["temp_dir"]))
                 previous_files = set(state["files"].keys())
                 new_files = current_files - previous_files
-                output_files = [f for f in new_files if f.endswith(('.png', '.html', '.csv', '.txt', '.pdf', '.jpg', '.jpeg', '.svg'))]
+                
+                # Only include files that were actually created during this execution
+                query_specific_files = []
+                for f in new_files:
+                    if f.endswith(('.png', '.html', '.csv', '.txt', '.pdf', '.jpg', '.jpeg', '.svg')):
+                        file_path = os.path.join(state["temp_dir"], f)
+                        if os.path.exists(file_path):
+                            file_creation_time = os.path.getctime(file_path)
+                            if file_creation_time >= execution_start_time:
+                                query_specific_files.append(f)
+                                print(f"DEBUG: Including file created during execution: {f} (created: {file_creation_time}, execution start: {execution_start_time})")
+                            else:
+                                print(f"DEBUG: Skipping file created before execution: {f} (created: {file_creation_time}, execution start: {execution_start_time})")
+                
+                output_files = query_specific_files
                 
                 # Add new output files to the state for frontend access
                 for output_file in output_files:
