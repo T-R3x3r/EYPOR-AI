@@ -27,12 +27,142 @@ body {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   z-index: 100;
   flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .app-header h1 {
   font-size: 1.8rem;
   font-weight: 600;
   margin: 0;
+}
+
+/* Settings Menu */
+.settings-container {
+  position: relative;
+}
+
+.settings-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #333;
+  padding: 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(15deg);
+}
+
+.settings-menu {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+}
+
+.settings-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.settings-options {
+  padding: 0.5rem 0;
+}
+
+.setting-item {
+  padding: 0.5rem 1rem;
+}
+
+.setting-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-input:checked + .toggle-slider {
+  background-color: #FFE600;
+}
+
+.toggle-input:checked + .toggle-slider:before {
+  transform: translateX(20px);
 }
 
 /* Main Layout */
@@ -76,6 +206,15 @@ body {
   border-bottom: 2px solid #FFE600;
 }
 
+.execution-content h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #FFE600;
+}
+
 /* Resize Handle */
 .resize-handle {
   position: absolute;
@@ -83,7 +222,7 @@ body {
   top: 0;
   bottom: 0;
   width: 4px;
-  background: #ddd;
+  background: #747480;
   cursor: col-resize;
   transition: background-color 0.2s;
   z-index: 10;
@@ -332,4 +471,176 @@ body {
   .right-panel {
     min-width: 250px;
   }
+}
+
+/* Dark Mode Styles for App Component */
+body.dark-mode .app-container {
+  background: #1a1a24;
+  color: #eaeaf2;
+}
+
+body.dark-mode .app-header {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .main-layout {
+  background: #1a1a24 !important;
+}
+
+body.dark-mode .sidebar {
+  background: #2e2e38 !important;
+  border-right: 1px solid #474755 !important;
+}
+
+body.dark-mode .sidebar-content {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .sidebar-content h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #21acf6 !important;
+}
+
+body.dark-mode .file-upload-section,
+body.dark-mode .file-structure-section {
+  background: transparent !important;
+  margin-bottom: 1rem !important;
+}
+
+body.dark-mode .file-upload-section h3,
+body.dark-mode .file-structure-section h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #21acf6 !important;
+}
+
+body.dark-mode .execution-window {
+  background: #2e2e38 !important;
+  border-right: 1px solid #474755 !important;
+}
+
+body.dark-mode .execution-content {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .execution-content h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #21acf6 !important;
+  border-bottom-width: 2px !important;
+  border-bottom-style: solid !important;
+}
+
+body.dark-mode .right-panel {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .tab-navigation {
+  background: #1a1a24 !important;
+  border-bottom: 1px solid #474755 !important;
+}
+
+body.dark-mode .tab-btn {
+  background: transparent !important;
+  color: #c2c2cf !important;
+  border: 1px solid transparent !important;
+}
+
+body.dark-mode .tab-btn:hover {
+  background: rgba(33, 172, 246, 0.1) !important;
+  color: #21acf6 !important;
+}
+
+body.dark-mode .tab-btn.active {
+  background: transparent !important;
+  color: #eaeaf2 !important;
+  border-bottom: 3px solid #21acf6 !important;
+}
+
+body.dark-mode .tab-content {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .chat-window,
+body.dark-mode .sql-window {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .chat-content,
+body.dark-mode .sql-content {
+  background: #2e2e38 !important;
+}
+
+/* Fix the blue dividing lines (resize handles) */
+body.dark-mode .resize-handle {
+  background: #474755 !important;
+}
+
+body.dark-mode .resize-handle:hover,
+body.dark-mode .resize-handle:active {
+  background: #21acf6 !important;
+}
+
+/* Settings menu dark mode */
+body.dark-mode .settings-btn {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .settings-menu {
+  background: #2e2e38;
+  border-color: #474755;
+  color: #eaeaf2;
+}
+
+body.dark-mode .settings-header {
+  background: #3a3a48;
+  border-bottom-color: #474755;
+}
+
+body.dark-mode .settings-header h4 {
+  color: #eaeaf2;
+}
+
+body.dark-mode .setting-label {
+  color: #eaeaf2;
+}
+
+body.dark-mode .toggle-input:checked + .toggle-slider {
+  background-color: #21acf6 !important;
+}
+
+body.dark-mode .toggle-slider {
+  background-color: #474755 !important;
+}
+
+body.dark-mode .toggle-slider:before {
+  background-color: #eaeaf2 !important;
+}
+
+/* Additional text color fixes */
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode h6 {
+  color: #eaeaf2;
+}
+
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode div {
+  color: #eaeaf2;
+}
+
+/* Make sure any remaining grey text becomes white */
+body.dark-mode .text-muted,
+body.dark-mode .text-secondary,
+body.dark-mode .secondary-text {
+  color: #eaeaf2 !important;
 } 

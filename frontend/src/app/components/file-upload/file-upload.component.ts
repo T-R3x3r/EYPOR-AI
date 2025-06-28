@@ -12,6 +12,7 @@ export class FileUploadComponent {
   uploadMessage = '';
   uploadSuccess = false;
   isDragOver = false;
+  hasUploadedFiles = false;
 
   @Output() filesUploaded = new EventEmitter<void>();
 
@@ -72,6 +73,7 @@ export class FileUploadComponent {
         this.uploadMessage = response.message;
         this.uploadSuccess = true;
         this.isUploading = false;
+        this.hasUploadedFiles = true;
         
         // Emit event to refresh file tree
         this.filesUploaded.emit();
@@ -96,6 +98,7 @@ export class FileUploadComponent {
         this.uploadMessage = response.message;
         this.uploadSuccess = true;
         this.selectedFile = null;
+        this.hasUploadedFiles = false;
         // Emit event to refresh file tree
         this.filesUploaded.emit();
       },

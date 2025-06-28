@@ -53,7 +53,7 @@
   background: none;
   border: none;
   font-size: 24px;
-  color: #666;
+  color: #747480;
   cursor: pointer;
   padding: 0;
   width: 30px;
@@ -181,17 +181,17 @@
 }
 
 .badge-main {
-  background: #007bff;
+  background: #21acf6;
   color: white;
 }
 
 .badge-model {
-  background: #28a745;
+  background: #1eca3a;
   color: white;
 }
 
 .badge-other {
-  background: #6c757d;
+  background: #747480;
   color: white;
 }
 
@@ -260,7 +260,7 @@
 }
 
 .btn-reject {
-  background: #dc3545;
+  background: #a11c1c;
   color: white;
 }
 
@@ -284,4 +284,91 @@
   background: #f8f9fa;
   color: #adb5bd;
   border-color: #dee2e6;
+}
+
+/* Dark Mode Styles for Model Rerun Dialog Component */
+body.dark-mode .modal-overlay {
+  background: rgba(26, 26, 36, 0.8) !important;
+}
+
+body.dark-mode .modal-dialog {
+  background: #2e2e38 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .modal-header {
+  background: #1a1a24 !important;
+  border-bottom-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .modal-title {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .close-btn {
+  color: #c2c2cf !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+body.dark-mode .close-btn:hover {
+  color: #eaeaf2 !important;
+  background: rgba(71, 71, 85, 0.3) !important;
+}
+
+body.dark-mode .modal-body {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .parameter-item {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .parameter-label {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .parameter-input {
+  background: #2e2e38 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .parameter-input:focus {
+  border-color: #21acf6 !important;
+}
+
+body.dark-mode .parameter-description {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .modal-footer {
+  background: #1a1a24 !important;
+  border-top-color: #474755 !important;
+}
+
+body.dark-mode .rerun-progress {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .progress-bar {
+  background: #474755 !important;
+}
+
+body.dark-mode .progress-bar-fill {
+  background: #21acf6 !important;
+}
+
+body.dark-mode .progress-text {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .dialog-header {
+  border-bottom-color: #21acf6 !important;
 } 

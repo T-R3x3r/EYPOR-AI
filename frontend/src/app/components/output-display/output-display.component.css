@@ -104,7 +104,7 @@ body.resizing .resize-bar {
 }
 
 .timestamp {
-  color: #6c757d;
+  color: #747480;
   font-size: 0.9em;
 }
 
@@ -116,7 +116,7 @@ body.resizing .resize-bar {
 }
 
 .running-indicator {
-  color: #0d6efd;
+  color: #21acf6;
   font-weight: bold;
   animation: pulse 2s infinite;
 }
@@ -146,20 +146,20 @@ body.resizing .resize-bar {
 }
 
 .execution-running {
-  border-left: 4px solid #0d6efd;
+  border-left: 4px solid #21acf6;
 }
 
 .execution-error {
-  border-left: 4px solid #dc3545;
+  border-left: 4px solid #a11c1c;
 }
 
 .execution-success {
-  border-left: 4px solid #198754;
+  border-left: 4px solid #1eca3a;
 }
 
 .clear-btn {
   padding: 5px 10px;
-  background-color: #dc3545;
+  background-color: #a11c1c;
   color: white;
   border: none;
   border-radius: 4px;
@@ -167,7 +167,7 @@ body.resizing .resize-bar {
 }
 
 .clear-btn:hover {
-  background-color: #bb2d3b;
+  background-color: #8a1717;
 }
 
 .debug-info {
@@ -179,7 +179,7 @@ body.resizing .resize-bar {
 }
 
 .image-error {
-  color: #dc3545;
+  color: #a11c1c;
   background-color: #f8d7da;
   border: 1px solid #f5c6cb;
   border-radius: 4px;
@@ -297,7 +297,7 @@ body.resizing .resize-bar {
 }
 
 .file-info i {
-  color: #6c757d;
+  color: #747480;
   width: 16px;
 }
 
@@ -332,7 +332,7 @@ body.resizing .resize-bar {
 }
 
 .test-btn {
-  background: #007bff;
+  background: #21acf6;
   color: white;
   border: none;
   padding: 0.25rem 0.5rem;
@@ -343,7 +343,7 @@ body.resizing .resize-bar {
 }
 
 .test-btn:hover {
-  background: #0056b3;
+  background: #1a8ac7;
 }
 
 .generated-image {
@@ -481,4 +481,144 @@ body.resizing .resize-bar {
   to {
     opacity: 1;
   }
+}
+
+.no-files-message {
+  margin: 15px 0;
+  padding: 10px;
+  background-color: #e9ecef;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.no-files-message p {
+  margin: 0;
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Status indicators and controls */
+.status-indicator.pending {
+  background-color: #747480;
+  color: #747480;
+}
+
+.error-container {
+  border-left: 4px solid #a11c1c;
+}
+
+.error-header {
+  background-color: #a11c1c;
+}
+
+.error-header:hover {
+  background-color: #8a1717;
+}
+
+.error-message {
+  color: #a11c1c;
+}
+
+.btn-primary {
+  background: #21acf6;
+}
+
+.retry-info {
+  color: #747480;
+}
+
+.error-details {
+  color: #747480;
+}
+
+.error-retry-btn {
+  background-color: #a11c1c;
+}
+
+/* Dark Mode Styles for Output Display Component */
+body.dark-mode .output-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .output-header {
+  background: #1a1a24 !important;
+  border-bottom-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .output-content {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .output-line {
+  color: #eaeaf2 !important;
+  border-bottom-color: #474755 !important;
+}
+
+body.dark-mode .output-line.error {
+  color: #ff6b6b !important;
+  background: rgba(161, 28, 28, 0.1) !important;
+}
+
+body.dark-mode .output-line.success {
+  color: #1eca3a !important;
+  background: rgba(30, 202, 58, 0.1) !important;
+}
+
+body.dark-mode .output-line.warning {
+  color: #ffb347 !important;
+  background: rgba(255, 179, 71, 0.1) !important;
+}
+
+body.dark-mode .output-line.info {
+  color: #21acf6 !important;
+  background: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode .output-timestamp {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .output-controls {
+  background: #1a1a24 !important;
+  border-top-color: #474755 !important;
+}
+
+body.dark-mode .status-badge {
+  background: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .status-badge.running {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .status-badge.success {
+  background: #1eca3a !important;
+  color: white !important;
+}
+
+body.dark-mode .status-badge.error {
+  background: #a11c1c !important;
+  color: white !important;
+}
+
+body.dark-mode .no-output {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode pre {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode code {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
 } 

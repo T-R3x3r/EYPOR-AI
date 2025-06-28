@@ -20,6 +20,7 @@ body {
   line-height: 1.6;
   margin: 0;
   padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .container {
@@ -44,42 +45,51 @@ body {
 }
 
 .btn {
-  background: #FFE600;
-  color: black;
+  padding: 0.5rem 1rem;
   border: none;
-  padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
 }
 
-.btn:hover {
-  background: #E6CC00;
+.btn-primary {
+  background-color: #21acf6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #1e9be6;
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background-color: #747480;
+  color: white;
 }
 
 .btn-secondary:hover {
-  background: #545b62;
+  background-color: #626269;
 }
 
 .btn-success {
-  background: #28a745;
+  background-color: #1eca3a;
+  color: white;
 }
 
 .btn-success:hover {
-  background: #1e7e34;
+  background-color: #1ab832;
 }
 
 .btn-danger {
-  background: #dc3545;
+  background-color: #a11c1c;
+  color: white;
 }
 
 .btn-danger:hover {
-  background: #c82333;
+  background-color: #901919;
 }
 
 .btn-sm {
@@ -254,11 +264,11 @@ body {
 }
 
 .error-output {
-  border-left-color: #dc3545;
+  border-left-color: #a11c1c;
 }
 
 .error-output .output-content {
-  color: #dc3545;
+  color: #a11c1c;
 }
 
 .loading {
@@ -304,4 +314,640 @@ body {
   background: #d1ecf1;
   color: #0c5460;
   border: 1px solid #bee5eb;
+}
+
+/* Dark Mode Styles */
+body.dark-mode {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Selective dark mode - target specific container types */
+body.dark-mode .sidebar,
+body.dark-mode .main-layout,
+body.dark-mode .right-panel,
+body.dark-mode .execution-window,
+body.dark-mode .chat-container,
+body.dark-mode .sql-container,
+body.dark-mode .file-upload,
+body.dark-mode .output-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Text elements should have transparent backgrounds to inherit from parents */
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode div:not([class*="btn"]):not([class*="badge"]):not([class*="status"]):not(.action-buttons),
+body.dark-mode h1, body.dark-mode h2, body.dark-mode h3, body.dark-mode h4, body.dark-mode h5, body.dark-mode h6,
+body.dark-mode label,
+body.dark-mode li {
+  background: transparent !important;
+  color: #eaeaf2 !important;
+}
+
+/* Specific white areas that need to be dark */
+body.dark-mode .messages-container,
+body.dark-mode .chat-messages,
+body.dark-mode .upload-area,
+body.dark-mode .file-list,
+body.dark-mode .file-tree,
+body.dark-mode .execution-content,
+body.dark-mode .tab-content,
+body.dark-mode .sidebar-content {
+  background: #2e2e38 !important;
+}
+
+/* Areas that should be darker for contrast */
+body.dark-mode .message-content,
+body.dark-mode .upload-info,
+body.dark-mode .output-content,
+body.dark-mode .sql-results,
+body.dark-mode .results-table,
+body.dark-mode .sql-database {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Fix yellow dividers to be blue in dark mode */
+body.dark-mode .file-upload-section h3::after,
+body.dark-mode .file-structure-section h3::after,
+body.dark-mode .execution-content h3::after,
+body.dark-mode [class*="section"] h3::after,
+body.dark-mode h3[style*="border-bottom"] {
+  border-bottom-color: #21acf6 !important;
+}
+
+/* Yellow divider lines should be blue */
+body.dark-mode hr,
+body.dark-mode .divider,
+body.dark-mode [style*="border-bottom: 2px solid #FFE600"],
+body.dark-mode [style*="border-bottom-color: #FFE600"] {
+  border-color: #21acf6 !important;
+}
+
+/* Only override button colors for primary interface buttons, not file operation buttons */
+body.dark-mode .tab-btn.btn-primary,
+body.dark-mode .send-btn,
+body.dark-mode button.btn-primary:not(.file-actions button):not([class*="file"]) {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode button.btn-success:not(.file-actions button):not([class*="file"]) {
+  background: #1eca3a !important;
+  color: white !important;
+}
+
+body.dark-mode button.btn-danger:not(.file-actions button):not([class*="file"]) {
+  background: #a11c1c !important;
+  color: white !important;
+}
+
+body.dark-mode button.btn-secondary:not(.file-actions button):not([class*="file"]) {
+  background: #747480 !important;
+  color: white !important;
+}
+
+/* Don't override specific button colors - preserve yellow run buttons, purple download buttons, etc. */
+body.dark-mode .file-actions button,
+body.dark-mode .file-item button,
+body.dark-mode .uploaded-files button {
+  /* Preserve original colors - don't override */
+}
+
+/* Make "Uploaded Files" section have a lighter background for separation */
+body.dark-mode .uploaded-files-section,
+body.dark-mode .file-structure-section {
+  background: #1a1a24 !important;
+  border: 1px solid #474755 !important;
+  border-radius: 6px !important;
+  padding: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+/* File badges and status indicators - preserve original colors */
+body.dark-mode .file-badge,
+body.dark-mode [class*="badge"] {
+  /* Don't override - let individual components handle their colors */
+}
+
+/* Form inputs */
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+/* Border colors for containers */
+body.dark-mode .sidebar,
+body.dark-mode .execution-window,
+body.dark-mode .right-panel,
+body.dark-mode .tab-content {
+  border-color: #474755 !important;
+}
+
+/* Don't override badge and status colors - let them keep their original styling */
+body.dark-mode .file-badge.python,
+body.dark-mode .file-badge.database,
+body.dark-mode .file-badge.csv,
+body.dark-mode .file-badge.excel,
+body.dark-mode .status-badge,
+body.dark-mode [class*="badge"] {
+  /* Preserve original colors */
+}
+
+/* Header Dark Mode */
+body.dark-mode .app-header {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+/* EYPOR header and other component headers */
+body.dark-mode .sql-header,
+body.dark-mode [class*="header"]:not(.app-header) {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+/* Execution output header */
+body.dark-mode .output-header,
+body.dark-mode .execution-header {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .settings-btn {
+  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+body.dark-mode .settings-menu {
+  background: #2e2e38;
+  border-color: #474755;
+  color: #eaeaf2;
+}
+
+body.dark-mode .settings-header {
+  background: #1a1a24;
+  border-bottom-color: #474755;
+}
+
+body.dark-mode .settings-header h4 {
+  color: #eaeaf2;
+}
+
+body.dark-mode .setting-label {
+  color: #eaeaf2;
+}
+
+body.dark-mode .toggle-input:checked + .toggle-slider {
+  background-color: #21acf6;
+}
+
+/* Main Layout Dark Mode */
+body.dark-mode .sidebar,
+body.dark-mode .execution-window,
+body.dark-mode .right-panel {
+  background: #2e2e38;
+  border-color: #474755;
+}
+
+body.dark-mode .sidebar-content h3,
+body.dark-mode .execution-content h3 {
+  color: #eaeaf2;
+}
+
+/* Tab Navigation Dark Mode */
+body.dark-mode .tab-navigation {
+  background: #1a1a24 !important;
+  border-bottom-color: #474755 !important;
+}
+
+body.dark-mode .tab-btn {
+  background: transparent !important;
+  color: #c2c2cf !important;
+  border-color: transparent !important;
+}
+
+body.dark-mode .tab-btn:hover {
+  background: rgba(33, 172, 246, 0.1) !important;
+  color: #21acf6 !important;
+}
+
+body.dark-mode .tab-btn.active {
+  background: #21acf6 !important;
+  color: white !important;
+  border-color: #21acf6 !important;
+}
+
+/* Chat Component Dark Mode */
+body.dark-mode .chat-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .chat-header {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .chat-messages {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .message {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .message.user {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .message.bot {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .welcome-message {
+  background: #1a1a24 !important;
+  border-color: #21acf6 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .chat-input-container {
+  background: #1a1a24 !important;
+  border-top-color: #474755 !important;
+}
+
+body.dark-mode .chat-input {
+  background: #2e2e38 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .chat-input::placeholder {
+  color: #747480 !important;
+}
+
+body.dark-mode .chat-input:focus {
+  border-color: #21acf6 !important;
+}
+
+body.dark-mode .send-btn {
+  background: #21acf6 !important;
+}
+
+body.dark-mode .send-btn:hover {
+  background: #1e9be6 !important;
+}
+
+/* File Upload Dark Mode */
+body.dark-mode .file-upload-container {
+  background: #2e2e38;
+}
+
+body.dark-mode .upload-area {
+  background: #3a3a48;
+  border-color: #474755;
+  color: #eaeaf2;
+}
+
+body.dark-mode .upload-area.drag-over {
+  border-color: #21acf6;
+  background: rgba(33, 172, 246, 0.1);
+}
+
+body.dark-mode .upload-instructions {
+  background: #1a1a24 !important;
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .upload-instructions h4 {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-list {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .file-item {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+/* File Tree Dark Mode */
+body.dark-mode .file-tree {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-item.file {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-item.folder {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-item:hover {
+  background: rgba(33, 172, 246, 0.1) !important;
+}
+
+/* SQL Query Dark Mode */
+body.dark-mode .sql-container {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .sql-editor {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .sql-results {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .results-table {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .results-table th {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .results-table td {
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .results-table tr:nth-child(even) {
+  background: rgba(46, 46, 56, 0.5) !important;
+}
+
+/* Output Display Dark Mode */
+body.dark-mode .output-container {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .output-content {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .output-line {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .output-line.error {
+  color: #ff6b6b !important;
+}
+
+body.dark-mode .output-line.success {
+  color: #1eca3a !important;
+}
+
+/* Form Elements Dark Mode */
+body.dark-mode input,
+body.dark-mode textarea,
+body.dark-mode select {
+  background: #3a3a48;
+  border-color: #474755;
+  color: #eaeaf2;
+}
+
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+  color: #747480;
+}
+
+body.dark-mode input:focus,
+body.dark-mode textarea:focus,
+body.dark-mode select:focus {
+  border-color: #1a9afa;
+}
+
+/* Scrollbar Dark Mode */
+body.dark-mode ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+  background: #2e2e38;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+  background: #474755;
+  border-radius: 4px;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+  background: #5a5a6a;
+}
+
+/* Dialog/Modal Dark Mode */
+body.dark-mode .modal-content,
+body.dark-mode .dialog-content {
+  background: #2e2e38;
+  border-color: #474755;
+  color: #eaeaf2;
+}
+
+body.dark-mode .modal-header,
+body.dark-mode .dialog-header {
+  background: #3a3a48;
+  border-bottom-color: #474755;
+  color: #eaeaf2;
+}
+
+/* Code/Pre elements Dark Mode */
+body.dark-mode pre,
+body.dark-mode code {
+  background: #3a3a48;
+  color: #eaeaf2;
+  border: 1px solid #474755;
+}
+
+/* Links Dark Mode */
+body.dark-mode a {
+  color: #1a9afa;
+}
+
+body.dark-mode a:hover {
+  color: #4fc3f7;
+}
+
+/* Additional comprehensive dark mode fixes */
+body.dark-mode * {
+  border-color: #474755;
+}
+
+/* Make sure all text elements are properly colored */
+body.dark-mode h1,
+body.dark-mode h2,
+body.dark-mode h3,
+body.dark-mode h4,
+body.dark-mode h5,
+body.dark-mode h6,
+body.dark-mode p,
+body.dark-mode span,
+body.dark-mode div,
+body.dark-mode label,
+body.dark-mode li {
+  color: #eaeaf2;
+}
+
+/* Specific overrides for grey text */
+body.dark-mode .text-muted,
+body.dark-mode .text-secondary,
+body.dark-mode .secondary-text,
+body.dark-mode .text-grey,
+body.dark-mode .grey-text {
+  color: #eaeaf2 !important;
+}
+
+/* Tab content areas */
+body.dark-mode .tab-pane,
+body.dark-mode .tab-content-area {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Additional specific dark mode fixes */
+body.dark-mode .file-upload-section,
+body.dark-mode .file-structure-section {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .file-upload-section h3,
+body.dark-mode .file-structure-section h3,
+body.dark-mode .execution-content h3 {
+  color: #eaeaf2 !important;
+  background: #2e2e38 !important;
+}
+
+/* Uploaded Files header and container */
+body.dark-mode .uploaded-files-header,
+body.dark-mode .uploaded-files-section {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+/* All section headers */
+body.dark-mode h3,
+body.dark-mode .section-header {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Fix any remaining white containers */
+body.dark-mode .container,
+body.dark-mode .panel,
+body.dark-mode .section,
+body.dark-mode .card {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Ensure all text content is visible */
+body.dark-mode .content,
+body.dark-mode .text-content {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Fix execution output header specifically */
+body.dark-mode .execution-header {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Additional comprehensive dark mode fixes */
+body.dark-mode .execution-result,
+body.dark-mode .execution-output,
+body.dark-mode .sql-database-container,
+body.dark-mode .database-content,
+body.dark-mode .loading-container,
+body.dark-mode .no-database-container,
+body.dark-mode pre,
+body.dark-mode code {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+/* Form controls and inputs */
+body.dark-mode select,
+body.dark-mode .table-selector,
+body.dark-mode .search-field {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+/* Ensure all section headers have proper styling - blue borders in dark mode, no grey backgrounds */
+body.dark-mode .section-header h3,
+body.dark-mode .file-structure-section h3,
+body.dark-mode .execution-content h3,
+body.dark-mode .chat-content h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #21acf6 !important;
+  background: transparent !important;
+}
+
+/* Make sure all yellow borders become blue in dark mode */
+body.dark-mode .tab-btn.active {
+  border-bottom-color: #21acf6 !important;
+}
+
+/* Fix EYPOR header border in dark mode */
+body.dark-mode .sql-header {
+  border-bottom-color: #21acf6 !important;
+}
+
+/* Remove any remaining yellow borders in dark mode */
+body.dark-mode [style*="border-bottom"],
+body.dark-mode [style*="border-color: #FFE600"],
+body.dark-mode [style*="border-bottom-color: #FFE600"],
+body.dark-mode [style*="border-bottom: 2px solid #FFE600"] {
+  border-color: #21acf6 !important;
+}
+
+/* Execution output specific fixes */
+body.dark-mode .execution-output pre,
+body.dark-mode .execution-error pre {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .execution-error pre {
+  background: rgba(161, 28, 28, 0.1) !important;
+  color: #ff6b6b !important;
+}
+
+/* Database info sections */
+body.dark-mode .database-info-compact,
+body.dark-mode .table-selection {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
 } 

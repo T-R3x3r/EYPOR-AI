@@ -352,12 +352,11 @@
 }
 
 .btn-secondary {
-  background: #6c757d;
-  color: white;
+  background: #747480;
 }
 
 .btn-secondary:hover {
-  background: #545b62;
+  background: #2e2e38;
 }
 
 /* Pagination */
@@ -407,4 +406,199 @@
 
 .table-container::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+.sql-database {
+  background: #f8f9fa;
+  color: #333;
+  border-radius: 6px;
+  padding: 0.5rem;
+  font-family: 'Courier New', monospace;
+}
+
+/* Dark Mode Styles for SQL Query Component */
+body.dark-mode .sql-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .sql-database-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .sql-database {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .sql-header {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .sql-editor {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .sql-editor:focus {
+  border-color: #21acf6 !important;
+}
+
+body.dark-mode .sql-results {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .results-table {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .results-table th {
+  background: #21acf6 !important;
+  color: white !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .results-table td {
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+  background: #1a1a24 !important;
+}
+
+body.dark-mode .results-table tr:nth-child(even) td {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .table-container {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .data-table {
+  background: #1a1a24 !important;
+}
+
+body.dark-mode .results-table tr:hover {
+  background: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode .query-controls {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .error-message {
+  background: rgba(161, 28, 28, 0.1) !important;
+  color: #ff6b6b !important;
+  border-color: #a11c1c !important;
+}
+
+body.dark-mode .success-message {
+  background: rgba(30, 202, 58, 0.1) !important;
+  color: #1eca3a !important;
+  border-color: #1eca3a !important;
+}
+
+body.dark-mode .table-paginator {
+  background: #1a1a24 !important;
+  border-top-color: #474755 !important;
+}
+
+body.dark-mode .table-container::-webkit-scrollbar-track {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .table-container::-webkit-scrollbar-thumb {
+  background: #474755 !important;
+}
+
+body.dark-mode .table-container::-webkit-scrollbar-thumb:hover {
+  background: #21acf6 !important;
+}
+
+/* Fix database info section */
+body.dark-mode .database-info-compact {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .database-info-compact h4 {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .compact-info-item {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .compact-info-item strong {
+  color: #eaeaf2 !important;
+}
+
+/* Fix table selection */
+body.dark-mode .table-selection h4 {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .table-selector {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .table-selector:focus {
+  border-color: #21acf6 !important;
+  box-shadow: 0 0 0 2px rgba(33, 172, 246, 0.2) !important;
+}
+
+/* Fix search section */
+body.dark-mode .search-field {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .search-field:focus {
+  border-color: #21acf6 !important;
+  box-shadow: 0 0 0 2px rgba(33, 172, 246, 0.2) !important;
+}
+
+body.dark-mode .search-info {
+  color: #c2c2cf !important;
+}
+
+/* Fix loading states */
+body.dark-mode .loading-container {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .loading-spinner {
+  border-color: #474755 !important;
+  border-top-color: #21acf6 !important;
+}
+
+body.dark-mode .no-database-container {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .no-database-container h3 {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .no-database-container p {
+  color: #747480 !important;
+}
+
+body.dark-mode .no-database-icon {
+  color: #474755 !important;
+}
+
+/* Fix section headers */
+body.dark-mode .section-header h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #21acf6 !important;
 } 

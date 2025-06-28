@@ -1,6 +1,34 @@
 <div class="app-container">
   <header class="app-header">
     <h1>{{ title }}</h1>
+    
+    <!-- Settings Menu -->
+    <div class="settings-container">
+      <button class="settings-btn" (click)="toggleSettings()">
+        <i class="fas fa-cog"></i>
+      </button>
+      
+      <div class="settings-menu" *ngIf="showSettings">
+        <div class="settings-header">
+          <h4>Settings</h4>
+        </div>
+        <div class="settings-options">
+          <div class="setting-item">
+            <label class="setting-label">
+              <span>Dark Mode</span>
+              <div class="toggle-switch">
+                <input 
+                  type="checkbox" 
+                  [checked]="themeService.isDarkMode"
+                  (change)="toggleDarkMode()"
+                  class="toggle-input">
+                <span class="toggle-slider"></span>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
   </header>
 
   <div class="main-layout">

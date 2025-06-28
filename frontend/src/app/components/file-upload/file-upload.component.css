@@ -127,7 +127,7 @@
 }
 
 .btn-success {
-  background: #28a745;
+  background: #1eca3a;
   color: white;
 }
 
@@ -143,13 +143,12 @@
 }
 
 .btn-secondary {
-  background: #6c757d;
+  background: #747480;
   color: white;
 }
 
 .btn-secondary:hover {
-  background: #5a6268;
-  transform: translateY(-1px);
+  background: #2e2e38;
 }
 
 .btn-outline {
@@ -188,4 +187,115 @@
 
 .upload-info li {
   margin-bottom: 0.25rem;
+}
+
+/* File status colors and buttons */
+.file-status.processing {
+  color: #747480;
+}
+
+.file-status.success {
+  color: #1eca3a;
+}
+
+.file-status.error {
+  color: #747480;
+}
+
+.upload-status {
+  color: #747480;
+  border: 1px solid #747480;
+}
+
+.upload-status:hover {
+  background: #747480;
+  color: white;
+}
+
+.upload-instructions {
+  color: #747480;
+}
+
+/* Dark Mode Styles for File Upload Component */
+body.dark-mode .upload-area {
+  border-color: #474755 !important;
+  background: #1a1a24 !important;
+}
+
+body.dark-mode .upload-area:hover,
+body.dark-mode .upload-area.dragover {
+  border-color: #21acf6 !important;
+  background: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode .upload-content i {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .upload-area:hover .upload-content i,
+body.dark-mode .upload-area.dragover .upload-content i {
+  color: #21acf6 !important;
+}
+
+body.dark-mode .upload-content p {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .selected-file {
+  background: rgba(30, 202, 58, 0.1) !important;
+  border-color: #1eca3a !important;
+}
+
+body.dark-mode .file-info i {
+  color: #1eca3a !important;
+}
+
+body.dark-mode .file-size {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .upload-message.success {
+  background: rgba(30, 202, 58, 0.1) !important;
+  color: #1eca3a !important;
+  border-color: #1eca3a !important;
+}
+
+body.dark-mode .upload-message.error {
+  background: rgba(161, 28, 28, 0.1) !important;
+  color: #ff6b6b !important;
+  border-color: #a11c1c !important;
+}
+
+body.dark-mode .btn-primary {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .btn-primary:hover {
+  background: #1e9be6 !important;
+}
+
+body.dark-mode .upload-info {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .upload-info h4 {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .upload-info ul {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-status.processing {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-status.success {
+  color: #1eca3a !important;
+}
+
+body.dark-mode .upload-instructions {
+  color: #c2c2cf !important;
 } 

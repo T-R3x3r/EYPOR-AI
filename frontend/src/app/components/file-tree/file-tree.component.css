@@ -604,4 +604,181 @@
 
 .display-btn:hover {
   background-color: #357abd;
+}
+
+/* File type indicators and status colors */
+.file-item.folder {
+  color: #747480;
+}
+
+.file-item.file {
+  color: #747480;
+}
+
+.btn-success {
+  background: #1eca3a;
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #1eca3a, #17a82f);
+}
+
+.btn-primary {
+  background: #21acf6;
+}
+
+.btn-info {
+  background: #21acf6;
+}
+
+.file-type.folder {
+  color: #747480;
+}
+
+.file-type.text {
+  color: #747480;
+}
+
+.file-type.python {
+  color: #1eca3a;
+}
+
+.file-type.data {
+  color: #747480;
+}
+
+.file-modified {
+  color: #1eca3a;
+}
+
+.file-error {
+  color: #a11c1c;
+}
+
+.btn-outline-secondary {
+  background: #747480;
+}
+
+.badge-success {
+  background: #1eca3a;
+}
+
+.status-success {
+  background: #1eca3a;
+}
+
+.status-primary {
+  background: #21acf6;
+}
+
+.status-secondary {
+  background: #747480;
+}
+
+.status-danger {
+  background: #a11c1c;
+}
+
+.file-actions .btn {
+  background: #747480;
+}
+
+/* Dark Mode Styles for File Tree Component */
+body.dark-mode .file-tree {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-tree-header {
+  background: #1a1a24 !important;
+  border-bottom-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-item {
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .file-item:hover {
+  background: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode .file-item.selected {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .file-item.folder {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-item.file {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-icon {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-icon.folder {
+  color: #21acf6 !important;
+}
+
+body.dark-mode .file-icon.file {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-name {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-actions {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .file-size {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-date {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .expand-icon {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .expand-icon:hover {
+  color: #21acf6 !important;
+}
+
+body.dark-mode .no-files {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .file-badge {
+  background: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-badge.python {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .file-badge.database {
+  background: #1eca3a !important;
+  color: white !important;
+}
+
+body.dark-mode .file-badge.csv {
+  background: #ffb347 !important;
+  color: #333 !important;
+}
+
+body.dark-mode .file-badge.excel {
+  background: #1eca3a !important;
+  color: white !important;
 } 

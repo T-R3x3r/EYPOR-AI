@@ -34,18 +34,9 @@ export class ChatComponent implements OnInit, AfterViewChecked {
   currentMessage: string = '';
   messages: ChatMessage[] = [];
   isLoading: boolean = false;
-  showDebugInfo = false;
   shouldAutoScroll = true;
   private lastMessageCount = 0;
   private currentThreadId = 'default';
-  suggestions: string[] = [
-    "How many rows are in each table?",
-    "Show me the top 10 records from the main table", 
-    "What's the total count by category?",
-    "Find all records where value > 100",
-    "Which table has the most data?",
-    "Compare totals across different groups"
-  ];
 
   constructor(
     private apiService: ApiService,
@@ -69,59 +60,11 @@ export class ChatComponent implements OnInit, AfterViewChecked {
   addWelcomeMessage() {
     this.messages.push({
       role: 'assistant',
-      content: `🤖 **Advanced Data Analyst**
+      content: `**EYPOR - EY-Parthenon Operations Research AI**
 
-Welcome! I'm your intelligent data analyst that automatically routes requests through specialized workflows. I can handle SQL queries, create visualizations, and manage database modifications.
+Welcome! I'm EYPOR, your intelligent operations research assistant. I can help you analyze data, create visualizations, and modify database parameters.
 
-**🔄 How I Work:**
-I analyze your request and automatically route it to the appropriate workflow:
-- **SQL Queries** → Direct execution with formatted results
-- **Visualizations** → Python script creation and execution
-- **Database Changes** → Direct execution with detailed change tracking
-
-**📊 SQL Query Examples:**
-- "Show me the top 10 hubs with highest demand"
-- "What is the total supply capacity by region?"
-- "List all routes with cost > 500"
-- "Find hubs with demand exceeding 15000"
-- "Compare opening costs across all locations"
-
-**📈 Visualization Examples:**
-- "Create a bar chart of hub demands"
-- "Visualize cost distribution across routes"
-- "Show a map of all hub locations"
-- "Plot demand vs supply capacity"
-- "Generate a heatmap of route usage"
-
-**⚙️ Database Modification Examples:**
-- "Change maximum hub demand to 20000"
-- "Update route supply limit to 15000"
-- "Set opening cost to 5000"
-- "Modify hub capacity parameter to 25000"
-- "Adjust transportation cost factor to 1.5"
-
-**📍 Table-Specific Modifications:**
-- "Change maximum demand to 20000 in inputs_params"
-- "Update cost to 500 in routes table" 
-- "Set capacity to 15000 in hubs_data"
-- "Modify value to 25000 in parameters table"
-
-**📋 Database Change Details:**
-When you request database changes, I'll show you exactly:
-- Which table and column was modified
-- The old value → new value
-- How many rows were affected
-- The exact SQL that was executed
-
-**🔒 Safety Features:**
-- Detailed change tracking for all database modifications
-- Error recovery with intelligent code fixing
-- Complete execution history tracking
-
-**🎯 Smart Routing:**
-I automatically determine whether you need data analysis, visualization, or parameter changes. Just ask naturally and I'll handle the rest!
-
-Ask me anything about your data!`,
+Ready to analyze your data?`,
       timestamp: new Date()
     });
   }
@@ -228,10 +171,6 @@ Please check your connection and try again.`,
     }
   }
 
-  useSuggestion(suggestion: string) {
-    this.currentMessage = suggestion;
-  }
-
   onEnterKey(event: Event) {
     const keyboardEvent = event as KeyboardEvent;
     if (!keyboardEvent.shiftKey) {
@@ -243,10 +182,6 @@ Please check your connection and try again.`,
   clearChat() {
     this.messages = [];
     this.addWelcomeMessage();
-  }
-
-  toggleDebugInfo() {
-    this.showDebugInfo = !this.showDebugInfo;
   }
 
   exportChat() {
@@ -266,8 +201,16 @@ Please check your connection and try again.`,
   }
 
   formatContent(content: string): string {
-    // Simple formatting for better display
-    return content.replace(/\n/g, '<br>');
+    // Convert markdown-style formatting to HTML
+    let formatted = content;
+    
+    // Convert **bold** to <strong>bold</strong>
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Convert line breaks to <br> tags
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    return formatted;
   }
 
   scrollToBottom() {

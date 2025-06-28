@@ -1,5 +1,6 @@
 import { Component, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { FileTreeComponent } from './components/file-tree/file-tree.component';
+import { ThemeService } from './services/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -12,10 +13,13 @@ export class AppComponent {
   isResizing = false;
   currentResizeHandle = '';
   activeTab = 'chat'; // Default to chat tab
+  showSettings = false; // Settings menu visibility
 
   @ViewChild('fileTree') fileTree!: FileTreeComponent;
   @ViewChild('sidebar') sidebar!: ElementRef;
   @ViewChild('executionWindow') executionWindow!: ElementRef;
+
+  constructor(public themeService: ThemeService) {}
 
   @HostListener('document:mousemove', ['$event'])
   onMouseMove(event: MouseEvent) {
@@ -28,6 +32,23 @@ export class AppComponent {
   onMouseUp() {
     this.isResizing = false;
     this.currentResizeHandle = '';
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: Event) {
+    // Close settings menu when clicking outside
+    const target = event.target as HTMLElement;
+    if (!target.closest('.settings-menu') && !target.closest('.settings-btn')) {
+      this.showSettings = false;
+    }
+  }
+
+  toggleSettings() {
+    this.showSettings = !this.showSettings;
+  }
+
+  toggleDarkMode() {
+    this.themeService.toggleDarkMode();
   }
 
   toggleFileEditor() {

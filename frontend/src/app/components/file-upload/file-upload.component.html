@@ -43,15 +43,18 @@
     </button>
   </div>
 
-  <div class="upload-info">
+  <div class="upload-info" *ngIf="!hasUploadedFiles">
     <p><strong>Instructions:</strong></p>
     <ul>
-      <li>Upload a zip file containing your project files</li>
-      <li>Only zip files are supported</li>
-      <li>CSV files will be converted to SQL tables</li>
-      <li>Excel files: ALL sheets will be converted to separate SQL tables</li>
-      <li>Python files will be automatically updated to work with the database</li>
-      <li>Files will be extracted and made available for editing</li>
+      <li>Upload a ZIP file containing your project files</li>
+      <li>Only ZIP files are supported</li>
+      <li>⚠️ Your project must include a .db (database) file for EYPOR to analyze data</li>
+      <li>All files will be extracted and preserved exactly as-is</li>
+      <li>Existing database files (.db) will be made available for querying</li>
+      <li>Python files (.py) will be available for execution</li>
+      <li>CSV/Excel files are preserved but not automatically imported</li>
+      <li>Use EYPOR to analyze data, create visualizations, and run models</li>
+      <li>All file types (images, documents, code) are supported</li>
     </ul>
   </div>
 </div> 
