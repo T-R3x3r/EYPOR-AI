@@ -4,6 +4,15 @@ echo  Starting Angular Frontend with Node 22.x
 echo ============================================
 echo.
 
+:: Clean Angular cache
+echo Cleaning Angular cache...
+if exist ".angular" (
+    rmdir /s /q ".angular"
+    echo Angular cache cleared successfully
+) else (
+    echo No Angular cache found
+)
+
 :: Kill any existing processes on port 4200
 echo Clearing port 4200...
 for /f "tokens=5" %%i in ('netstat -ano ^| findstr ":4200"') do (

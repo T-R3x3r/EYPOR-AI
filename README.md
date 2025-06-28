@@ -60,11 +60,18 @@ install_frontend.bat
 ```
 
 ### 2. Configure Environment
-Create or update `EY.env`:
-```
-OPENAI_API_KEY=your_openai_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here
-```
+1. Copy the example environment file:
+   ```bash
+   cp EY.env.example EY.env
+   ```
+2. Edit `EY.env` and add your API keys:
+   - Get your OpenAI API key from: https://platform.openai.com/api-keys
+   - Get your Gemini API key from: https://makersuite.google.com/app/apikey
+   ```
+   OPENAI_API_KEY=your_openai_api_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+   > ⚠️ **Important**: Never commit your `EY.env` file to version control. It contains sensitive API keys and is automatically ignored by `.gitignore`.
 
 ### 3. Start the Application
 ```bash
