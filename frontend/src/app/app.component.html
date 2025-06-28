@@ -1,0 +1,75 @@
+<div class="app-container">
+  <header class="app-header">
+    <h1>{{ title }}</h1>
+  </header>
+
+  <div class="main-layout">
+    <!-- Resizable Sidebar -->
+    <div class="sidebar" #sidebar>
+      <div class="sidebar-content">
+        <div class="file-upload-section">
+          <h3>File Upload</h3>
+          <app-file-upload (filesUploaded)="onFilesUploaded()"></app-file-upload>
+        </div>
+        
+        <div class="file-structure-section">
+          <h3>File Structure</h3>
+          <app-file-tree #fileTree></app-file-tree>
+        </div>
+      </div>
+      
+      <!-- Resize handle for sidebar -->
+      <div class="resize-handle" (mousedown)="startResize($event, 'sidebar')"></div>
+    </div>
+
+    <!-- Resizable Code Execution Window -->
+    <div class="execution-window" #executionWindow>
+      <div class="execution-content">
+        <h3>Code Execution</h3>
+        <app-output-display></app-output-display>
+      </div>
+      
+      <!-- Resize handle for execution window -->
+      <div class="resize-handle" (mousedown)="startResize($event, 'execution')"></div>
+    </div>
+
+    <!-- Right Panel with Tabs -->
+    <div class="right-panel">
+      <!-- Tab Navigation -->
+      <div class="tab-navigation">
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'chat'"
+          (click)="activeTab = 'chat'">
+          AI Analysis
+        </button>
+        <button 
+          class="tab-btn" 
+          [class.active]="activeTab === 'sql'"
+          (click)="activeTab = 'sql'">
+          SQL Database
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content">
+        <!-- Chat Tab -->
+        <div class="chat-window" [style.display]="activeTab === 'chat' ? 'block' : 'none'">
+          <div class="chat-content">
+            <app-chat (filesCreated)="refreshFileTree()"></app-chat>
+          </div>
+        </div>
+
+        <!-- SQL Tab -->
+        <div class="sql-window" [style.display]="activeTab === 'sql' ? 'block' : 'none'">
+          <div class="sql-content">
+            <app-sql-query></app-sql-query>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Model Rerun Dialog -->
+  <app-model-rerun-dialog></app-model-rerun-dialog>
+</div> 

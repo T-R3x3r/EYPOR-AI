@@ -1,0 +1,69 @@
+<div class="dialog-overlay" *ngIf="showDialog" (click)="onCancel()">
+  <div class="dialog-container" (click)="$event.stopPropagation()">
+    <div class="dialog-header">
+      <h3>Database Modified - Model Rerun Required</h3>
+      <button class="close-btn" (click)="onCancel()">&times;</button>
+    </div>
+
+    <div class="dialog-content">
+      <div class="change-info">
+        <div class="change-description">
+          <strong>Change:</strong> {{ currentRequest?.change_description }}
+        </div>
+        <div class="change-timestamp">
+          <small>{{ currentRequest?.timestamp | date:'medium' }}</small>
+        </div>
+      </div>
+
+      <div class="model-selection">
+        <h4>Select a model to rerun:</h4>
+        <div class="models-grid">
+          <div 
+            *ngFor="let model of availableModels" 
+            class="model-card"
+            [class.selected]="isModelSelected(model)"
+            [class.highlighted]="model.highlighted"
+            (click)="onModelSelect(model)">
+            
+            <div class="model-header">
+              <span class="model-icon">{{ getModelTypeIcon(model.type) }}</span>
+              <span class="model-name">{{ model.filename }}</span>
+              <span class="model-badge" [ngClass]="getModelTypeBadgeClass(model.type)">
+                {{ model.type }}
+              </span>
+            </div>
+            
+            <div class="model-description">
+              {{ model.description }}
+            </div>
+
+            <div class="model-highlight" *ngIf="model.highlighted">
+              <small>⭐ Recommended for runall operations</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="recommended-info" *ngIf="currentRequest?.recommended_model">
+        <div class="info-box">
+          <strong>Recommendation:</strong> {{ currentRequest?.recommended_model }} is suggested based on your change.
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-actions">
+      <button class="btn btn-cancel" (click)="onCancel()">
+        Cancel
+      </button>
+      <button class="btn btn-reject" (click)="onReject()">
+        Skip Rerun
+      </button>
+      <button 
+        class="btn btn-approve" 
+        [disabled]="!selectedModel"
+        (click)="onApprove()">
+        Run {{ selectedModel || 'Selected Model' }}
+      </button>
+    </div>
+  </div>
+</div> 

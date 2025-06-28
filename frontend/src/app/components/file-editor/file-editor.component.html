@@ -1,0 +1,77 @@
+<div class="file-editor">
+  <h3>File Editor</h3>
+  
+  <div class="file-selector">
+    <select 
+      [(ngModel)]="selectedFile" 
+      (change)="onFileSelect(selectedFile)"
+      [disabled]="loading"
+    >
+      <option value="Select a file...">Select a file...</option>
+      <option *ngFor="let file of files" [value]="file">{{ file }}</option>
+    </select>
+  </div>
+
+  <div *ngIf="selectedFile && !loading" class="file-stats">
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-value">{{ fileStats.lines }}</div>
+        <div class="stat-label">Lines</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">{{ fileStats.characters }}</div>
+        <div class="stat-label">Characters</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">{{ fileStats.type }}</div>
+        <div class="stat-label">Type</div>
+      </div>
+    </div>
+  </div>
+
+  <div *ngIf="selectedFile && !loading" class="editor-container">
+    <div *ngIf="isBinaryFile()" class="binary-warning">
+      <p>This appears to be a binary file or has encoding issues. Editing is not recommended.</p>
+    </div>
+    
+    <textarea 
+      *ngIf="!isBinaryFile()"
+      [(ngModel)]="fileContent"
+      (input)="onContentChange()"
+      class="editor-textarea"
+      placeholder="File content will appear here..."
+      [disabled]="loading"
+    ></textarea>
+    
+    <div class="editor-actions">
+      <button 
+        class="btn btn-success" 
+        (click)="saveFile()"
+        [disabled]="!isEditing || loading"
+      >
+        {{ loading ? 'Saving...' : 'Save' }}
+      </button>
+      
+      <button 
+        class="btn btn-secondary" 
+        (click)="revertFile()"
+        [disabled]="!isEditing || loading"
+      >
+        Revert
+      </button>
+      
+      <span *ngIf="isEditing" class="edit-indicator">
+        File has unsaved changes
+      </span>
+    </div>
+  </div>
+
+  <div *ngIf="loading" class="loading-container">
+    <div class="loading"></div>
+    <span>Loading file...</span>
+  </div>
+
+  <div *ngIf="!selectedFile && !loading" class="no-file-selected">
+    <p>Select a file from the dropdown above to view and edit its contents.</p>
+  </div>
+</div> 

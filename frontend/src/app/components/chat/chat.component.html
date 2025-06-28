@@ -1,0 +1,106 @@
+<div class="chat-container">
+  <!-- SQL Query Assistant Header -->
+  <div class="sql-header">
+    <div class="sql-title">
+      <h3>🤖 SQL Query Assistant</h3>
+      <p>Ask questions, get intelligent SQL responses</p>
+    </div>
+    <div class="sql-controls">
+      <button class="action-btn" (click)="clearChat()" [disabled]="isLoading">
+        🗑️ Clear
+      </button>
+      <button class="action-btn" (click)="toggleDebugInfo()">
+        {{ showDebugInfo ? '🔍 Hide Debug' : '🔍 Debug' }}
+      </button>
+      <button class="action-btn" (click)="exportChat()" [disabled]="messages.length <= 1">
+        📥 Export
+      </button>
+    </div>
+  </div>
+
+  <!-- Messages Area -->
+      <div class="messages-container" #messagesContainer (scroll)="onScroll($event)">
+    <div *ngFor="let message of messages" class="message" [ngClass]="{'user-message': message.role === 'user', 'assistant-message': message.role === 'assistant'}">
+      
+      <!-- Message Header -->
+      <div class="message-header">
+        <div class="message-info">
+          <span class="message-role">
+            <span *ngIf="message.role === 'user'">👤 You</span>
+            <span *ngIf="message.role === 'assistant'">🤖 SQL Assistant</span>
+          </span>
+          <span class="message-time">{{ message.timestamp | date:'short' }}</span>
+        </div>
+      </div>
+      
+      <!-- Message Content -->
+      <div class="message-content">
+        <div class="message-text" [innerHTML]="formatContent(message.content)"></div>
+        
+        <!-- Schema Badge (if present) -->
+        <div *ngIf="message.sql" class="sql-badge">
+          <span class="sql-icon">🗄️</span>
+          <span class="sql-text">Schema Information</span>
+        </div>
+        
+        <!-- Debug Information -->
+        <div *ngIf="showDebugInfo && message.role === 'assistant'" class="debug-info">
+          <strong>Debug Info:</strong>
+          <pre>{{ message | json }}</pre>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Loading Message -->
+    <div *ngIf="isLoading" class="message assistant-message loading-message">
+      <div class="message-header">
+        <div class="message-info">
+          <span class="message-role">🤖 SQL Assistant</span>
+          <span class="message-time">Processing...</span>
+        </div>
+      </div>
+      <div class="message-content">
+        <div class="loading-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggested Questions -->
+  <div class="suggestions-section" *ngIf="suggestions.length > 0">
+    <h4>💡 Suggestions:</h4>
+    <div class="suggestions-grid">
+      <button *ngFor="let suggestion of suggestions" 
+              class="suggestion-btn" 
+              (click)="useSuggestion(suggestion)"
+              [disabled]="isLoading">
+        {{ suggestion }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Input Area -->
+  <div class="input-area">
+    <div class="input-container">
+      <textarea 
+        [(ngModel)]="currentMessage" 
+        placeholder="Ask me anything about your data..." 
+        class="message-input"
+        rows="2"
+        (keydown.enter)="onEnterKey($event)"
+        [disabled]="isLoading">
+      </textarea>
+      <button 
+        class="send-btn" 
+        (click)="sendMessage()" 
+        [disabled]="!currentMessage.trim() || isLoading"
+        [class.loading]="isLoading">
+        <span *ngIf="!isLoading">🚀 Ask SQL Assistant</span>
+        <span *ngIf="isLoading">Processing...</span>
+      </button>
+    </div>
+  </div>
+</div> 

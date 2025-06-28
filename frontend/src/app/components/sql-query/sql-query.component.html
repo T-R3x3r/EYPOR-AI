@@ -1,0 +1,173 @@
+<div class="sql-database-container">
+  <!-- Header -->
+  <div class="section-header">
+    <h3>SQL Database</h3>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <div class="loading-spinner"></div>
+    <p>Loading database information...</p>
+  </div>
+
+  <!-- No Database State -->
+  <div *ngIf="!isLoading && !databaseInfo" class="no-database-container">
+    <div class="no-database-icon">✕</div>
+    <h3>No Database Available</h3>
+    <p>Upload CSV or Excel files to automatically create a database, or upload an existing .db file.</p>
+  </div>
+
+  <!-- Database Content -->
+  <div *ngIf="!isLoading && databaseInfo" class="database-content">
+    
+    <!-- Compact Database Information -->
+    <div class="database-info-compact">
+      <h4>Database Overview</h4>
+      <div class="compact-info-grid">
+        <div class="compact-info-item">
+          <strong>Tables:</strong> {{ databaseInfo.total_tables }}
+        </div>
+        <div class="compact-info-item">
+          <strong>Status:</strong> {{ getDatabaseStatus() }}
+        </div>
+        <div class="compact-info-item" *ngIf="detailedDbInfo">
+          <strong>Size:</strong> {{ detailedDbInfo.file_size }}
+        </div>
+        <div class="compact-info-item" *ngIf="detailedDbInfo">
+          <strong>File:</strong> {{ detailedDbInfo.filename }}
+        </div>
+        <div class="compact-info-item" *ngIf="detailedDbInfo">
+          <strong>Modified:</strong> {{ detailedDbInfo.modified_date }}
+        </div>
+        <div class="compact-info-item" *ngIf="detailedDbInfo">
+          <strong>SQLite:</strong> {{ detailedDbInfo.sqlite_version }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Selection -->
+    <div class="table-selection">
+      <h4>Select Table to View</h4>
+      <select [(ngModel)]="selectedTable" (change)="loadCompleteTable(selectedTable)" class="table-selector">
+        <option value="">Choose a table...</option>
+        <option *ngFor="let table of databaseInfo.tables" [value]="table.name">
+          {{ table.name }} ({{ getTableRowCount(table.name) | number }} rows)
+        </option>
+      </select>
+    </div>
+
+    <!-- Search Box -->
+    <div *ngIf="selectedTable && !loadingTableData && totalRows > 0" class="search-section">
+      <div class="search-input">
+        <input type="text" 
+               [formControl]="globalSearchControl" 
+               placeholder="Search all columns..." 
+               class="search-field">
+        <button *ngIf="globalSearchControl.value" (click)="clearSearch()" class="clear-btn">Clear</button>
+      </div>
+      <div class="search-info">
+        Showing {{ filteredRows | number }} of {{ totalRows | number }} rows
+        <span *ngIf="globalSearchControl.value"> (filtered)</span>
+      </div>
+    </div>
+
+    <!-- Loading Table Data -->
+    <div *ngIf="loadingTableData" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p>Loading table data...</p>
+    </div>
+
+    <!-- Table Data Display -->
+    <div *ngIf="selectedTable && !loadingTableData && totalRows > 0" class="table-display">
+      
+      <!-- Data Table -->
+      <div class="table-container">
+        <table mat-table [dataSource]="tableData" class="data-table" matSort>
+          
+          <!-- Dynamic columns -->
+          <ng-container *ngFor="let column of displayedColumns" [matColumnDef]="column">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header class="table-header">
+              <div class="header-content">
+                <span class="column-name">{{ column }}</span>
+                <span class="column-type">{{ getColumnType(column) }}</span>
+              </div>
+            </th>
+            <td mat-cell *matCellDef="let row" class="table-cell">
+              <div class="cell-content" [title]="formatCellValue(row[column])">
+                {{ formatCellValue(row[column]) }}
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="data-row"></tr>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <mat-paginator 
+        [pageSizeOptions]="[25, 50, 100, 250, 500]" 
+        [pageSize]="50"
+        showFirstLastButtons
+        class="table-paginator">
+      </mat-paginator>
+    </div>
+
+    <!-- No Data in Selected Table -->
+    <div *ngIf="selectedTable && !loadingTableData && totalRows === 0" class="no-selection">
+      <p>The selected table "{{ selectedTable }}" appears to be empty or data could not be loaded.</p>
+    </div>
+
+    <!-- No Table Selected -->
+    <div *ngIf="!selectedTable && !loadingTableData" class="no-selection">
+      <p>Select a table from the dropdown above to view its data.</p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+      <button class="btn" (click)="downloadDatabase()">
+        Download Database (.db)
+      </button>
+      
+      <button class="btn btn-secondary" (click)="exportDatabase('sql')">
+        Export as SQL
+      </button>
+      
+      <button class="btn btn-secondary" (click)="exportDatabase('csv')">
+        Export as CSV (Zip)
+      </button>
+      
+      <button class="btn btn-secondary" (click)="refreshDatabaseInfo()" [disabled]="isRefreshing">
+        <span *ngIf="!isRefreshing">🔄 Refresh Database & Table</span>
+        <span *ngIf="isRefreshing">🔄 Refreshing...</span>
+      </button>
+
+      <button class="btn btn-secondary debug-toggle" (click)="toggleDebug()">
+        {{ showDebug ? 'Hide' : 'Show' }} Debug Info
+      </button>
+    </div>
+
+    <!-- Debug Information (conditionally shown) -->
+    <div *ngIf="showDebug" class="debug-info">
+      <strong>Debug Info:</strong><br>
+      Database Available: {{ !!databaseInfo }}<br>
+      Total Tables: {{ databaseInfo.total_tables || 0 }}<br>
+      Selected Table: {{ selectedTable || 'None' }}<br>
+      Loading: {{ loadingTableData }}<br>
+      Total Rows: {{ totalRows }}<br>
+      Filtered Rows: {{ filteredRows }}<br>
+      Displayed Columns: {{ displayedColumns.length }}<br>
+      Table Data Type: {{ tableData.constructor.name }}<br>
+      Data Source Length: {{ tableData.data.length || 'undefined' }}<br>
+      API Base URL: {{ getApiBaseUrl() }}<br>
+      <div *ngIf="lastError" style="color: red; margin-top: 5px;">
+        <strong>Last Error:</strong> {{ lastError }}
+      </div>
+      <div style="margin-top: 5px;">
+        <button class="btn btn-secondary" (click)="testDatabaseConnection()" style="font-size: 11px; padding: 3px 6px;">
+          Test Database API
+        </button>
+      </div>
+    </div>
+  </div>
+</div> 

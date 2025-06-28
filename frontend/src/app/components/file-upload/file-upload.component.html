@@ -1,0 +1,57 @@
+<div class="file-upload">
+  <div class="upload-area" [class.dragover]="isDragOver" (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+    <div class="upload-content">
+      <i class="fas fa-cloud-upload-alt"></i>
+      <p>Drag and drop a zip file here, or</p>
+      <label for="fileInput" class="btn btn-primary">
+        <i class="fas fa-folder-open"></i> Choose File
+      </label>
+      <input 
+        type="file" 
+        id="fileInput" 
+        accept=".zip" 
+        (change)="onFileSelected($event)" 
+        style="display: none;"
+      >
+    </div>
+  </div>
+
+  <div *ngIf="selectedFile" class="selected-file">
+    <div class="file-info">
+      <i class="fas fa-file-archive"></i>
+      <span>{{ selectedFile.name }}</span>
+      <span class="file-size">({{ formatFileSize(selectedFile.size) }})</span>
+    </div>
+    <div class="file-actions">
+      <button class="btn btn-success" (click)="uploadFile()" [disabled]="isUploading">
+        <i class="fas fa-upload"></i> Upload
+      </button>
+      <button class="btn btn-secondary" (click)="clearSelection()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <div *ngIf="uploadMessage" class="upload-message" [class.success]="uploadSuccess" [class.error]="!uploadSuccess">
+    <i class="fas" [class.fa-check-circle]="uploadSuccess" [class.fa-exclamation-circle]="!uploadSuccess"></i>
+    {{ uploadMessage }}
+  </div>
+
+  <div class="upload-actions">
+    <button class="btn btn-outline" (click)="clearFiles()">
+      <i class="fas fa-trash"></i> Clear All Files
+    </button>
+  </div>
+
+  <div class="upload-info">
+    <p><strong>Instructions:</strong></p>
+    <ul>
+      <li>Upload a zip file containing your project files</li>
+      <li>Only zip files are supported</li>
+      <li>CSV files will be converted to SQL tables</li>
+      <li>Excel files: ALL sheets will be converted to separate SQL tables</li>
+      <li>Python files will be automatically updated to work with the database</li>
+      <li>Files will be extracted and made available for editing</li>
+    </ul>
+  </div>
+</div> 

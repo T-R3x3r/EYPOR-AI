@@ -1,0 +1,347 @@
+<div class="file-tree">
+  <div *ngIf="isLoading" class="loading">
+    <div class="spinner"></div>
+    <span>Loading files...</span>
+  </div>
+
+  <div *ngIf="!isLoading && fileTree.length === 0 && aiCreatedTree.length === 0" class="no-files">
+    <p>No files uploaded yet.</p>
+    <p>Upload a zip file to see the file structure here.</p>
+  </div>
+
+  <div *ngIf="!isLoading && (fileTree.length > 0 || aiCreatedTree.length > 0)" class="tree-container">
+    <!-- Requirements installation button -->
+    <div *ngIf="hasRequirementsFile()" class="requirements-section">
+      <button class="action-btn install-btn" (click)="installRequirements()">
+        <i class="fas fa-download"></i>
+        Install Requirements
+      </button>
+    </div>
+
+    <!-- Uploaded files section -->
+    <div *ngIf="fileTree.length > 0" class="uploaded-files-section">
+      <div class="section-header">
+        <i class="fas fa-folder-open"></i>
+        <span>Uploaded Files</span>
+      </div>
+      <div class="tree-items">
+      <div *ngFor="let node of fileTree" class="tree-item">
+        <div class="item-content" (click)="toggleFolder(node)">
+          <i [class]="getFileIcon(node)" class="item-icon"></i>
+          <span class="item-name">{{ node.name }}</span>
+          <i *ngIf="node.isDirectory" 
+             [class]="node.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
+             class="expand-icon"></i>
+        </div>
+        
+        <!-- Action buttons for files -->
+        <div *ngIf="!node.isDirectory" class="item-actions">
+          <button *ngIf="node.name.endsWith('.py')" 
+                  class="action-btn run-btn" 
+                  (click)="runPythonFile(node.path)">
+            <i class="fas fa-play"></i>
+            Run
+          </button>
+          <button *ngIf="node.name.endsWith('.sql')" 
+                  class="action-btn run-btn sql-run" 
+                  (click)="runSQLFile(node.path)">
+            <i class="fas fa-database"></i>
+            Run SQL
+          </button>
+          <button *ngIf="isViewableFile(node.name)" 
+                  class="action-btn view-btn" 
+                  (click)="viewFileContent(node.path)">
+            <i class="fas fa-eye"></i>
+            View
+          </button>
+          <button *ngIf="isImageFile(node.name)" 
+                  class="action-btn display-btn" 
+                  (click)="displayImage(node.path)">
+            <i class="fas fa-image"></i>
+            Display
+          </button>
+          <button *ngIf="isDatabaseFile(node.name)" 
+                  class="action-btn download-btn db-btn" 
+                  (click)="downloadFile(node.path)"
+                  title="Download SQLite Database">
+            <i class="fas fa-database"></i>
+            Download DB
+          </button>
+        </div>
+
+        <!-- Recursive children -->
+        <div *ngIf="node.isDirectory && node.expanded && node.children" 
+             class="children-container">
+          <div *ngFor="let child of node.children" class="tree-item child-item">
+            <div class="item-content" (click)="toggleFolder(child)">
+              <i [class]="getFileIcon(child)" class="item-icon"></i>
+              <span class="item-name">{{ child.name }}</span>
+              <i *ngIf="child.isDirectory" 
+                 [class]="child.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
+                 class="expand-icon"></i>
+            </div>
+            
+            <!-- Action buttons for child files -->
+            <div *ngIf="!child.isDirectory" class="item-actions">
+              <button *ngIf="child.name.endsWith('.py')" 
+                      class="action-btn run-btn" 
+                      (click)="runPythonFile(child.path)">
+                <i class="fas fa-play"></i>
+                Run
+              </button>
+              <button *ngIf="child.name.endsWith('.sql')" 
+                      class="action-btn run-btn sql-run" 
+                      (click)="runSQLFile(child.path)">
+                <i class="fas fa-database"></i>
+                Run SQL
+              </button>
+              <button *ngIf="isViewableFile(child.name)" 
+                      class="action-btn view-btn" 
+                      (click)="viewFileContent(child.path)">
+                <i class="fas fa-eye"></i>
+                View
+              </button>
+              <button *ngIf="isImageFile(child.name)" 
+                      class="action-btn display-btn" 
+                      (click)="displayImage(child.path)">
+                <i class="fas fa-image"></i>
+                Display
+              </button>
+              <button *ngIf="isDatabaseFile(child.name)" 
+                      class="action-btn download-btn db-btn" 
+                      (click)="downloadFile(child.path)"
+                      title="Download SQLite Database">
+                <i class="fas fa-database"></i>
+                Download DB
+              </button>
+            </div>
+
+            <!-- Recursive grandchildren -->
+            <div *ngIf="child.isDirectory && child.expanded && child.children" 
+                 class="children-container">
+              <div *ngFor="let grandchild of child.children" class="tree-item grandchild-item">
+                <div class="item-content" (click)="toggleFolder(grandchild)">
+                  <i [class]="getFileIcon(grandchild)" class="item-icon"></i>
+                  <span class="item-name">{{ grandchild.name }}</span>
+                  <i *ngIf="grandchild.isDirectory" 
+                     [class]="grandchild.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
+                     class="expand-icon"></i>
+                </div>
+                
+                <!-- Action buttons for grandchild files -->
+                <div *ngIf="!grandchild.isDirectory" class="item-actions">
+                  <button *ngIf="grandchild.name.endsWith('.py')" 
+                          class="action-btn run-btn" 
+                          (click)="runPythonFile(grandchild.path)">
+                    <i class="fas fa-play"></i>
+                    Run
+                  </button>
+                  <button *ngIf="grandchild.name.endsWith('.sql')" 
+                          class="action-btn run-btn sql-run" 
+                          (click)="runSQLFile(grandchild.path)">
+                    <i class="fas fa-database"></i>
+                    Run SQL
+                  </button>
+                  <button *ngIf="isViewableFile(grandchild.name)" 
+                          class="action-btn view-btn" 
+                          (click)="viewFileContent(grandchild.path)">
+                    <i class="fas fa-eye"></i>
+                    View
+                  </button>
+                  <button *ngIf="isImageFile(grandchild.name)" 
+                          class="action-btn display-btn" 
+                          (click)="displayImage(grandchild.path)">
+                    <i class="fas fa-image"></i>
+                    Display
+                  </button>
+                  <button *ngIf="isDatabaseFile(grandchild.name)" 
+                          class="action-btn download-btn db-btn" 
+                          (click)="downloadFile(grandchild.path)"
+                          title="Download SQLite Database">
+                    <i class="fas fa-database"></i>
+                    Download DB
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI Created files section -->
+    <div *ngIf="aiCreatedTree.length > 0" class="ai-created-files-section">
+      <div class="section-divider"></div>
+      <div class="section-header ai-header">
+        <i class="fas fa-robot"></i>
+        <span>AI Created Files</span>
+      </div>
+      <div class="tree-items">
+        <div *ngFor="let node of aiCreatedTree" class="tree-item ai-created">
+          <div class="item-content" (click)="toggleFolder(node)">
+            <i [class]="getFileIcon(node)" class="item-icon"></i>
+            <span class="item-name">{{ node.name }}</span>
+            <i *ngIf="node.isDirectory" 
+               [class]="node.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
+               class="expand-icon"></i>
+          </div>
+          
+          <!-- Action buttons for AI-created files -->
+          <div *ngIf="!node.isDirectory" class="item-actions">
+            <button *ngIf="node.name.endsWith('.py')" 
+                    class="action-btn run-btn" 
+                    (click)="runPythonFile(node.path)">
+              <i class="fas fa-play"></i>
+              Run
+            </button>
+            <button *ngIf="node.name.endsWith('.sql')" 
+                    class="action-btn run-btn sql-run" 
+                    (click)="runSQLFile(node.path)">
+              <i class="fas fa-database"></i>
+              Run SQL
+            </button>
+            <button *ngIf="isViewableFile(node.name)" 
+                    class="action-btn view-btn" 
+                    (click)="viewFileContent(node.path)">
+              <i class="fas fa-eye"></i>
+              View
+            </button>
+            <button *ngIf="isImageFile(node.name)" 
+                    class="action-btn display-btn" 
+                    (click)="displayImage(node.path)">
+              <i class="fas fa-image"></i>
+              Display
+            </button>
+            <button *ngIf="isDownloadableFile(node.name)" 
+                    class="action-btn download-btn" 
+                    (click)="downloadFile(node.path)">
+              <i class="fas fa-download"></i>
+              Download
+            </button>
+          </div>
+
+          <!-- Recursive children for AI-created files -->
+          <div *ngIf="node.isDirectory && node.expanded && node.children" 
+               class="children-container">
+            <div *ngFor="let child of node.children" class="tree-item child-item ai-created">
+              <div class="item-content" (click)="toggleFolder(child)">
+                <i [class]="getFileIcon(child)" class="item-icon"></i>
+                <span class="item-name">{{ child.name }}</span>
+                <i *ngIf="child.isDirectory" 
+                   [class]="child.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
+                   class="expand-icon"></i>
+              </div>
+              
+              <!-- Action buttons for AI-created child files -->
+              <div *ngIf="!child.isDirectory" class="item-actions">
+                <button *ngIf="child.name.endsWith('.py')" 
+                        class="action-btn run-btn" 
+                        (click)="runPythonFile(child.path)">
+                  <i class="fas fa-play"></i>
+                  Run
+                </button>
+                <button *ngIf="child.name.endsWith('.sql')" 
+                        class="action-btn run-btn sql-run" 
+                        (click)="runSQLFile(child.path)">
+                  <i class="fas fa-database"></i>
+                  Run SQL
+                </button>
+                <button *ngIf="isViewableFile(child.name)" 
+                        class="action-btn view-btn" 
+                        (click)="viewFileContent(child.path)">
+                  <i class="fas fa-eye"></i>
+                  View
+                </button>
+                <button *ngIf="isImageFile(child.name)" 
+                        class="action-btn display-btn" 
+                        (click)="displayImage(child.path)">
+                  <i class="fas fa-image"></i>
+                  Display
+                </button>
+                <button *ngIf="isDownloadableFile(child.name)" 
+                        class="action-btn download-btn" 
+                        (click)="downloadFile(child.path)">
+                  <i class="fas fa-download"></i>
+                  Download
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Viewer Modal -->
+  <div *ngIf="showCodeViewer" class="modal-overlay" (click)="closeCodeViewer()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h4>
+          <i [class]="getFileIcon({name: viewerFileName, path: '', isDirectory: false})"></i>
+          {{ viewerFileName }}
+          <span *ngIf="isEditMode" class="edit-indicator">
+            <i class="fas fa-edit"></i>
+            Editing
+          </span>
+          <span *ngIf="hasUnsavedChanges()" class="unsaved-indicator">
+            <i class="fas fa-circle"></i>
+            Unsaved changes
+          </span>
+        </h4>
+        <button class="close-btn" (click)="closeCodeViewer()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- View Mode -->
+        <pre *ngIf="!isEditMode" [class]="getCodeViewerClass()"><code>{{ viewerFileContent }}</code></pre>
+        
+        <!-- Edit Mode -->
+        <textarea 
+          *ngIf="isEditMode" 
+          [(ngModel)]="viewerFileContent"
+          class="code-editor"
+          [class]="getCodeViewerClass()"
+          spellcheck="false"
+          placeholder="Enter your code here...">
+        </textarea>
+      </div>
+      <div class="modal-footer">
+        <!-- Edit mode buttons -->
+        <div *ngIf="isEditMode" class="edit-buttons">
+          <button class="action-btn save-btn" 
+                  (click)="saveFileChanges()" 
+                  [disabled]="isSaving">
+            <i class="fas fa-save"></i>
+            {{ isSaving ? 'Saving...' : 'Save' }}
+          </button>
+          <button class="action-btn cancel-btn" 
+                  (click)="cancelEdit()"
+                  [disabled]="isSaving">
+            <i class="fas fa-times"></i>
+            Cancel
+          </button>
+        </div>
+        
+        <!-- View mode buttons -->
+        <div *ngIf="!isEditMode" class="view-buttons">
+          <button *ngIf="isEditableFile(viewerFileName)" 
+                  class="action-btn edit-btn" 
+                  (click)="toggleEditMode()">
+            <i class="fas fa-edit"></i>
+            Edit
+          </button>
+          <button class="action-btn download-btn" (click)="downloadFile(viewerFilePath)">
+            <i class="fas fa-download"></i>
+            Download
+          </button>
+        </div>
+        
+        <button class="action-btn close-btn-secondary" (click)="closeCodeViewer()">
+          <i class="fas fa-times"></i>
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div> 
