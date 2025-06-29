@@ -5,11 +5,9 @@
       <h3><i class="fas fa-robot"></i> EYPOR</h3>
     </div>
     <div class="sql-controls">
-      <button class="action-btn" (click)="clearChat()" [disabled]="isLoading">
-        🗑️ Clear
-      </button>
+      <button class="clear-all-btn" (click)="clearChat()" [disabled]="isLoading"><i class="fas fa-trash"></i> Clear All</button>
       <button class="action-btn" (click)="exportChat()" [disabled]="messages.length <= 1">
-        📥 Export
+        <i class="fas fa-download"></i> Export
       </button>
     </div>
   </div>

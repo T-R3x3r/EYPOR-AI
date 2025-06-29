@@ -218,19 +218,22 @@ body {
 /* Resize Handle */
 .resize-handle {
   position: absolute;
-  right: 0;
+  right: -2px;
   top: 0;
   bottom: 0;
   width: 4px;
-  background: #747480;
+  background: #c2c2cf;
   cursor: col-resize;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, width 0.2s, right 0.2s;
   z-index: 10;
+  border-radius: 4px;
 }
 
 .resize-handle:hover,
 .resize-handle:active {
   background: #FFE600;
+  width: 6px;
+  right: -3px;
 }
 
 /* Execution Window */
@@ -511,7 +514,8 @@ body.dark-mode .file-structure-section {
 body.dark-mode .file-upload-section h3,
 body.dark-mode .file-structure-section h3 {
   color: #eaeaf2 !important;
-  border-bottom-color: #21acf6 !important;
+  border-bottom: 2px solid #21acf6 !important;
+  background: transparent !important;
 }
 
 body.dark-mode .execution-window {
@@ -570,14 +574,31 @@ body.dark-mode .sql-content {
   background: #2e2e38 !important;
 }
 
-/* Fix the blue dividing lines (resize handles) */
-body.dark-mode .resize-handle {
-  background: #474755 !important;
+/* Dark mode styles with higher specificity */
+body.dark-mode .main-layout .sidebar .resize-handle,
+body.dark-mode .main-layout .execution-window .resize-handle {
+  background: #c2c2cf !important;
+  width: 4px !important;
+  right: -2px !important;
+  border-radius: 4px !important;
+  transition: background-color 0.2s, width 0.2s, right 0.2s !important;
 }
 
-body.dark-mode .resize-handle:hover,
-body.dark-mode .resize-handle:active {
+body.dark-mode .main-layout .sidebar .resize-handle:hover,
+body.dark-mode .main-layout .sidebar .resize-handle:active,
+body.dark-mode .main-layout .execution-window .resize-handle:hover,
+body.dark-mode .main-layout .execution-window .resize-handle:active {
   background: #21acf6 !important;
+  width: 6px !important;
+  right: -3px !important;
+}
+
+/* Ensure resize handle stays visible during resizing */
+body.dark-mode.resizing .main-layout .sidebar .resize-handle,
+body.dark-mode.resizing .main-layout .execution-window .resize-handle {
+  background: #21acf6 !important;
+  width: 6px !important;
+  right: -3px !important;
 }
 
 /* Settings menu dark mode */

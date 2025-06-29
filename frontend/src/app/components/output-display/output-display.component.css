@@ -56,7 +56,7 @@
 
 .resize-handle {
   position: absolute;
-  bottom: 0;
+  bottom: -5px;
   left: 0;
   right: 0;
   height: 10px;
@@ -66,23 +66,24 @@
   align-items: center;
   background: transparent;
   transition: background-color 0.2s;
-  z-index: 1; /* Ensure handle is above content */
+  z-index: 1;
 }
 
 .resize-handle:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(255, 230, 0, 0.1);
 }
 
 .resize-bar {
-  width: 30px;
+  width: 40px;
   height: 4px;
-  background-color: #dee2e6;
+  background-color: #c2c2cf;
   border-radius: 2px;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, height 0.2s;
 }
 
 .resize-handle:hover .resize-bar {
-  background-color: #adb5bd;
+  background-color: #FFE600;
+  height: 6px;
 }
 
 /* Style when resizing is active */
@@ -96,11 +97,44 @@ body.resizing .execution-result {
 }
 
 body.resizing .resize-handle {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(255, 230, 0, 0.1);
 }
 
 body.resizing .resize-bar {
-  background-color: #adb5bd;
+  background-color: #FFE600;
+  height: 6px;
+}
+
+/* Dark mode styles with higher specificity */
+body.dark-mode .output-display .execution-result .resize-handle {
+  transition: background-color 0.2s !important;
+}
+
+body.dark-mode .output-display .execution-result .resize-handle .resize-bar {
+  width: 40px !important;
+  height: 4px !important;
+  background-color: #c2c2cf !important;
+  border-radius: 2px !important;
+  transition: background-color 0.2s, height 0.2s !important;
+}
+
+body.dark-mode .output-display .execution-result .resize-handle:hover {
+  background-color: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode .output-display .execution-result .resize-handle:hover .resize-bar {
+  background-color: #21acf6 !important;
+  height: 6px !important;
+}
+
+/* Ensure resize handle stays visible during resizing */
+body.dark-mode.resizing .output-display .execution-result .resize-handle {
+  background-color: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode.resizing .output-display .execution-result .resize-handle .resize-bar {
+  background-color: #21acf6 !important;
+  height: 6px !important;
 }
 
 .timestamp {

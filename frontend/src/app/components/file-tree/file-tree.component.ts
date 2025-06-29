@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewEncapsulation } from '@angular/core';
 import { ApiService } from '../../services/api.service';
 import { ExecutionService } from '../../services/execution.service';
 
@@ -13,7 +13,8 @@ interface FileNode {
 @Component({
   selector: 'app-file-tree',
   templateUrl: './file-tree.component.html',
-  styleUrls: ['./file-tree.component.css']
+  styleUrls: ['./file-tree.component.css'],
+  encapsulation: ViewEncapsulation.None
 })
 export class FileTreeComponent implements OnInit {
   fileTree: FileNode[] = [];

@@ -38,9 +38,7 @@
   </div>
 
   <div class="upload-actions">
-    <button class="btn btn-outline" (click)="clearFiles()">
-      <i class="fas fa-trash"></i> Clear All Files
-    </button>
+    <button class="btn clear-all-btn" (click)="clearFiles()"><i class="fas fa-trash"></i> Clear All</button>
   </div>
 
   <div class="upload-info" *ngIf="!hasUploadedFiles">

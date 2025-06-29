@@ -9,10 +9,10 @@
 
 /* SQL Assistant Header */
 .sql-header {
-  background: #FFE600;
-  color: #333;
+  background: #fff !important;
+  color: #333 !important;
   padding: 1rem;
-  border-bottom: 2px solid #e6c200;
+  border-bottom: 2px solid #FFE600 !important;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -256,9 +256,23 @@
 }
 
 /* Dark Mode Styles for Chat Component */
+body.dark-mode .right-panel .chat-window .chat-content .chat-container,
 body.dark-mode .chat-container {
   background: #2e2e38 !important;
   color: #eaeaf2 !important;
+}
+
+body.dark-mode .right-panel .chat-window .chat-content .message-content,
+body.dark-mode .right-panel .chat-window .chat-content .assistant-message .message-content {
+  background: #747480 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .right-panel .chat-window .chat-content .user-message .message-content {
+  background: #21acf6 !important;
+  border-color: #1e9be6 !important;
+  color: white !important;
 }
 
 body.dark-mode .sql-header {
@@ -289,23 +303,6 @@ body.dark-mode .messages-container {
 
 body.dark-mode .message-time {
   color: #c2c2cf !important;
-}
-
-body.dark-mode .message-content {
-  background: #1a1a24 !important;
-  border-color: #474755 !important;
-  color: #eaeaf2 !important;
-}
-
-body.dark-mode .user-message .message-content {
-  background: #21acf6 !important;
-  border-color: #1e9be6 !important;
-  color: white !important;
-}
-
-body.dark-mode .input-area {
-  background: #1a1a24 !important;
-  border-top-color: #474755 !important;
 }
 
 body.dark-mode .message-input {
@@ -339,4 +336,187 @@ body.dark-mode .loading-dots span {
 body.dark-mode .sql-badge {
   background: #1eca3a !important;
   color: white !important;
+}
+
+/* Dark Mode Styles */
+body.dark-mode .app-chat-component .message-content {
+  background: #747480 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .app-chat-component .user-message .message-content {
+  background: #21acf6 !important;
+  border-color: #1e9be6 !important;
+  color: white !important;
+}
+
+/* Dark Mode Message Styles */
+body.dark-mode .chat-container[_ngcontent-ng-c227625687] .message-content,
+body.dark-mode .chat-container .message-content[_ngcontent-ng-c227625687],
+body.dark-mode div[class*="message-content"] {
+  background-color: #747480 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Ensure user messages maintain their style */
+body.dark-mode .chat-container[_ngcontent-ng-c227625687] .user-message .message-content,
+body.dark-mode .chat-container .user-message .message-content[_ngcontent-ng-c227625687],
+body.dark-mode .user-message div[class*="message-content"] {
+  background: #21acf6 !important;
+  border-color: #1e9be6 !important;
+  color: white !important;
+}
+
+/* Scope all dark mode styles to app-chat component */
+app-chat.app-chat-component {
+  display: contents;
+}
+
+/* Dark Mode Message Styles - Scoped to app-chat */
+body.dark-mode app-chat .message-content {
+  background: #747480 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode app-chat .user-message .message-content {
+  background: #21acf6 !important;
+  border-color: #1e9be6 !important;
+  color: white !important;
+}
+
+/* Dark mode styles */
+body.dark-mode app-chat .chat-message {
+  background-color: #747480;
+  color: #eaeaf2;
+}
+
+body.dark-mode app-chat .chat-message.user-message {
+  background-color: #21acf6;
+  color: white;
+}
+
+body.dark-mode app-chat .chat-message.system-message {
+  background-color: #474755;
+  color: #eaeaf2;
+}
+
+body.dark-mode app-chat .chat-input {
+  background-color: #2e2e38;
+  color: #eaeaf2;
+  border-color: #474755;
+}
+
+body.dark-mode app-chat .chat-input:focus {
+  border-color: #21acf6;
+}
+
+body.dark-mode app-chat .send-button {
+  background-color: #21acf6;
+  color: white;
+}
+
+body.dark-mode app-chat .send-button:hover {
+  background-color: #1a8ac5;
+}
+
+/* Light mode styles */
+.chat-message {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  max-width: 80%;
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+.chat-message.user-message {
+  margin-left: auto;
+  background-color: #007bff;
+  color: white;
+}
+
+.chat-message.system-message {
+  margin-right: auto;
+  background-color: #f8f9fa;
+  color: #212529;
+}
+
+/* Dark mode styles */
+body.dark-mode .chat-message {
+  background-color: #747480 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .chat-message.user-message {
+  background-color: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .chat-message.system-message {
+  background-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Keep other existing styles */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1rem;
+}
+
+.chat-messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+.chat-input-container {
+  display: flex;
+  gap: 1rem;
+}
+
+.chat-input {
+  flex-grow: 1;
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  font-size: 1rem;
+}
+
+.send-button {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.send-button:hover {
+  background-color: #0056b3;
+}
+
+/* Dark mode input styles */
+body.dark-mode .chat-input {
+  background-color: #1a1a24 !important;
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .chat-input:focus {
+  border-color: #21acf6 !important;
+}
+
+body.dark-mode .send-button {
+  background-color: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode .send-button:hover {
+  background-color: #1a8ac5 !important;
 } 

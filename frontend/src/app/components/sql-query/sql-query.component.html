@@ -63,7 +63,7 @@
                [formControl]="globalSearchControl" 
                placeholder="Search all columns..." 
                class="search-field">
-        <button *ngIf="globalSearchControl.value" (click)="clearSearch()" class="clear-btn">Clear</button>
+        <button *ngIf="globalSearchControl.value" (click)="clearSearch()" class="clear-all-btn"><i class="fas fa-trash"></i> Clear All</button>
       </div>
       <div class="search-info">
         Showing {{ filteredRows | number }} of {{ totalRows | number }} rows
@@ -125,7 +125,7 @@
 
     <!-- Action Buttons -->
     <div class="action-buttons">
-      <button class="btn" (click)="downloadDatabase()">
+      <button class="btn download-db" (click)="downloadDatabase()">
         Download Database (.db)
       </button>
       
@@ -138,8 +138,8 @@
       </button>
       
       <button class="btn btn-secondary" (click)="refreshDatabaseInfo()" [disabled]="isRefreshing">
-        <span *ngIf="!isRefreshing">🔄 Refresh Database & Table</span>
-        <span *ngIf="isRefreshing">🔄 Refreshing...</span>
+        <span *ngIf="!isRefreshing"><i class="fas fa-sync-alt"></i> Refresh Database & Table</span>
+        <span *ngIf="isRefreshing"><i class="fas fa-sync-alt fa-spin"></i> Refreshing...</span>
       </button>
 
       <button class="btn btn-secondary debug-toggle" (click)="toggleDebug()">

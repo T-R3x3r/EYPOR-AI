@@ -543,9 +543,10 @@ body.dark-mode .tab-btn:hover {
 }
 
 body.dark-mode .tab-btn.active {
-  background: #21acf6 !important;
-  color: white !important;
-  border-color: #21acf6 !important;
+  background: transparent !important;
+  color: #21acf6 !important;
+  border-bottom: 2px solid #21acf6 !important;
+  border-radius: 0 !important;
 }
 
 /* Chat Component Dark Mode */
@@ -832,16 +833,16 @@ body.dark-mode .tab-content-area {
 }
 
 /* Additional specific dark mode fixes */
-body.dark-mode .file-upload-section,
-body.dark-mode .file-structure-section {
-  background: #2e2e38 !important;
+body.dark-mode .file-upload-section {
+  background: transparent !important;
+  border-bottom: none !important;
+  color: #eaeaf2 !important;
 }
 
-body.dark-mode .file-upload-section h3,
-body.dark-mode .file-structure-section h3,
-body.dark-mode .execution-content h3 {
+body.dark-mode .file-upload-section h3 {
+  background: transparent !important;
+  border-bottom: 2px solid #21acf6 !important;
   color: #eaeaf2 !important;
-  background: #2e2e38 !important;
 }
 
 /* Uploaded Files header and container */
@@ -950,4 +951,355 @@ body.dark-mode .table-selection {
   background: #1a1a24 !important;
   border-color: #474755 !important;
   color: #eaeaf2 !important;
+}
+
+body.dark-mode .file-upload-section .upload-area:hover,
+body.dark-mode .file-upload-section .upload-area.dragover {
+  border-color: #21acf6 !important;
+}
+body.dark-mode .file-upload-section .upload-area:hover .upload-content i,
+body.dark-mode .file-upload-section .upload-area.dragover .upload-content i {
+  color: #21acf6 !important;
+}
+
+body.dark-mode .file-upload-section .upload-info {
+  border: 1px solid #eaeaf2 !important;
+  box-shadow: none !important;
+}
+
+body.dark-mode .assistant-message .message-content {
+  background: red !important;
+}
+
+/* Dark mode message styles */
+body.dark-mode .message-content {
+  background-color: #747480 !important;
+}
+
+/* Ensure user messages still have their distinct style */
+body.dark-mode .user-message .message-content {
+  background: #21acf6 !important;
+}
+
+/* Global dark mode message styles with high specificity */
+body.dark-mode .right-panel .chat-window .chat-content .message-content,
+body.dark-mode app-chat .message-content,
+body.dark-mode div[class*="message-content"] {
+  background-color: #747480 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+/* Global dark mode user message styles */
+body.dark-mode .right-panel .chat-window .chat-content .user-message .message-content,
+body.dark-mode app-chat .user-message .message-content {
+  background: #21acf6 !important;
+  border-color: #1e9be6 !important;
+  color: white !important;
+}
+
+/* Preserve sidebar icon colors in dark mode */
+body.dark-mode .run-btn {
+  background: #FFE600 !important;
+  color: #333 !important;
+}
+
+body.dark-mode .run-btn:hover {
+  background: #E6D000 !important;
+}
+
+body.dark-mode .run-btn.sql-run {
+  background: linear-gradient(135deg, #28a745, #20c997) !important;
+  color: white !important;
+}
+
+body.dark-mode .run-btn.sql-run:hover {
+  background: linear-gradient(135deg, #218838, #1da785) !important;
+}
+
+body.dark-mode .view-btn {
+  background: #007bff !important;
+  color: white !important;
+}
+
+body.dark-mode .view-btn:hover {
+  background: #0056b3 !important;
+}
+
+body.dark-mode .download-btn {
+  background: #17a2b8 !important;
+  color: white !important;
+}
+
+body.dark-mode .download-btn:hover {
+  background: #138496 !important;
+}
+
+body.dark-mode .db-btn {
+  background: linear-gradient(135deg, #6f42c1, #6610f2) !important;
+  color: white !important;
+}
+
+body.dark-mode .db-btn:hover {
+  background: linear-gradient(135deg, #5a2d91, #520dc2) !important;
+}
+
+body.dark-mode .db-btn .fas.fa-database {
+  color: white !important;
+}
+
+/* Preserve file type icons colors */
+body.dark-mode .fab.fa-python {
+  color: #3776AB !important;
+}
+
+body.dark-mode .fas.fa-database {
+  color: #6f42c1 !important;
+}
+
+body.dark-mode .fas.fa-file-csv {
+  color: #217346 !important;
+}
+
+body.dark-mode .fas.fa-file-code {
+  color: #e83e8c !important;
+}
+
+body.dark-mode .fas.fa-image {
+  color: #ff6b6b !important;
+}
+
+/* --- SQL Database Tab Dark Mode Overrides --- */
+body.dark-mode .sql-database-container,
+body.dark-mode .sql-database-container * {
+  background: transparent;
+  color: inherit;
+}
+
+body.dark-mode .sql-database-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .section-header h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #FFE600 !important;
+}
+body.dark-mode .sql-database-container .database-info-compact {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .compact-info-item {
+  color: #c2c2cf !important;
+}
+body.dark-mode .sql-database-container .compact-info-item strong,
+body.dark-mode .sql-database-container .database-info-compact h4 {
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .table-selection h4 {
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .table-selector {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .table-selector:focus {
+  border-color: #21acf6 !important;
+  box-shadow: 0 0 0 2px rgba(33, 172, 246, 0.2) !important;
+}
+body.dark-mode .sql-database-container .search-field {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .search-field:focus {
+  border-color: #21acf6 !important;
+  box-shadow: 0 0 0 2px rgba(33, 172, 246, 0.2) !important;
+}
+body.dark-mode .sql-database-container .search-info {
+  color: #c2c2cf !important;
+}
+body.dark-mode .sql-database-container .table-container {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+body.dark-mode .sql-database-container .data-table {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .table-header {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+  border-bottom-color: #474755 !important;
+}
+body.dark-mode .sql-database-container .column-name {
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .column-type {
+  background: #474755 !important;
+  color: #c2c2cf !important;
+}
+body.dark-mode .sql-database-container .table-cell {
+  border-bottom-color: #474755 !important;
+}
+body.dark-mode .sql-database-container .cell-content {
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .data-row:nth-child(even) {
+  background: #2e2e38 !important;
+}
+body.dark-mode .sql-database-container .data-row:hover {
+  background: rgba(33, 172, 246, 0.15) !important;
+}
+body.dark-mode .sql-database-container .table-paginator {
+  background: #1a1a24 !important;
+  border-top-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .btn {
+  background: #FFE600 !important;
+  color: #333 !important;
+}
+body.dark-mode .sql-database-container .btn:hover {
+  background: #E6CC00 !important;
+}
+body.dark-mode .sql-database-container .btn-secondary {
+  background: #474755 !important;
+  color: #eaeaf2 !important;
+}
+body.dark-mode .sql-database-container .btn-secondary:hover {
+  background: #5a5a6a !important;
+}
+body.dark-mode .sql-database-container .debug-info {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #c2c2cf !important;
+}
+body.dark-mode .sql-database-container .table-container::-webkit-scrollbar-track {
+  background: #2e2e38 !important;
+}
+body.dark-mode .sql-database-container .table-container::-webkit-scrollbar-thumb {
+  background: #474755 !important;
+}
+body.dark-mode .sql-database-container .table-container::-webkit-scrollbar-thumb:hover {
+  background: #5a5a6a !important;
+}
+
+/* --- SQL Database Tab Dark Mode Fixes (regressions) --- */
+
+/* 1. Headline underline blue in dark mode */
+body.dark-mode .sql-database-container .section-header h3 {
+  border-bottom-color: #21acf6 !important;
+}
+
+/* 2. Paginator buttons white in dark mode (Angular Material paginator) */
+body.dark-mode .sql-database-container .mat-paginator button,
+body.dark-mode .sql-database-container .mat-paginator .mat-paginator-icon {
+  color: #fff !important;
+  fill: #fff !important;
+}
+
+/* 3. Download Database (.db) button blue in dark mode */
+body.dark-mode .sql-database-container .btn {
+  background: #FFE600 !important;
+  color: #333 !important;
+}
+body.dark-mode .sql-database-container .btn.download-db {
+  background: #21acf6 !important;
+  color: #fff !important;
+}
+body.dark-mode .sql-database-container .btn.download-db:hover {
+  background: #1a9afa !important;
+}
+
+/* --- Angular Material MDC Paginator Dark Mode Icon/Button Fix --- */
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-paginator-icon {
+  color: #fff !important;
+  fill: #fff !important;
+}
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button[disabled] {
+  color: #747480 !important;
+  fill: #747480 !important;
+}
+
+/* --- Extra MDC Paginator Icon Fixes for Dark Mode --- */
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button svg,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-paginator-icon svg,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-paginator-icon path {
+  color: #fff !important;
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button {
+  --mdc-icon-button-icon-color: #fff !important;
+  color: #fff !important;
+}
+
+/* --- Aggressive MDC Paginator Icon Fixes for Dark Mode --- */
+body.dark-mode ::ng-deep .mat-mdc-paginator svg,
+body.dark-mode ::ng-deep .mat-mdc-paginator path {
+  color: #fff !important;
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button .mdc-icon-button__ripple {
+  background: transparent !important;
+}
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button * {
+  color: #fff !important;
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+
+/* --- Nuclear Option: Force All Paginator Content to White in Dark Mode --- */
+body.dark-mode ::ng-deep .mat-mdc-paginator {
+  color: #fff !important;
+}
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button svg,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-icon-button .mat-mdc-paginator-icon,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-paginator-icon,
+body.dark-mode ::ng-deep .mat-mdc-paginator .mat-mdc-paginator-icon path {
+  color: #fff !important;
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+body.dark-mode ::ng-deep .mat-mdc-paginator * {
+  color: #fff !important;
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+
+/* --- Unified Clear All Button Style --- */
+.clear-all-btn {
+  background: #a11c1c !important;
+  color: #fff !important;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.clear-all-btn i {
+  font-size: 1em;
+  margin-right: 4px;
+}
+.clear-all-btn:hover, .clear-all-btn:focus {
+  background: #7d1515 !important;
+  color: #fff !important;
+}
+body.dark-mode .clear-all-btn {
+  background: #a11c1c !important;
+  color: #fff !important;
+}
+body.dark-mode .clear-all-btn:hover, body.dark-mode .clear-all-btn:focus {
+  background: #7d1515 !important;
+  color: #fff !important;
 } 

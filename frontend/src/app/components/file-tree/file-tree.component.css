@@ -117,13 +117,14 @@
 }
 
 .install-btn {
-  background: #28a745;
+  background: #28a745 !important;
+  color: white !important;
   width: 100%;
   justify-content: center;
 }
 
 .install-btn:hover {
-  background: #218838;
+  background: #218838 !important;
 }
 
 .run-btn {
@@ -781,4 +782,189 @@ body.dark-mode .file-badge.csv {
 body.dark-mode .file-badge.excel {
   background: #1eca3a !important;
   color: white !important;
+}
+
+/* Dark mode overrides to preserve colors */
+app-file-tree .run-btn {
+  background: #FFE600;
+  color: #333;
+}
+
+app-file-tree .run-btn:hover {
+  background: #E6D000;
+}
+
+app-file-tree .run-btn.sql-run {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+}
+
+app-file-tree .run-btn.sql-run:hover {
+  background: linear-gradient(135deg, #218838, #1da785);
+}
+
+app-file-tree .view-btn {
+  background: #007bff;
+  color: white;
+}
+
+app-file-tree .view-btn:hover {
+  background: #0056b3;
+}
+
+app-file-tree .download-btn {
+  background: #17a2b8;
+  color: white;
+}
+
+app-file-tree .download-btn:hover {
+  background: #138496;
+}
+
+app-file-tree .db-btn {
+  background: linear-gradient(135deg, #6f42c1, #6610f2);
+  color: white;
+}
+
+app-file-tree .db-btn:hover {
+  background: linear-gradient(135deg, #5a2d91, #520dc2);
+}
+
+app-file-tree .db-btn .fas.fa-database {
+  color: white !important;
+}
+
+/* File type icons */
+app-file-tree .fab.fa-python {
+  color: #3776AB !important;
+}
+
+app-file-tree .fas.fa-database {
+  color: #6f42c1 !important;
+}
+
+app-file-tree .fas.fa-file-csv {
+  color: #217346 !important;
+}
+
+app-file-tree .fas.fa-file-code {
+  color: #e83e8c !important;
+}
+
+app-file-tree .fas.fa-image {
+  color: #ff6b6b !important;
+}
+
+/* Keep existing dark mode styles but make them more specific */
+body.dark-mode app-file-tree .file-tree {
+  background: #2e2e38;
+  color: #eaeaf2;
+}
+
+body.dark-mode app-file-tree .section-header {
+  background: #1a1a24;
+  color: #eaeaf2;
+}
+
+body.dark-mode app-file-tree .section-header.ai-header {
+  background: #856404;
+  color: #fff3cd;
+}
+
+body.dark-mode app-file-tree .file-item {
+  color: #eaeaf2 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode app-file-tree .file-item:hover {
+  background: rgba(33, 172, 246, 0.1) !important;
+}
+
+body.dark-mode app-file-tree .file-item.selected {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode app-file-tree .file-item.folder {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode app-file-tree .file-item.file {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode app-file-tree .file-icon {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode app-file-tree .file-icon.folder {
+  color: #21acf6 !important;
+}
+
+body.dark-mode app-file-tree .file-icon.file {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode app-file-tree .file-name {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode app-file-tree .file-actions {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode app-file-tree .file-size {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode app-file-tree .file-date {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode app-file-tree .expand-icon {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode app-file-tree .expand-icon:hover {
+  color: #21acf6 !important;
+}
+
+body.dark-mode app-file-tree .no-files {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode app-file-tree .file-badge {
+  background: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode app-file-tree .file-badge.python {
+  background: #21acf6 !important;
+  color: white !important;
+}
+
+body.dark-mode app-file-tree .file-badge.database {
+  background: #1eca3a !important;
+  color: white !important;
+}
+
+body.dark-mode app-file-tree .file-badge.csv {
+  background: #ffb347 !important;
+  color: #333 !important;
+}
+
+body.dark-mode app-file-tree .file-badge.excel {
+  background: #1eca3a !important;
+  color: white !important;
+}
+
+/* Dark mode styles */
+body.dark-mode .install-btn {
+  background: #28a745 !important;
+  color: white !important;
+}
+
+body.dark-mode .install-btn:hover {
+  background: #218838 !important;
 } 

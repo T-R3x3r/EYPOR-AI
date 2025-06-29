@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, Output, EventEmitter } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, Output, EventEmitter, ViewEncapsulation } from '@angular/core';
 import { ApiService } from '../../services/api.service';
 import { ExecutionService } from '../../services/execution.service';
 
@@ -25,7 +25,11 @@ interface SQLResponse {
 @Component({
   selector: 'app-chat',
   templateUrl: './chat.component.html',
-  styleUrls: ['./chat.component.css']
+  styleUrls: ['./chat.component.css'],
+  encapsulation: ViewEncapsulation.None,
+  host: {
+    'class': 'app-chat-component'
+  }
 })
 export class ChatComponent implements OnInit, AfterViewChecked {
   @ViewChild('messagesContainer') messagesContainer!: ElementRef;

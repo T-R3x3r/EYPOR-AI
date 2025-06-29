@@ -578,7 +578,7 @@ body.dark-mode .loading-container {
 
 body.dark-mode .loading-spinner {
   border-color: #474755 !important;
-  border-top-color: #21acf6 !important;
+  border-top-color: #FFE600 !important;
 }
 
 body.dark-mode .no-database-container {
@@ -600,5 +600,160 @@ body.dark-mode .no-database-icon {
 /* Fix section headers */
 body.dark-mode .section-header h3 {
   color: #eaeaf2 !important;
-  border-bottom-color: #21acf6 !important;
+  border-bottom-color: #FFE600 !important;
+}
+
+/* Dark Mode Styles for SQL Database Component */
+body.dark-mode .sql-database-container {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .section-header h3 {
+  color: #eaeaf2 !important;
+  border-bottom-color: #FFE600 !important;
+}
+
+body.dark-mode .loading-container {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .loading-spinner {
+  border-color: #474755 !important;
+  border-top-color: #FFE600 !important;
+}
+
+body.dark-mode .no-database-container {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .no-database-icon {
+  color: #474755 !important;
+}
+
+body.dark-mode .database-info-compact {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .database-info-compact h4,
+body.dark-mode .compact-info-item strong {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .compact-info-item {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .table-selection h4 {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .table-selector {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .table-selector:focus {
+  border-color: #FFE600 !important;
+  box-shadow: 0 0 0 2px rgba(255, 230, 0, 0.2) !important;
+}
+
+body.dark-mode .search-field {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .search-field:focus {
+  border-color: #FFE600 !important;
+  box-shadow: 0 0 0 2px rgba(255, 230, 0, 0.2) !important;
+}
+
+body.dark-mode .search-info {
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .table-container {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+}
+
+body.dark-mode .data-table {
+  background: #1a1a24 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .table-header {
+  background: #2e2e38 !important;
+  color: #eaeaf2 !important;
+  border-bottom-color: #474755 !important;
+}
+
+body.dark-mode .column-name {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .column-type {
+  background: #474755 !important;
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .table-cell {
+  border-bottom-color: #474755 !important;
+}
+
+body.dark-mode .cell-content {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .data-row:nth-child(even) {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .data-row:hover {
+  background: rgba(255, 230, 0, 0.1) !important;
+}
+
+body.dark-mode .table-paginator {
+  background: #1a1a24 !important;
+  border-top-color: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .btn {
+  background: #FFE600 !important;
+  color: #333 !important;
+}
+
+body.dark-mode .btn:hover {
+  background: #E6CC00 !important;
+}
+
+body.dark-mode .btn-secondary {
+  background: #474755 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .btn-secondary:hover {
+  background: #5a5a6a !important;
+}
+
+body.dark-mode .debug-info {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .table-container::-webkit-scrollbar-track {
+  background: #2e2e38 !important;
+}
+
+body.dark-mode .table-container::-webkit-scrollbar-thumb {
+  background: #474755 !important;
+}
+
+body.dark-mode .table-container::-webkit-scrollbar-thumb:hover {
+  background: #5a5a6a !important;
 } 
