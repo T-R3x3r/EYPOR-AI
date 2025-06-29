@@ -966,5 +966,9 @@ body.dark-mode .install-btn {
 }
 
 body.dark-mode .install-btn:hover {
-  background: #218838 !important;
+  background: #1c6c2e !important;
+}
+
+body.dark-mode .file-tree .modal-content {
+  background-color: #1a1a24;
 } 

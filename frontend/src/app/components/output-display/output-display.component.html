@@ -41,7 +41,7 @@
                 <div class="file-actions">
                   <!-- View button for images -->
                   <button *ngIf="file.type === 'image'" 
-                          class="view-btn" 
+                          class="action-btn view-btn" 
                           (click)="toggleImageVisibility(file)">
                     {{ file.isVisible ? 'Hide' : 'View' }}
                   </button>
@@ -52,13 +52,6 @@
                      class="download-link">
                     <i class="fas fa-download"></i> Download
                   </a>
-                  
-                  <!-- Test button -->
-                  <button *ngIf="file.type === 'image'" 
-                          class="test-btn" 
-                          (click)="testImageAccess(file)">
-                    Test Access
-                  </button>
                 </div>
               </div>
               

@@ -318,30 +318,21 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
   }
 
   onImageError(file: OutputFile, event: any) {
-    console.error('DEBUG: Image failed to load:', file.filename);
-    console.error('DEBUG: Image URL that failed:', this.getFileDownloadUrl(file));
-    const statusElement = document.getElementById(`status-${file.filename}`);
-    if (statusElement) {
-      statusElement.textContent = 'Failed to load';
-      statusElement.style.color = 'red';
+    file.error = `Could not load image. Check console for details. Path: ${file.path}`;
+    const statusEl = document.getElementById(`status-${file.filename}`);
+    if (statusEl) {
+      statusEl.textContent = 'Error';
+      statusEl.style.color = 'red';
     }
-    file.error = 'Failed to load image';
-  }
-
-  testImageAccess(file: OutputFile) {
-    const url = this.getFileDownloadUrl(file);
-    window.open(url, '_blank');
   }
 
   maximizeImage(file: OutputFile) {
     this.maximizedImage = file;
-    // Prevent body scrolling when overlay is open
     document.body.style.overflow = 'hidden';
   }
 
   closeMaximizedImage() {
     this.maximizedImage = null;
-    // Restore body scrolling
     document.body.style.overflow = 'auto';
   }
 
