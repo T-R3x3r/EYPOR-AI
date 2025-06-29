@@ -9,10 +9,7 @@ export class ThemeService {
   public darkMode$ = this.darkModeSubject.asObservable();
 
   constructor() {
-    // Load theme preference from localStorage
-    const savedTheme = localStorage.getItem('darkMode');
-    const isDarkMode = savedTheme === 'true';
-    this.setDarkMode(isDarkMode);
+    this.setDarkMode(false); // Always start in light mode
   }
 
   setDarkMode(isDarkMode: boolean): void {
