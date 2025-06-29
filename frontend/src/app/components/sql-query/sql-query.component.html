@@ -12,8 +12,8 @@
 
   <!-- No Database State -->
   <div *ngIf="!isLoading && !databaseInfo" class="no-database-container">
-    <div class="no-database-icon">✕</div>
-    <h3>No Database Available</h3>
+    <i class="fas fa-times no-database-icon"></i>
+    <div class="no-database-title">No Database Available</div>
     <p>Upload CSV or Excel files to automatically create a database, or upload an existing .db file.</p>
   </div>
 

@@ -68,10 +68,11 @@
   margin-bottom: 20px;
 }
 
-.no-database-container h3 {
+.no-database-container .no-database-title {
   color: #666;
   margin: 0 0 15px 0;
   font-size: 1.2em;
+  font-weight: 600;
 }
 
 .no-database-container p {
@@ -582,10 +583,6 @@ body.dark-mode .loading-spinner {
 }
 
 body.dark-mode .no-database-container {
-  color: #c2c2cf !important;
-}
-
-body.dark-mode .no-database-container h3 {
   color: #c2c2cf !important;
 }
 

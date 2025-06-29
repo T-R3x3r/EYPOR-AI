@@ -970,5 +970,49 @@ body.dark-mode .install-btn:hover {
 }
 
 body.dark-mode .file-tree .modal-content {
+  background-color: #2c2c38;
+  border-color: #444;
+}
+
+body.dark-mode .modal-header,
+body.dark-mode .modal-footer {
+  background-color: #2c2c38 !important;
+  border-color: #444 !important;
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode .modal-header h4 {
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode .modal-header .close-btn {
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode .file-tree .modal-content {
   background-color: #1a1a24;
-} 
+}
+
+body.dark-mode app-file-tree div.modal-header,
+body.dark-mode app-file-tree div.modal-footer {
+  background-color: #2c2c38 !important;
+  border-color: #444 !important;
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode app-file-tree div.modal-header h4 {
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode app-file-tree div.modal-header .close-btn {
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode app-file-tree div.modal-body {
+  background-color: #1e1e2c !important;
+  color: #f0f0f0 !important;
+}
+
+body.dark-mode .file-tree .modal-content {
+  background-color: #1a1a24;
+}
