@@ -19,24 +19,30 @@ The application is split into a Python/FastAPI backend and an Angular frontend. 
 
 ## High-Level Agent Workflow
 
-```mermaid
--graph TD;
--    Start((START)) --> Analyze["analyze_request"]
--    Analyze -->|"sql_query"| ExecuteSQL["execute_sql_query"]
--    ExecuteSQL --> ExecuteFile["execute_file"]
--    Analyze -->|"visualization"| ExecuteFile
--    Analyze -->|"db_modification"| PrepareDB["prepare_db_modification"]
--    PrepareDB --> ExecuteDB["execute_db_modification"]
--    ExecuteFile -->|"success"| Respond
--    ExecuteFile -->|"retry"| CodeFixer["code_fixer"] --> ExecuteFile
--    ExecuteFile -->|"error"| Respond
--    ExecuteDB --> Respond
--    Respond --> End((END))
--```
-+
-+![Data Analyst Workflow](docs/images/data_analyst_workflow.png)
+The system uses two specialized agents working together:
 
-Each coloured edge represents a conditional route chosen at run-time.  For example, after a file is executed the workflow branches depending on whether it **succeeded**, requires a **retry** via the *code_fixer*, or produced a non-recoverable **error**.
+1. **Data Analyst Agent** (Blue): Handles the main workflow including:
+   - Request analysis and classification
+   - SQL query generation and execution
+   - Database modifications
+   - File execution for visualizations
+   - Response generation
+
+2. **Code Fixer Agent** (Red): Provides error recovery by:
+   - Analyzing execution errors
+   - Fixing code issues automatically
+   - Handling both simple fixes (syntax, imports) and major restructuring
+   - Re-executing corrected code
+
+![Data Analyst Workflow](docs/images/data_analyst_workflow.png)
+
+Each edge represents a conditional route chosen at run-time. The workflow intelligently routes requests through:
+- SQL queries for data retrieval
+- Visualization generation via Python scripts
+- Database modifications for parameter updates
+- Code fixing when execution errors occur
+
+All paths eventually converge to generate a response, ensuring a complete interaction cycle.
 
 ---
 
@@ -84,11 +90,14 @@ EYProjectGit/
 ## Documentation Map
 The **docs/** folder contains self-contained guides for every subsystem:
 
-• SETUP_GUIDE – local installation & environment variables  
-• FRONTEND_STARTUP_GUIDE – developing the Angular client  
-• SQL_INTEGRATION_GUIDE – how the agent builds, validates and runs SQL  
-• PARAMETER_SYNCHRONIZATION_GUIDE – keeping Excel-originated parameters in sync with the database  
-• NEW_AGENT_WORKFLOW_IMPLEMENTATION – detailed explanation of the LangGraph workflow  
+• [SETUP_GUIDE](docs/SETUP_GUIDE.md) – local installation & environment variables  
+• [FRONTEND_STARTUP_GUIDE](docs/FRONTEND_STARTUP_GUIDE.md) – developing the Angular client  
+• [SQL_INTEGRATION_GUIDE](docs/SQL_INTEGRATION_GUIDE.md) – how the agent builds, validates and runs SQL  
+• [PARAMETER_SYNCHRONIZATION_GUIDE](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md) – keeping Excel-originated parameters in sync with the database  
+• [NEW_AGENT_WORKFLOW_IMPLEMENTATION](docs/NEW_AGENT_WORKFLOW_IMPLEMENTATION.md) – detailed explanation of the LangGraph workflow  
+• [DATABASE_BROWSER_IMPLEMENTATION](docs/DATABASE_BROWSER_IMPLEMENTATION.md) – database browser implementation details  
+• [HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY](docs/HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY.md) – human-in-the-loop features  
+• [TEMP_FILE_MANAGEMENT](docs/TEMP_FILE_MANAGEMENT.md) – temporary file handling and cleanup
 
 All guides focus on *how the feature works* rather than its development history or bug-fix logs.
 

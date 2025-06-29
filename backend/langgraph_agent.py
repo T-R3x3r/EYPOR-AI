@@ -41,8 +41,6 @@ CREATE_FILE: [filename]
 
 DO NOT explain the problem in chat - fix the code directly using one of the above formats.
 Always provide the complete fixed code, not just explanations.""", 60),
-        "database_modifier": AgentConfig("You are a database modifier.", 60),
-
     }
     return configs.get(agent_type, AgentConfig())
 import re
@@ -184,7 +182,6 @@ class CodeExecutorAgent:
             workflow.add_node("analyze_request", self._analyze_data_request)
             workflow.add_node("execute_sql_query", self._execute_sql_query_node)
             workflow.add_node("prepare_db_modification", self._prepare_db_modification_node)
-            workflow.add_node("database_modifier", self._database_modifier_node)
             workflow.add_node("execute_db_modification", self._execute_db_modification_node)
             workflow.add_node("execute_file", self._execute_file)
             workflow.add_node("code_fixer", self._code_fixer_node)
@@ -208,9 +205,7 @@ class CodeExecutorAgent:
             # SQL query path - now creates and executes a Python file
             workflow.add_edge("execute_sql_query", "execute_file")
             
-
-            
-            # Database modification path - direct execution without approval, no automatic model run
+            # Database modification path - direct execution without approval
             workflow.add_edge("prepare_db_modification", "execute_db_modification")
             workflow.add_edge("execute_db_modification", "respond")
             
@@ -236,19 +231,6 @@ class CodeExecutorAgent:
             
             workflow.add_edge("respond", END)
             
-        # Database Modifier workflow - handles the actual database modifications (no approval needed)
-        elif self.agent_type == "database_modifier":
-            workflow.add_node("analyze_modification", self._analyze_modification_request)
-            workflow.add_node("prepare_modification", self._prepare_modification_node)
-            workflow.add_node("execute_modification", self._execute_modification_node)
-            workflow.add_node("respond", self._respond)
-            
-            workflow.add_edge(START, "analyze_modification")
-            workflow.add_edge("analyze_modification", "prepare_modification")
-            workflow.add_edge("prepare_modification", "execute_modification")
-            workflow.add_edge("execute_modification", "respond")
-            workflow.add_edge("respond", END)
-
         else:
             # For unsupported agent types, create a simple error workflow
             workflow.add_node("respond", self._respond)
@@ -979,23 +961,18 @@ The query completed successfully. Here are the raw results from your database.""
             print("DEBUG: Execution router - Retry count < 3, routing to retry")
             return "retry"
 
-    def _code_fixer_router(self, state: AgentState) -> Literal["execute", "respond"]:
-        """Route based on code_fixer response"""
-        last_response = state["messages"][-1].content if state["messages"] else ""
+    def _code_fixer_router(self, state: AgentState) -> str:
+        """Route code fixer output to either execute or respond"""
+        # Get the last message content
+        last_message = state["messages"][-1].content if state["messages"] else ""
         
-        print(f"DEBUG: Code fixer router - Last response: {last_response[:200]}...")
-        print(f"DEBUG: Code fixer router - Contains FIX_AND_EXECUTE: {'FIX_AND_EXECUTE:' in last_response}")
-        
-        # Reset execution error flags when routing to execute
-        if "FIX_AND_EXECUTE:" in last_response:
-            print("DEBUG: Simple fix completed - routing to execution")
-            state["has_execution_error"] = False  # Reset error flag
-            state["execution_error"] = ""  # Clear error message
-            state["execution_output"] = ""  # Clear previous output
+        # Check for fix commands in the message
+        if "FIX_AND_EXECUTE:" in last_message or "CREATE_FILE:" in last_message:
+            print("DEBUG: Code fixer routing to execute")
             return "execute"
-        else:
-            print("DEBUG: Code fixer didn't use expected format - routing to respond")
-            return "respond"
+        
+        print("DEBUG: Code fixer routing to respond")
+        return "respond"
 
     def _analyze_request(self, state: AgentState) -> AgentState:
         """Analyze the user request to determine what action to take"""
