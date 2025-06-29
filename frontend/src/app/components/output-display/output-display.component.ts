@@ -160,9 +160,10 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
       isRunning: result.returnCode === undefined
     };
 
-    // Update existing result if it's a running update
-    const existingIndex = this.executionResults.findIndex(r => r.command === result.command && r.isRunning);
-    if (existingIndex !== -1 && localResult.isRunning) {
+    // Find any running execution to update (there should only be one at a time)
+    const existingIndex = this.executionResults.findIndex(r => r.isRunning);
+    if (existingIndex !== -1) {
+      // Update the existing running result with the final result
       this.executionResults[existingIndex] = localResult;
     } else {
       this.executionResults.push(localResult);
