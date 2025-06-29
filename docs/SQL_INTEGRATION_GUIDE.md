@@ -1,292 +1,76 @@
-# 🗄️ SQL Database Integration with Vanna AI
+# 🗄️ SQL Database Integration
 
 ## Overview
+EY Project automatically converts uploaded CSV and Excel data files into a single SQLite database (`project_data.db`) and rewrites Python models to query this database directly.  The LangGraph agent can then generate SQL on-the-fly from natural-language requests, execute it, and return formatted results or visualisations.
 
-This project has been upgraded to use an **SQL-based approach** that automatically converts uploaded CSV and Excel files into SQLite databases and transforms Python code to work with SQL queries. This integration includes the powerful **Vanna AI framework** for natural language to SQL generation, significantly improving efficiency and reducing token usage.
+## Key Benefits
+• **Automatic conversion** – CSV sheets become tables; each Excel sheet becomes its own table.  
+• **Natural-language queries** – ask "Show the top 10 hubs by demand" and the agent writes and executes the SQL.  
+• **Safe modifications** – update values through conversational requests ("Set opening_cost to 5000") with validation.  
+• **Unified storage** – one lightweight, portable database for the whole project.  
 
-## 🎯 Key Benefits
+## How It Works
+1. **File Upload**  
+   – Data files inside the uploaded ZIP are analysed.  
+   – Each CSV/Excel sheet is imported as a table with the correct column types.  
+   – A summary of the created tables is returned.
+2. **Code Transformation**  
+   – Any `.py` files that contain Pandas file reads (`read_csv`, `read_excel`) are updated to SQL helper calls (see below).  
+   – The original source files are preserved alongside the SQL-enabled copies (`*_sql.py`).
+3. **Query Execution**  
+   – At run-time the LangGraph agent examines the user message.  If it is a query request it generates SQL with OpenAI, validates it against the cached schema, executes it via `sqlite3`, then streams the results back to the frontend.
+4. **Database Modification**  
+   – For parameter-change requests the agent generates safe `UPDATE` statements, runs them, and (if configured) triggers the human-in-the-loop model-rerun dialog.
 
-### ✅ **Automatic Data Conversion**
-- **CSV files** → SQL tables with proper schema detection
-- **Excel files** → Multiple SQL tables (one per sheet)
-- **Python files** → Automatically transformed to use SQL queries instead of file operations
-
-### ✅ **Natural Language Queries**
-- Ask questions in plain English: *"What is the average sales by region?"*
-- Vanna AI generates optimized SQL queries automatically
-- No need to remember complex SQL syntax
-
-### ✅ **Reduced Token Usage**
-- Database schema and sample data are stored in vector database
-- Only relevant context is sent to the LLM
-- Faster responses and lower API costs
-
-### ✅ **Easy Data Modification**
-- Update database values through natural language or simple forms
-- Insert new records without writing SQL
-- Changes immediately reflect in subsequent queries
-
-## 🚀 How It Works
-
-### 1. **File Upload & Conversion**
-When you upload a ZIP file containing data files:
-
-```
-Original Files:
-├── sales_data.csv
-├── customer_info.xlsx  
-└── analysis.py
-
-Automatically Becomes:
-├── project_data.db (SQLite database)
-│   ├── sales_data (table)
-│   ├── customer_info (table)
-│   └── customer_info_sheet2 (if multiple sheets)
-├── analysis_sql.py (transformed Python code)
-└── Original files (preserved)
-```
-
-### 2. **Code Transformation**
-Python code is automatically updated to use SQL:
-
-**Before:**
+## SQL Helper Functions
+All transformed Python code imports the helpers from `backend/langgraph_agent.py`:
 ```python
-import pandas as pd
-df = pd.read_csv('sales_data.csv')
-result = df.groupby('region')['sales'].mean()
+import sqlite3, pandas as pd
+
+DB_PATH = r"/absolute/path/to/project_data.db"
+
+def query_table(sql: str, params: tuple | None = None):
+    with sqlite3.connect(DB_PATH) as conn:
+        return pd.read_sql_query(sql, conn, params=params)
+
+def execute_sql(sql: str, params: tuple | None = None):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(sql, params or [])
+        conn.commit()
 ```
 
-**After:**
-```python
-import pandas as pd
-import sqlite3
+## Available API Endpoints
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST   | `/sql/execute` | Execute raw SQL (body field `sql`). |
+| GET    | `/database/info` | List tables and basic metadata. |
+| GET    | `/database/tables/{table}/schema` | Detailed schema for a table. |
 
-def get_db_connection():
-    return sqlite3.connect(r"/path/to/project_data.db")
-
-def query_table(query, params=None):
-    conn = get_db_connection()
-    try:
-        return pd.read_sql_query(query, conn, params=params)
-    finally:
-        conn.close()
-
-# Transformed code
-df = pd.read_sql_query("SELECT * FROM sales_data", sqlite3.connect(r"/path/to/project_data.db"))
-result = df.groupby('region')['sales'].mean()
+## Example Workflows
+### Natural-Language Query (Chat)
+```
+User: "Which regions have average demand > 10,000?"
+Agent → generates SQL → executes → returns table.
 ```
 
-### 3. **Vanna AI Training**
-- Database schema is automatically analyzed
-- Sample data is used to train the AI model
-- Vector database stores learned patterns for fast retrieval
-
-## 🔧 Using the SQL Interface
-
-### **Query Tab - Natural Language Queries**
-
-1. **Ask Questions in Plain English:**
-   ```
-   Examples:
-   • "Show me all customers from New York"
-   • "What are the top 5 products by sales?"
-   • "Calculate monthly revenue trends"
-   • "Which regions have the highest growth?"
-   ```
-
-2. **View Generated SQL:**
-   - See the automatically generated SQL query
-   - Understand how your question was interpreted
-   - Copy SQL for reuse in your own code
-
-3. **Export Results:**
-   - Download query results as CSV
-   - Use data in external tools
-   - Share insights with stakeholders
-
-### **Database Info Tab - Explore Your Data**
-
-1. **Database Overview:**
-   - See all available tables
-   - View table schemas and data types
-   - Check row counts and sample data
-
-2. **Table Details:**
-   - Click on any table to see detailed schema
-   - Preview sample data
-   - Understand data structure
-
-### **Modify Data Tab - Update Information**
-
-1. **Update Existing Records:**
-   ```
-   Table: customers
-   Updates: {"status": "active", "last_contact": "2024-01-15"}
-   Condition: "region = 'East'"
-   ```
-
-2. **Insert New Records:**
-   ```
-   Table: products
-   Data: {"name": "New Product", "price": 99.99, "category": "Electronics"}
-   ```
-
-## 📚 API Endpoints
-
-The system provides comprehensive REST API endpoints:
-
-### **Query Endpoints**
-- `POST /sql/query` - Natural language to SQL query
-- `GET /sql/suggestions` - Get suggested questions
-- `POST /sql/execute` - Execute raw SQL
-
-### **Database Management**
-- `GET /database/info` - Database schema and tables
-- `GET /database/summary` - Comprehensive database overview
-- `GET /database/tables/{table}/schema` - Specific table details
-
-### **Data Modification**
-- `POST /data/update` - Update existing records
-- `POST /data/insert` - Insert new records
-
-### **AI Training**
-- `POST /vanna/train` - Add custom training data
-- `GET /sql/mode` - Check SQL system status
-
-## 💡 Advanced Features
-
-### **Custom Training**
-Improve Vanna AI by adding your own question-SQL pairs:
-
-```python
-# Add domain-specific training
-vanna.train(
-    question="Show high-value customers",
-    sql="SELECT * FROM customers WHERE total_purchases > 10000",
-    documentation="High-value customers are those with purchases over $10,000"
-)
+### Direct SQL via API
+```bash
+curl -X POST http://localhost:8001/sql/execute \
+     -F "sql=SELECT region, AVG(demand) AS avg_demand FROM inputs_params GROUP BY region HAVING avg_demand > 10000;"
 ```
 
-### **Visualization Support**
-Vanna can generate visualization code for your queries:
-
-```python
-# Example generated visualization
-import plotly.express as px
-fig = px.bar(df, x='region', y='sales', title='Sales by Region')
-fig.show()
+### Parameter Update
+```
+User: "Change maximum_hub_demand to 20000"
+→ Agent builds and runs:
+   UPDATE inputs_params SET value = 20000 WHERE parameter = 'maximum_hub_demand';
+→ Model-rerun dialog appears.
 ```
 
-### **Python Code Integration**
-Use the SQL helper functions in your transformed Python code:
-
-```python
-# Query data
-sales_data = query_table("SELECT * FROM sales_data WHERE date >= ?", ["2024-01-01"])
-
-# Execute updates
-execute_sql("UPDATE products SET price = price * 1.1 WHERE category = 'Electronics'")
-
-# Get database info
-tables = get_available_tables()
-```
-
-## 🔒 Technical Architecture
-
-### **Components:**
-1. **SQLConverter** - Handles file conversion and code transformation
-2. **VannaSQL** - Manages AI training and query generation
-3. **ChromaDB** - Vector database for fast context retrieval
-4. **SQLite** - Local database for data storage
-
-### **Dependencies Added:**
-```txt
-pandas>=2.0.0
-vanna>=0.3.0
-sqlite3-utils>=3.0.0
-openpyxl>=3.1.0
-astor>=0.8.1
-chromadb>=0.4.0
-```
-
-## 🎯 Best Practices
-
-### **Writing Effective Questions**
-- Be specific about what you want to see
-- Mention table names when dealing with multiple tables
-- Use business terms that match your column names
-- Ask for clarification if results don't match expectations
-
-### **Data Quality**
-- Ensure CSV files have proper headers
-- Use consistent data types within columns
-- Clean data before upload for best results
-- Provide meaningful column names
-
-### **Performance Tips**
-- Use LIMIT clauses for large datasets
-- Create indexes for frequently queried columns
-- Train Vanna with common question patterns
-- Cache frequently used queries
-
-## 🚨 Migration Notes
-
-### **Backward Compatibility**
-- Original files are preserved alongside SQL versions
-- Existing workflows continue to work
-- New SQL features are optional enhancements
-
-### **Upgrading Existing Projects**
-1. Re-upload your ZIP files to trigger conversion
-2. Review transformed Python code
-3. Test SQL queries against your data
-4. Train Vanna with project-specific questions
-
-## 🔍 Troubleshooting
-
-### **Common Issues:**
-
-**Vanna not responding:**
-- Check if database contains data
-- Verify API keys are configured
-- Retrain Vanna with more examples
-
-**SQL conversion failed:**
-- Ensure CSV files are well-formatted
-- Check for special characters in column names
-- Verify Python code uses standard pandas operations
-
-**Query returns empty results:**
-- Check table names and column names
-- Verify data was imported correctly
-- Use Database Info tab to explore schema
-
-## 📈 Example Workflows
-
-### **Business Analytics**
-```
-1. Upload sales_data.csv, customers.xlsx
-2. Ask: "Which customers generated the most revenue last quarter?"
-3. Follow up: "Show monthly trends for top 10 customers"
-4. Export results for presentation
-```
-
-### **Data Exploration**
-```
-1. Upload multiple related CSV files
-2. Ask: "What tables do I have and how are they related?"
-3. Query: "Show me sample data from each table"
-4. Explore: "Find correlations between customer demographics and purchase behavior"
-```
-
-### **Operational Updates**
-```
-1. Query current inventory levels
-2. Update product prices based on market analysis
-3. Insert new customer records from recent signups
-4. Generate updated reports
-```
+## Integration Notes
+• The agent keeps an in-memory cache of the schema to minimise database hits.  
+• All queries are parameterised to prevent SQL injection.  
+• If the generated SQL fails validation the agent explains the error and asks for clarification.
 
 ---
-
-**Ready to explore your data with natural language?** 🚀 Upload your files and start asking questions in the SQL Database tab! 
+**Last Updated:** 2025-06-29 

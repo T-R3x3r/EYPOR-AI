@@ -31,7 +31,7 @@ start_backend.bat
 
 # Or manually
 cd backend
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ### Step 4: Start the Frontend Server
@@ -46,8 +46,8 @@ npm start
 
 ### Step 5: Access the Application
 - **Frontend**: http://localhost:4200
-- **Backend API**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
+- **Backend API**: http://localhost:8001
+- **API Documentation**: http://localhost:8001/docs
 
 ## Detailed Setup
 
@@ -102,7 +102,7 @@ The Angular frontend provides:
 
 ### 1. Test Backend
 1. Start the backend server
-2. Visit http://localhost:8000/docs
+2. Visit http://localhost:8001/docs
 3. You should see the FastAPI interactive documentation
 
 ### 2. Test Frontend
@@ -120,10 +120,10 @@ The Angular frontend provides:
 
 ### Backend Issues
 
-**Port 8000 already in use:**
+**Port 8001 already in use:**
 ```bash
-# Find the process using port 8000
-netstat -ano | findstr :8000
+# Find the process using port 8001
+netstat -ano | findstr :8001
 # Kill the process or change the port in start_backend.bat
 ```
 
@@ -155,7 +155,7 @@ npm install
 ```
 
 **CORS errors:**
-- Ensure backend is running on port 8000
+- Ensure backend is running on port 8001
 - Check that CORS is properly configured in main.py
 - Restart both servers
 
@@ -191,7 +191,7 @@ npm install
 1. **Backend changes:**
    - Edit files in the `backend/` directory
    - Server will auto-reload with `--reload` flag
-   - Check http://localhost:8000/docs for API changes
+   - Check http://localhost:8001/docs for API changes
 
 2. **Frontend changes:**
    - Edit files in the `frontend/src/` directory

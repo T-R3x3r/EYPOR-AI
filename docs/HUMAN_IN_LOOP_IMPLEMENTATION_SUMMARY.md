@@ -72,24 +72,6 @@ After user selection:
 - **Multiple Actions**: User can approve, reject, or cancel
 - **Progress Feedback**: Shows execution status and results
 
-## 🔍 Fixed Issues
-
-### 1. **File Creation Issue** ✅
-- **Problem**: Agent was claiming to create files but not actually doing so
-- **Solution**: Updated action-chat endpoint to properly use LangGraph agent and track created files
-
-### 2. **Execution Output Issue** ✅
-- **Problem**: No output was showing in execution window
-- **Solution**: Properly track `last_execution_output` and `last_execution_error` in agent
-
-### 3. **Database Wiping Issue** ✅
-- **Problem**: Database was being wiped instead of preserving changes
-- **Solution**: Enhanced database tracking to preserve state and highlight changes
-
-### 4. **Human-in-the-Loop Trigger** ✅
-- **Problem**: Dialog wasn't appearing after database changes
-- **Solution**: Added `db_modification_detected` flag and proper trigger logic
-
 ## 📝 Test Scenarios
 
 ### Scenario 1: Database Parameter Change

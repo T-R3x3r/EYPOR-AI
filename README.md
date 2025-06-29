@@ -1,273 +1,96 @@
-# 🤖 EY Project - AI-Powered Operations Research Platform
+# EY Project – AI-Powered Operations Research Platform
 
-## 🎯 Overview
+## Overview
+EY Project is an end-to-end, AI-powered environment for data-driven decision making and optimisation.  A conversational interface lets analysts query a SQL database, create on-demand visualisations, change model parameters and execute Python optimisation models – all from natural language.
 
-The EY Project is a comprehensive AI-powered platform for operations research, featuring advanced database management, visualization capabilities, and automated model execution. Built with Angular frontend and Python backend, it provides an intuitive interface for data analysis and optimization.
+The application is split into a Python/FastAPI backend and an Angular frontend.  A LangGraph-based agent orchestrates every request, dynamically routing it through specialised nodes that generate SQL, build visualisations, modify the database or fix code when errors occur.
 
-## 🚀 Key Features
+---
 
-- **Multi-Agent AI System**: Specialized agents for different operations
-- **Database Integration**: Direct SQL execution and parameter management
-- **Visualization Engine**: Dynamic chart and graph generation
-- **Model Execution**: Automated Python model discovery and execution
-- **Memory Management**: LangGraph-based conversation persistence
-- **Model Selection**: User-controlled model execution after database changes
+## Key Capabilities
+• Natural-language SQL queries with automatic schema discovery.
+• One-click visualisation – the agent writes and runs Python/Plotly code and returns interactive charts.
+• Parameter management – update any value stored in the SQLite database and immediately rerun optimisation models.
+• File execution – run arbitrary Python scripts located in the project.
+• Resilient code execution – a self-healing "code_fixer" node automatically patches and re-executes faulty scripts.
+• Persistent chat history – browser-side storage keeps recent messages (LangGraph memory is temporarily disabled).
 
-## 🏗️ Architecture
+---
 
-### Frontend (Angular)
-- **Modern UI**: Responsive design with real-time updates
-- **File Management**: Upload, edit, and organize project files
-- **Chat Interface**: Natural language interaction with AI agents
-- **Database Browser**: Intuitive database exploration and management
-- **Model Selection**: Interactive model execution interface
+## High-Level Agent Workflow
 
-### Backend (Python/FastAPI)
-- **LangGraph Agents**: Multi-agent workflow orchestration
-- **Database Engine**: SQLite with advanced query capabilities
-- **File Processing**: Dynamic Python script execution
-- **Memory System**: Persistent conversation state management
-- **API Integration**: RESTful endpoints for all operations
+```mermaid
+-graph TD;
+-    Start((START)) --> Analyze["analyze_request"]
+-    Analyze -->|"sql_query"| ExecuteSQL["execute_sql_query"]
+-    ExecuteSQL --> ExecuteFile["execute_file"]
+-    Analyze -->|"visualization"| ExecuteFile
+-    Analyze -->|"db_modification"| PrepareDB["prepare_db_modification"]
+-    PrepareDB --> ExecuteDB["execute_db_modification"]
+-    ExecuteFile -->|"success"| Respond
+-    ExecuteFile -->|"retry"| CodeFixer["code_fixer"] --> ExecuteFile
+-    ExecuteFile -->|"error"| Respond
+-    ExecuteDB --> Respond
+-    Respond --> End((END))
+-```
++
++![Data Analyst Workflow](docs/images/data_analyst_workflow.png)
 
-## 🧠 AI Agents
+Each coloured edge represents a conditional route chosen at run-time.  For example, after a file is executed the workflow branches depending on whether it **succeeded**, requires a **retry** via the *code_fixer*, or produced a non-recoverable **error**.
 
-### Data Analyst Agent (Primary)
-- **Role**: Main intelligence for routing and coordination
-- **Capabilities**: SQL queries, visualizations, database modifications
-- **Memory**: LangGraph-based conversation persistence
+---
 
-### Database Modifier Agent (Specialist)
-- **Role**: Specialized database parameter management
-- **Capabilities**: Parameter changes, data updates, model discovery
-- **Model Selection**: User-controlled model execution after changes
-
-## 🔄 Workflow
-
-```
-User Request → Agent Classification → Specialized Processing → Results
-     ↓              ↓                      ↓                    ↓
-Natural Language → SQL/Visualization → Database/Model → Formatted Output
-```
-
-## 📁 Project Structure
-
-```
+## Repository Layout
+```text
 EYProjectGit/
-├── frontend/                 # Angular application
-│   ├── src/app/
-│   │   ├── components/       # UI components
-│   │   ├── services/         # API services
-│   │   └── pipes/           # Data transformation
-│   └── package.json
-├── backend/                  # Python FastAPI server
-│   ├── main.py              # Main application
-│   ├── langgraph_agent.py   # AI agent implementation
-│   └── requirements.txt
-├── docs/                    # Documentation
-├── outputs/                 # Generated files
-└── README.md
+├── backend/     # Python ✕ FastAPI server + LangGraph agent
+├── frontend/    # Angular SPA
+├── docs/        # Technical guides (see below)
+└── outputs/     # Generated files, charts and logs
 ```
 
-## 🛠️ Installation
+---
 
-### Prerequisites
-- Node.js (v16+)
-- Python (v3.8+)
-- Git
-
-### Quick Start
-1. **Clone the repository**
+## Quick-Start
+1. Clone the repo
    ```bash
    git clone <repository-url>
    cd EYProjectGit
    ```
-
-2. **Install dependencies**
+2. Install dependencies
    ```bash
-   # Install frontend dependencies
-   cd frontend
-   npm install
-   
-   # Install backend dependencies
-   cd ../backend
-   pip install -r requirements.txt
+   # Frontend
+   cd frontend && npm install && cd ..
+
+   # Backend
+   cd backend && pip install -r requirements.txt && cd ..
    ```
-
-3. **Configure environment**
+3. Copy the environment template and add your keys
    ```bash
-   # Copy environment template
    cp EY.env.example EY.env
-   
-   # Edit EY.env with your API keys
-   nano EY.env
+   # edit EY.env
    ```
-
-4. **Launch the application**
+4. Launch
    ```bash
-   # Start backend server
-   cd backend
-   python main.py
-   
-   # Start frontend (in new terminal)
-   cd frontend
-   ng serve
+   # Backend
+   cd backend && python main.py &
+   # Frontend (second terminal)
+   cd frontend && ng serve
    ```
-
-5. **Access the application**
-   - Frontend: http://localhost:4200
-   - Backend API: http://localhost:8000
-
-## 🎯 Usage Examples
-
-### Database Queries
-```
-User: "Show me the top 10 records from the inventory table"
-System: [Formatted SQL results with pagination]
-```
-
-### Visualizations
-```
-User: "Create a bar chart showing sales by region"
-System: [Python script generation → Chart display]
-```
-
-### Database Modifications
-```
-User: "Change the maximum capacity to 5000"
-System: [Database update → Model discovery → Model selection dialog]
-```
-
-### Model Selection
-```
-User: "Update the price parameter to 15.99"
-System: [Database modification → Available models listed → User selection → Execution]
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-# API Configuration
-OPENAI_API_KEY=your_openai_key
-GOOGLE_API_KEY=your_google_key
-
-# Database Configuration
-DATABASE_PATH=./data/project.db
-
-# Server Configuration
-HOST=0.0.0.0
-PORT=8000
-```
-
-### Agent Configuration
-```python
-# Agent types available
-AGENT_TYPES = ["data_analyst", "database_modifier"]
-
-# Memory configuration
-MEMORY_TYPE = "sqlite"  # or "memory"
-```
-
-## 📚 Documentation
-
-- **[Setup Guide](docs/SETUP_GUIDE.md)** - Complete installation instructions
-- **[Frontend Guide](docs/FRONTEND_STARTUP_GUIDE.md)** - Angular development guide
-- **[SQL Integration](docs/SQL_INTEGRATION_GUIDE.md)** - Database query capabilities
-- **[Parameter Synchronization](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md)** - Database parameter management
-- **[Model Selection Implementation](docs/HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY.md)** - Model execution workflows
-- **[LangGraph Memory](docs/LANGGRAPH_MEMORY_IMPLEMENTATION.md)** - Conversation persistence
-- **[Agent Workflow](docs/NEW_AGENT_WORKFLOW_IMPLEMENTATION.md)** - Multi-agent architecture
-
-## 🧪 Testing
-
-### Backend Testing
-```bash
-cd backend
-python -m pytest tests/
-```
-
-### Frontend Testing
-```bash
-cd frontend
-ng test
-```
-
-### Integration Testing
-```bash
-# Run full system tests
-python tests/integration_test.py
-```
-
-## 🔄 Development Workflow
-
-### Adding New Features
-1. **Backend**: Implement in `backend/langgraph_agent.py`
-2. **API**: Add endpoints in `backend/main.py`
-3. **Frontend**: Create components in `frontend/src/app/components/`
-4. **Testing**: Add tests in respective test directories
-
-### Code Style
-- **Python**: PEP 8 with Black formatting
-- **TypeScript**: ESLint with Angular style guide
-- **Documentation**: Comprehensive docstrings and README updates
-
-## 🚀 Deployment
-
-### Production Setup
-```bash
-# Build frontend
-cd frontend
-ng build --prod
-
-# Deploy backend
-cd backend
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
-```
-
-### Docker Deployment
-```bash
-# Build and run with Docker
-docker-compose up -d
-```
-
-## 🤝 Contributing
-
-1. **Fork the repository**
-2. **Create feature branch**: `git checkout -b feature/new-feature`
-3. **Commit changes**: `git commit -am 'Add new feature'`
-4. **Push branch**: `git push origin feature/new-feature`
-5. **Submit pull request**
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
-- **Documentation**: [Project Wiki](https://github.com/your-repo/wiki)
-- **Email**: support@eyproject.com
-
-## 🎯 Roadmap
-
-### Phase 1 (Current)
-- ✅ Multi-agent workflow implementation
-- ✅ Database integration and parameter management
-- ✅ Model selection and execution
-- ✅ LangGraph memory system
-
-### Phase 2 (Next)
-- 🔄 Advanced visualization options
-- 🔄 Real-time collaboration features
-- 🔄 Batch operation support
-- 🔄 Performance optimization
-
-### Phase 3 (Future)
-- 📋 Machine learning model integration
-- 📋 Advanced analytics dashboard
-- 📋 Mobile application
-- 📋 Cloud deployment options
+5. Visit http://localhost:4200
 
 ---
 
-**Built with ❤️ by the EY Project Team** 
+## Documentation Map
+The **docs/** folder contains self-contained guides for every subsystem:
+
+• SETUP_GUIDE – local installation & environment variables  
+• FRONTEND_STARTUP_GUIDE – developing the Angular client  
+• SQL_INTEGRATION_GUIDE – how the agent builds, validates and runs SQL  
+• PARAMETER_SYNCHRONIZATION_GUIDE – keeping Excel-originated parameters in sync with the database  
+• NEW_AGENT_WORKFLOW_IMPLEMENTATION – detailed explanation of the LangGraph workflow  
+
+All guides focus on *how the feature works* rather than its development history or bug-fix logs.
+
+---
+
