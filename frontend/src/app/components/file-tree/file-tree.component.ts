@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, ViewEncapsulation, ViewChild, ElementRef, AfterViewInit, AfterViewChecked } from '@angular/core';
 import { ApiService } from '../../services/api.service';
 import { ExecutionService } from '../../services/execution.service';
 
@@ -16,10 +16,14 @@ interface FileNode {
   styleUrls: ['./file-tree.component.css'],
   encapsulation: ViewEncapsulation.None
 })
-export class FileTreeComponent implements OnInit {
+export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecked {
+  @ViewChild('fileTreeRoot') fileTreeRoot!: ElementRef;
+  
   fileTree: FileNode[] = [];
   aiCreatedTree: FileNode[] = [];
   isLoading = false;
+  private savedScrollPosition = 0;
+  private pendingRestore = false;
   
   // Code viewer modal properties
   showCodeViewer = false;
@@ -33,29 +37,70 @@ export class FileTreeComponent implements OnInit {
 
   constructor(
     private apiService: ApiService,
-    private executionService: ExecutionService
+    private executionService: ExecutionService,
+    private elRef: ElementRef
   ) {}
 
   ngOnInit() {
     this.loadFiles();
   }
 
-  refreshFiles() {
-    this.loadFiles();
+  ngAfterViewInit() {
+    // ViewChild will be available after this
   }
 
-  loadFiles() {
-    this.isLoading = true;
+  ngAfterViewChecked() {
+    if (this.fileTreeRoot && this.fileTreeRoot.nativeElement && this.savedScrollPosition > 0) {
+      this.fileTreeRoot.nativeElement.scrollTop = this.savedScrollPosition;
+      if (this.pendingRestore) {
+        this.pendingRestore = false;
+      }
+    }
+  }
+
+  refreshFiles() {
+    this.saveScrollPosition();
+    // Skip loading spinner during automatic refresh to minimize DOM changes
+    this.loadFiles(true);
+  }
+
+  private saveScrollPosition() {
+    // Save scroll position of the component root (the .file-tree element)
+    if (this.fileTreeRoot && this.fileTreeRoot.nativeElement) {
+      this.savedScrollPosition = this.fileTreeRoot.nativeElement.scrollTop;
+    }
+  }
+
+  private restoreScrollPosition() {
+    if (this.elRef && this.elRef.nativeElement) {
+      // Restore after DOM update
+      setTimeout(() => {
+        this.elRef.nativeElement.scrollTop = this.savedScrollPosition;
+      }, 0);
+    }
+  }
+
+  loadFiles(skipLoadingSpinner: boolean = false) {
+    if (!skipLoadingSpinner) {
+      this.isLoading = true;
+    }
     this.apiService.getFiles().subscribe({
       next: (response) => {
         // Build separate trees for uploaded and AI-created files
         this.fileTree = this.buildFileTree(response.uploaded_files || []);
         this.aiCreatedTree = this.buildFileTree(response.ai_created_files || []);
-        this.isLoading = false;
+        if (!skipLoadingSpinner) {
+          this.isLoading = false;
+        }
+        
+        // Mark for scroll restoration after view updates
+        this.pendingRestore = true;
       },
       error: (error) => {
         console.error('Error loading files:', error);
-        this.isLoading = false;
+        if (!skipLoadingSpinner) {
+          this.isLoading = false;
+        }
       }
     });
   }
@@ -128,9 +173,13 @@ export class FileTreeComponent implements OnInit {
           command: `python ${filePath}`,
           output: processed.stdout,
           error: processed.stderr,
-          returnCode: result.return_code
+          returnCode: result.return_code,
+          outputFiles: result.output_files || []
         });
         this.executionService.setExecuting(false);
+        
+        // Refresh file tree to show newly created files
+        this.refreshFiles();
       },
       error: (error: any) => {
         console.error('Error running Python file:', error);
@@ -168,6 +217,9 @@ export class FileTreeComponent implements OnInit {
             returnCode: 1
           });
           this.executionService.setExecuting(false);
+          
+          // Refresh file tree even on error in case partial files were created
+          this.refreshFiles();
           return;
         }
 
@@ -179,21 +231,24 @@ export class FileTreeComponent implements OnInit {
             if (result.result && result.columns) {
               // Format results as table
               const formattedResult = this.formatSQLResults(sqlQuery, result.result, result.columns);
-              this.executionService.emitExecutionResult({
-                command: `SQL: ${filePath}`,
-                output: formattedResult,
-                error: '',
-                returnCode: 0
-              });
-            } else {
-              this.executionService.emitExecutionResult({
-                command: `SQL: ${filePath}`,
-                output: JSON.stringify(result, null, 2),
-                error: '',
-                returnCode: 0
-              });
-            }
-            this.executionService.setExecuting(false);
+                          this.executionService.emitExecutionResult({
+              command: `SQL: ${filePath}`,
+              output: formattedResult,
+              error: '',
+              returnCode: 0
+            });
+          } else {
+            this.executionService.emitExecutionResult({
+              command: `SQL: ${filePath}`,
+              output: JSON.stringify(result, null, 2),
+              error: '',
+              returnCode: 0
+            });
+          }
+          this.executionService.setExecuting(false);
+          
+          // Refresh file tree to show any newly created files
+          this.refreshFiles();
           },
           error: (error: any) => {
             console.error('Error running SQL file:', error);
@@ -204,6 +259,9 @@ export class FileTreeComponent implements OnInit {
               returnCode: 1
             });
             this.executionService.setExecuting(false);
+            
+            // Refresh file tree even on error in case partial files were created
+            this.refreshFiles();
           }
         });
       },
@@ -216,6 +274,9 @@ export class FileTreeComponent implements OnInit {
           returnCode: 1
         });
         this.executionService.setExecuting(false);
+        
+        // Refresh file tree even on error in case partial files were created
+        this.refreshFiles();
       }
     });
   }
@@ -281,6 +342,9 @@ export class FileTreeComponent implements OnInit {
           returnCode: result.return_code
         });
         this.executionService.setExecuting(false);
+        
+        // Refresh file tree in case installation created any files
+        this.refreshFiles();
       },
       error: (error: any) => {
         console.error('Error installing requirements:', error);
@@ -291,6 +355,9 @@ export class FileTreeComponent implements OnInit {
           returnCode: -1
         });
         this.executionService.setExecuting(false);
+        
+        // Refresh file tree even on error in case partial files were created
+        this.refreshFiles();
       }
     });
   }
@@ -411,7 +478,7 @@ export class FileTreeComponent implements OnInit {
   // Download file
   downloadFile(filePath: string) {
     console.log('Downloading file:', filePath);
-    const downloadUrl = `http://localhost:8000/files/${encodeURIComponent(filePath)}/download`;
+    const downloadUrl = `http://localhost:8001/files/${encodeURIComponent(filePath)}/download`;
     
     // Create a temporary link and click it to trigger download
     const link = document.createElement('a');

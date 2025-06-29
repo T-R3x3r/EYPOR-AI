@@ -1,4 +1,4 @@
-<div class="file-tree">
+<div class="file-tree" #fileTreeRoot>
   <div *ngIf="isLoading" class="loading">
     <div class="spinner"></div>
     <span>Loading files...</span>
@@ -9,7 +9,7 @@
     <p>Upload a zip file to see the file structure here.</p>
   </div>
 
-  <div *ngIf="!isLoading && (fileTree.length > 0 || aiCreatedTree.length > 0)" class="tree-container">
+  <div *ngIf="!isLoading && (fileTree.length > 0 || aiCreatedTree.length > 0)" class="tree-container" #treeContainer>
     <!-- Requirements installation button -->
     <div *ngIf="hasRequirementsFile()" class="requirements-section">
       <button class="action-btn install-btn" (click)="installRequirements()">

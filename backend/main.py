@@ -613,6 +613,21 @@ async def run_file(filename: str):
         abs_path = uploaded_files[filename]
         temp_dir = temp_directories.get('current')
         
+        # Store file modification times before execution to detect changes
+        file_mod_times_before = {}
+        if temp_dir and os.path.exists(temp_dir):
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    abs_file_path = os.path.join(root, file)
+                    try:
+                        file_mod_times_before[abs_file_path] = os.path.getmtime(abs_file_path)
+                    except OSError:
+                        pass
+        
+        # Record execution start time
+        import time
+        execution_start_time = time.time()
+        
         result = subprocess.run(
             [sys.executable, abs_path],
             cwd=temp_dir,
@@ -624,10 +639,90 @@ async def run_file(filename: str):
         code_output = result.stdout
         code_error = result.stderr
         
+        # Refresh file list to detect new files created during execution
+        refresh_file_list()
+        
+        # Detect output files (visualizations, reports, etc.) - both new and modified
+        output_files = []
+        try:
+            if temp_dir and os.path.exists(temp_dir):
+                # Scan for output files in the temp directory
+                output_extensions = ['.png', '.jpg', '.jpeg', '.svg', '.html', '.csv', '.pdf', '.txt', '.json']
+                
+                # Get all output files in temp directory with their modification times
+                recently_modified_files = []
+                for root, dirs, files in os.walk(temp_dir):
+                    for file in files:
+                        if any(file.lower().endswith(ext) for ext in output_extensions):
+                            abs_file_path = os.path.join(root, file)
+                            rel_path = os.path.relpath(abs_file_path, temp_dir)
+                            rel_path = rel_path.replace('\\', '/')  # Normalize for web
+                            
+                            try:
+                                current_mod_time = os.path.getmtime(abs_file_path)
+                                
+                                # Check if file is new or was modified during execution
+                                is_new_or_modified = False
+                                if abs_file_path not in file_mod_times_before:
+                                    # New file created during execution
+                                    is_new_or_modified = True
+                                    print(f"DEBUG: New file detected: {rel_path}")
+                                elif current_mod_time > file_mod_times_before[abs_file_path]:
+                                    # Existing file modified during execution
+                                    is_new_or_modified = True
+                                    print(f"DEBUG: Modified file detected: {rel_path}")
+                                elif current_mod_time >= execution_start_time - 1:  # 1 second tolerance
+                                    # File modified around execution time (catch edge cases)
+                                    is_new_or_modified = True
+                                    print(f"DEBUG: Recently modified file detected: {rel_path}")
+                                
+                                if is_new_or_modified:
+                                    recently_modified_files.append((rel_path, abs_file_path))
+                                    
+                            except OSError:
+                                # If we can't get mod time, include it to be safe
+                                recently_modified_files.append((rel_path, abs_file_path))
+                
+                # Create output file objects for recently modified/created files
+                for rel_path, abs_file_path in recently_modified_files:
+                    # Determine file type for frontend handling
+                    file_type = "file"
+                    if rel_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
+                        file_type = "image"
+                    elif rel_path.lower().endswith('.html'):
+                        file_type = "html"
+                    elif rel_path.lower().endswith('.csv'):
+                        file_type = "csv"
+                    elif rel_path.lower().endswith('.pdf'):
+                        file_type = "pdf"
+                    
+                    # Prioritize image files for display
+                    if file_type == "image":
+                        output_files.insert(0, {
+                            "filename": os.path.basename(rel_path),
+                            "path": rel_path,
+                            "url": f"/files/{rel_path}/download",
+                            "type": file_type
+                        })
+                    else:
+                        output_files.append({
+                            "filename": os.path.basename(rel_path),
+                            "path": rel_path,
+                            "url": f"/files/{rel_path}/download",
+                            "type": file_type
+                        })
+                        
+                print(f"DEBUG: Found {len(output_files)} output files for display")
+                        
+        except Exception as e:
+            print(f"Error detecting output files: {e}")
+        
         return {
             "stdout": result.stdout,
             "stderr": result.stderr,
-            "return_code": result.returncode
+            "return_code": result.returncode,
+            "output_files": output_files,
+            "created_files": [f["filename"] for f in output_files]  # List of created/modified output files
         }
     
     except subprocess.TimeoutExpired:

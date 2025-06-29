@@ -267,24 +267,22 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
   }
 
   getFileDownloadUrl(file: OutputFile): string {
-    if (this.urlCache.has(file.path)) {
-      return this.urlCache.get(file.path)!;
+    // Use a composite key of path + timestamp to differentiate updated versions
+    const cacheKey = `${file.path}|${file.timestamp}`;
+
+    if (this.urlCache.has(cacheKey)) {
+      return this.urlCache.get(cacheKey)!;
     }
-    
-    // Add debug logging to see what we're working with
-    console.log('DEBUG: Constructing URL for file:', {
-      filename: file.filename,
-      path: file.path,
-      type: file.type
-    });
 
     // Ensure the path is properly formatted
     const cleanPath = file.path.replace(/\\/g, '/').replace(/^\//, '');
-    const url = `http://localhost:8001/files/${encodeURIComponent(cleanPath)}/download`;
-    
-    console.log('DEBUG: Constructed URL:', url);
-    
-    this.urlCache.set(file.path, url);
+
+    // Append a cache-busting query parameter so the browser fetches the latest version.
+    // We prefer the provided timestamp (derived from filename or Date.now during processing)
+    const cacheBust = file.timestamp || Date.now();
+    const url = `http://localhost:8001/files/${encodeURIComponent(cleanPath)}/download?t=${cacheBust}`;
+
+    this.urlCache.set(cacheKey, url);
     return url;
   }
 
