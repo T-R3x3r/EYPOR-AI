@@ -1992,6 +1992,37 @@ async def delete_session(session_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete session: {str(e)}")
 
+@app.delete("/files/{filename:path}")
+async def delete_file(filename: str):
+    """Delete a specific file from the temporary workspace"""
+    global uploaded_files, file_contents, ai_created_files, current_database_path, database_schema
+    
+    # Normalise slashes so the key matches what the frontend sends
+    filename = filename.replace('\\', '/')
+
+    if filename not in uploaded_files:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    file_path = uploaded_files[filename]
+
+    try:
+        # Remove the file from disk if it exists
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        # Remove the entry from in-memory tracking structures
+        uploaded_files.pop(filename, None)
+        file_contents.pop(filename, None)
+        ai_created_files.discard(filename)
+
+        # Reset database related globals if the deleted file was the active database
+        if current_database_path and os.path.abspath(file_path) == os.path.abspath(current_database_path):
+            current_database_path = None
+            database_schema = None
+
+        return {"message": f"File {filename} deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 

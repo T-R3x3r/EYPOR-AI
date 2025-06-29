@@ -67,6 +67,11 @@
             <i class="fas fa-database"></i>
             Download DB
           </button>
+          <button class="action-btn delete-btn" 
+                  (click)="deleteFile(node.path)"
+                  title="Delete">
+            <i class="fas fa-trash"></i>
+          </button>
         </div>
 
         <!-- Recursive children -->
@@ -114,6 +119,11 @@
                 <i class="fas fa-database"></i>
                 Download DB
               </button>
+              <button class="action-btn delete-btn" 
+                      (click)="deleteFile(child.path)"
+                      title="Delete">
+                <i class="fas fa-trash"></i>
+              </button>
             </div>
 
             <!-- Recursive grandchildren -->
@@ -160,6 +170,11 @@
                           title="Download SQLite Database">
                     <i class="fas fa-database"></i>
                     Download DB
+                  </button>
+                  <button class="action-btn delete-btn" 
+                          (click)="deleteFile(grandchild.path)"
+                          title="Delete">
+                    <i class="fas fa-trash"></i>
                   </button>
                 </div>
               </div>
@@ -218,6 +233,11 @@
               <i class="fas fa-download"></i>
               Download
             </button>
+            <button class="action-btn delete-btn" 
+                    (click)="deleteFile(node.path)"
+                    title="Delete">
+              <i class="fas fa-trash"></i>
+            </button>
           </div>
 
           <!-- Recursive children for AI-created files -->
@@ -263,6 +283,11 @@
                         (click)="downloadFile(child.path)">
                   <i class="fas fa-download"></i>
                   Download
+                </button>
+                <button class="action-btn delete-btn" 
+                        (click)="deleteFile(child.path)"
+                        title="Delete">
+                  <i class="fas fa-trash"></i>
                 </button>
               </div>
             </div>

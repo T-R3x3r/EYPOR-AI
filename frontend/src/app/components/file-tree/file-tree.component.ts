@@ -616,4 +616,27 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
       outputFiles: [outputFile]
     });
   }
+
+  deleteFile(filePath: string) {
+    if (!filePath) {
+      return;
+    }
+
+    const confirmDelete = confirm(`Are you sure you want to delete ${filePath}? This action cannot be undone.`);
+    if (!confirmDelete) {
+      return;
+    }
+
+    this.apiService.deleteFile(filePath).subscribe({
+      next: (response) => {
+        console.log('File deleted:', response);
+        // Refresh file list after deletion
+        this.refreshFiles();
+      },
+      error: (error) => {
+        console.error('Error deleting file:', error);
+        alert(`Error deleting file: ${error.error?.detail || error.message || 'Unknown error'}`);
+      }
+    });
+  }
 } 

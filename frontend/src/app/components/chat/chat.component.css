@@ -233,6 +233,23 @@
   cursor: not-allowed;
 }
 
+/* Spinner inside send button */
+.loading-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  border-top: 3px solid #333;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Ensure spinner is visible in dark mode */
+body.dark-mode .loading-spinner {
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #eaeaf2;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .sql-header {

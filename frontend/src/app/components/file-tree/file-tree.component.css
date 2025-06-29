@@ -235,6 +235,8 @@
   display: flex;
   gap: 0.25rem;
   padding: 0 0.5rem 0.5rem 2rem;
+  width: 100%;
+  align-items: center;
 }
 
 .children-container {
@@ -1016,4 +1018,30 @@ body.dark-mode app-file-tree div.modal-body {
 
 body.dark-mode .file-tree .modal-content {
   background-color: #1a1a24;
+}
+
+.delete-btn {
+  background: transparent;
+  color: #ced4da; /* very light grey */
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  margin-left: auto;
+  border: none;
+}
+
+.delete-btn:hover {
+  background: #e9ecef;
+  color: #212529; /* dark/black on hover */
+}
+
+.delete-btn i {
+  color: inherit !important;
+}
+
+.delete-btn .fa-trash {
+  color: #ced4da !important;
+}
+
+.delete-btn:hover .fa-trash {
+  color: #212529 !important;
 }

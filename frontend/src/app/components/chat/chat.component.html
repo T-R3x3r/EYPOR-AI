@@ -71,10 +71,11 @@
       <button 
         class="send-btn" 
         (click)="sendMessage()" 
-        [disabled]="!currentMessage.trim() || isLoading"
-        [class.loading]="isLoading">
+        [disabled]="!currentMessage.trim() || isLoading">
         <span *ngIf="!isLoading">Ask EYPOR</span>
-        <span *ngIf="isLoading">Processing...</span>
+        <span *ngIf="isLoading" class="spinner-wrapper">
+          <span class="loading-spinner" aria-label="Loading"></span>
+        </span>
       </button>
     </div>
   </div>
