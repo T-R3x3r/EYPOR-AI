@@ -1,6 +1,6 @@
 # Frontend Startup Guide
 
-This document explains how to install dependencies and launch the Angular single-page application that powers EY Project's user interface.
+This document explains how to install dependencies and launch the Angular single-page application that powers EYPOR-AI's user interface.
 
 ---
 

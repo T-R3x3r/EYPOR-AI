@@ -1,7 +1,7 @@
 # 🗄️ SQL Database Integration
 
 ## Overview
-EY Project automatically converts uploaded CSV and Excel data files into a single SQLite database (`project_data.db`) and rewrites Python models to query this database directly.  The LangGraph agent can then generate SQL on-the-fly from natural-language requests, execute it, and return formatted results or visualisations.
+EYPOR-AI automatically converts uploaded CSV and Excel data files into a single SQLite database (`project_data.db`) and rewrites Python models to query this database directly.  The LangGraph agent can then generate SQL on-the-fly from natural-language requests, execute it, and return formatted results or visualisations.
 
 ## Key Benefits
 • **Automatic conversion** – CSV sheets become tables; each Excel sheet becomes its own table.  

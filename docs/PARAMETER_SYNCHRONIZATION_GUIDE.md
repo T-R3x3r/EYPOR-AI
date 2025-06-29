@@ -2,10 +2,7 @@
 
 ## Overview
 
-This guide explains how the EYProject system ensures that when parameters are modified in the Excel part of the converted database, the actual model still runs correctly with those changes. The system uses **automatic parameter synchronization** to guarantee that models always read the latest parameter values.
-
-## Why Parameter Synchronization Matters
-Traditional file-based workflows risk running models with stale values because parameter edits in Excel/CSV files don't automatically propagate to code.  EY Project eliminates this risk by:
+This guide explains how the EYPOR-AI system ensures that when parameters are modified in the Excel part of the converted database, the actual model still runs correctly with those changes. The system uses **automatic parameter synchronization** to prevent the common issue where Excel parameter changes don't automatically propagate to code. EYPOR-AI eliminates this risk by:
 • Converting every workbook into a unified SQLite database.  
 • Rewriting model Python files to fetch parameters from that database.  
 • Validating each change before execution.
@@ -137,14 +134,4 @@ change_report = {
    ```
    User: "Change the maximum hub demand to 25000"
    System: Analyzes request → Updates database → Validates change → Reports success
-   ```
-
-2. **Through the Database Browser:**
-   - Navigate to the parameters table
-   - Edit values directly
-   - Changes are immediately available to models
-
-3. **Through SQL Queries:**
-   ```sql
-   UPDATE inputs_params SET Value = 25000 WHERE Parameter = 'Maximum Hub Demand'
    ```

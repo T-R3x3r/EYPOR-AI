@@ -1,58 +1,66 @@
-# EY Project – AI-Powered Operations Research Platform
+# EYPOR-AI – AI-Powered Operations Research Platform
 
 ## Overview
-EY Project is an end-to-end, AI-powered environment for data-driven decision making and optimisation.  A conversational interface lets analysts query a SQL database, create on-demand visualisations, change model parameters and execute Python optimisation models – all from natural language.
+EYPOR-AI is an end-to-end, AI-powered environment for data-driven decision making and optimisation. The platform features a multi-agent architecture with specialized agents handling different aspects of the workflow, all accessible through a natural language interface.
 
-The application is split into a Python/FastAPI backend and an Angular frontend.  A LangGraph-based agent orchestrates every request, dynamically routing it through specialised nodes that generate SQL, build visualisations, modify the database or fix code when errors occur.
+The system comprises:
+- A Python/FastAPI backend with LangGraph-based agent orchestration
+- An Angular frontend providing an intuitive chat interface
+- Multiple specialized AI agents working in concert
+- Integrated database and model management capabilities
 
 ---
 
 ## Key Capabilities
-• Natural-language SQL queries with automatic schema discovery.
-• One-click visualisation – the agent writes and runs Python/Plotly code and returns interactive charts.
-• Parameter management – update any value stored in the SQLite database and immediately rerun optimisation models.
-• File execution – run arbitrary Python scripts located in the project.
-• Resilient code execution – a self-healing "code_fixer" node automatically patches and re-executes faulty scripts.
-• Persistent chat history – browser-side storage keeps recent messages (LangGraph memory is temporarily disabled).
+• **Intelligent Request Analysis**: Automatic classification and routing of user requests to specialized agents  
+• **SQL Operations**: Natural-language queries with automatic schema discovery and validation  
+• **Dynamic Visualization**: Automated generation and execution of Python/Plotly visualization code  
+• **Database Management**: Parameter updates with automatic model re-execution capabilities  
+• **Model Integration**: Intelligent discovery and execution of optimization models  
+• **Error Recovery**: Self-healing code execution with automated fixes  
+• **Human-in-the-Loop**: User-controlled model selection after database modifications  
+• **Persistent Memory**: Browser-side conversation storage with context retention
 
 ---
 
 ## High-Level Agent Workflow
 
-The system uses two specialized agents working together:
+The system employs two specialized agents working in concert:
 
-1. **Data Analyst Agent** (Blue): Handles the main workflow including:
+1. **Data Analyst Agent** (Primary Intelligence):
    - Request analysis and classification
    - SQL query generation and execution
-   - Database modifications
-   - File execution for visualizations
+   - Visualization script creation
+   - Database modification preparation
+   - Model discovery and execution
    - Response generation
 
-2. **Code Fixer Agent** (Red): Provides error recovery by:
-   - Analyzing execution errors
-   - Fixing code issues automatically
-   - Handling both simple fixes (syntax, imports) and major restructuring
-   - Re-executing corrected code
+2. **Code Fixer Agent** (Error Recovery):
+   - Execution error analysis
+   - Automated code fixes
+   - Syntax and import corrections
+   - Major code restructuring
+   - Re-execution management
 
 ![Data Analyst Workflow](docs/images/data_analyst_workflow.png)
 
-Each edge represents a conditional route chosen at run-time. The workflow intelligently routes requests through:
-- SQL queries for data retrieval
-- Visualization generation via Python scripts
-- Database modifications for parameter updates
-- Code fixing when execution errors occur
+The workflow intelligently routes requests through:
+- SQL query path for data retrieval and analysis
+- Visualization path for creating charts and graphs
+- Database modification path with model selection
+- Error recovery path when execution issues occur
 
-All paths eventually converge to generate a response, ensuring a complete interaction cycle.
+All paths converge to a response node, ensuring complete interaction cycles.
 
 ---
 
 ## Repository Layout
 ```text
 EYProjectGit/
-├── backend/     # Python ✕ FastAPI server + LangGraph agent
-├── frontend/    # Angular SPA
-├── docs/        # Technical guides (see below)
-└── outputs/     # Generated files, charts and logs
+├── backend/     # Python FastAPI server + Multi-agent LangGraph system
+├── frontend/    # Angular SPA with chat interface
+├── docs/        # Technical documentation and implementation guides
+└── outputs/     # Generated visualizations, files, and execution logs
 ```
 
 ---
@@ -74,7 +82,7 @@ EYProjectGit/
 3. Copy the environment template and add your keys
    ```bash
    cp EY.env.example EY.env
-   # edit EY.env
+   # edit EY.env with your API keys
    ```
 4. Launch
    ```bash
