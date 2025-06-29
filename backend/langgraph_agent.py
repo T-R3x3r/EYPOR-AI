@@ -41,7 +41,8 @@ CREATE_FILE: [filename]
 
 DO NOT explain the problem in chat - fix the code directly using one of the above formats.
 Always provide the complete fixed code, not just explanations.""", 60),
-        "database_modifier": AgentConfig("You are a database modifier.", 60)
+        "database_modifier": AgentConfig("You are a database modifier.", 60),
+
     }
     return configs.get(agent_type, AgentConfig())
 import re
@@ -49,6 +50,7 @@ import sqlite3
 import glob
 import pandas as pd
 import uuid
+import json
 
 # LangGraph memory imports
 try:
@@ -181,13 +183,9 @@ class CodeExecutorAgent:
             # Core workflow nodes
             workflow.add_node("analyze_request", self._analyze_data_request)
             workflow.add_node("execute_sql_query", self._execute_sql_query_node)
-            workflow.add_node("create_visualization", self._create_visualization_node)
             workflow.add_node("prepare_db_modification", self._prepare_db_modification_node)
             workflow.add_node("database_modifier", self._database_modifier_node)
             workflow.add_node("execute_db_modification", self._execute_db_modification_node)
-            workflow.add_node("find_and_run_models", self._find_and_run_models_node)
-            workflow.add_node("request_model_selection", self._request_model_selection_node)
-            workflow.add_node("execute_selected_models", self._execute_selected_models_node)
             workflow.add_node("execute_file", self._execute_file)
             workflow.add_node("code_fixer", self._code_fixer_node)
             workflow.add_node("respond", self._respond)
@@ -201,7 +199,7 @@ class CodeExecutorAgent:
                 self._route_data_request,
                 {
                     "sql_query": "execute_sql_query",
-                    "visualization": "create_visualization",
+                    "visualization": "execute_file",
                     "db_modification": "prepare_db_modification",
                     "respond": "respond"
                 }
@@ -210,25 +208,11 @@ class CodeExecutorAgent:
             # SQL query path - now creates and executes a Python file
             workflow.add_edge("execute_sql_query", "execute_file")
             
-            # Visualization path
-            workflow.add_edge("create_visualization", "execute_file")
+
             
             # Database modification path - direct execution without approval, no automatic model run
             workflow.add_edge("prepare_db_modification", "execute_db_modification")
             workflow.add_edge("execute_db_modification", "respond")
-            
-            # Model execution path
-            workflow.add_conditional_edges(
-                "find_and_run_models",
-                self._route_model_execution,
-                {
-                    "run_all": "execute_selected_models",
-                    "select_models": "request_model_selection",
-                    "no_models": "respond"
-                }
-            )
-            workflow.add_edge("request_model_selection", END)  # Interrupt for model selection
-            workflow.add_edge("execute_selected_models", "respond")
             
             # File execution and error handling
             workflow.add_conditional_edges(
@@ -246,7 +230,6 @@ class CodeExecutorAgent:
                 self._code_fixer_router,
                 {
                     "execute": "execute_file",
-                    "major_fix": "create_visualization",
                     "respond": "respond"
                 }
             )
@@ -258,27 +241,12 @@ class CodeExecutorAgent:
             workflow.add_node("analyze_modification", self._analyze_modification_request)
             workflow.add_node("prepare_modification", self._prepare_modification_node)
             workflow.add_node("execute_modification", self._execute_modification_node)
-            workflow.add_node("find_models", self._find_models_node)
-            workflow.add_node("request_model_selection", self._request_model_selection_node)
-            workflow.add_node("execute_models", self._execute_models_node)
             workflow.add_node("respond", self._respond)
             
             workflow.add_edge(START, "analyze_modification")
             workflow.add_edge("analyze_modification", "prepare_modification")
             workflow.add_edge("prepare_modification", "execute_modification")
-            workflow.add_edge("execute_modification", "find_models")
-            
-            workflow.add_conditional_edges(
-                "find_models",
-                self._route_model_execution,
-                {
-                    "run_all": "execute_models",
-                    "select_models": "request_model_selection",
-                    "no_models": "respond"
-                }
-            )
-            workflow.add_edge("request_model_selection", END)  # Interrupt for model selection
-            workflow.add_edge("execute_models", "respond")
+            workflow.add_edge("execute_modification", "respond")
             workflow.add_edge("respond", END)
 
         else:
@@ -690,6 +658,10 @@ The query completed successfully. Here are the raw results from your database.""
         except Exception as e:
             return {**state, "messages": state["messages"] + [AIMessage(content=f"❌ Could not read file: {str(e)}")]}
         
+        # Get execution error details
+        execution_error = state.get("execution_error", "")
+        last_error_type = state.get("last_error_type", "")
+        
         # Use intelligent code fixer configuration
         code_fixer_config = get_agent_config("code_fixer")
         system_prompt = f"""{code_fixer_config.system_prompt}
@@ -701,16 +673,28 @@ The query completed successfully. Here are the raw results from your database.""
 {file_content}
 
         EXECUTION ERROR:
-{state.get("execution_error", "No error details")}
+{execution_error}
 
-        ERROR TYPE: {state.get("last_error_type", "Unknown")}
+        ERROR TYPE: {last_error_type}
         
         TASK: Fix the code error and provide the corrected version using the required format.
+        
+        COMMON FIXES NEEDED:
+        1. **NameError: name 'python' is not defined** → Remove any standalone "python" lines (markdown artifacts)
+        2. **DatabaseError: no such column** → Check database schema and use correct column names
+        3. **SyntaxError** → Fix Python syntax issues
+        4. **ImportError** → Add missing imports
+        5. **FileNotFoundError** → Fix file path issues
+        
+        DATABASE SCHEMA CONTEXT:
+        {self._build_schema_context(self.cached_database_schema) if self.cached_database_schema else "No schema available"}
         
         IMPORTANT: 
         - If you see markdown artifacts (```) in the code, remove them completely
         - If there are syntax errors, fix the Python syntax
         - If there are missing imports, add them
+        - If there are database column errors, check the schema and use correct column names
+        - If you see standalone "python" lines, remove them (they're markdown artifacts)
         - Provide the complete fixed code, not just explanations
         
         Respond with either FIX_AND_EXECUTE: or MAJOR_FIX_NEEDED: followed by the filename and complete fixed code.
@@ -972,29 +956,43 @@ The query completed successfully. Here are the raw results from your database.""
             print(f"DEBUG: Execution router - Special error type '{last_error_type}', routing to success")
             return "success"
         
+        # Check for specific error types that should trigger code fixing
+        execution_error = state.get("execution_error", "")
+        if any(error_type in execution_error for error_type in [
+            "NameError: name 'python' is not defined",
+            "no such column",
+            "DatabaseError",
+            "SyntaxError",
+            "ImportError",
+            "ModuleNotFoundError",
+            "FigureCanvasAgg is non-interactive"  # Add common visualization errors
+        ]):
+            print(f"DEBUG: Execution router - Code fixable error detected, routing to retry")
+            return "retry"
+        
         # Check retry count
         retry_count = state.get("retry_count", 0)
-        if retry_count >= 2:  # Max 2 retries
+        if retry_count >= 3:  # Increased max retries to 3
             print("DEBUG: Execution router - Max retries reached, routing to error")
             return "error"
         else:
-            print("DEBUG: Execution router - Retry count < 2, routing to retry")
+            print("DEBUG: Execution router - Retry count < 3, routing to retry")
             return "retry"
 
-    def _code_fixer_router(self, state: AgentState) -> Literal["execute", "major_fix", "respond"]:
+    def _code_fixer_router(self, state: AgentState) -> Literal["execute", "respond"]:
         """Route based on code_fixer response"""
         last_response = state["messages"][-1].content if state["messages"] else ""
         
         print(f"DEBUG: Code fixer router - Last response: {last_response[:200]}...")
         print(f"DEBUG: Code fixer router - Contains FIX_AND_EXECUTE: {'FIX_AND_EXECUTE:' in last_response}")
-        print(f"DEBUG: Code fixer router - Contains MAJOR_FIX_NEEDED: {'MAJOR_FIX_NEEDED:' in last_response}")
         
+        # Reset execution error flags when routing to execute
         if "FIX_AND_EXECUTE:" in last_response:
-            print("DEBUG: Simple fix completed - routing directly to execution")
+            print("DEBUG: Simple fix completed - routing to execution")
+            state["has_execution_error"] = False  # Reset error flag
+            state["execution_error"] = ""  # Clear error message
+            state["execution_output"] = ""  # Clear previous output
             return "execute"
-        elif "MAJOR_FIX_NEEDED:" in last_response:
-            print("DEBUG: Major fix completed - routing to respond with explanation")
-            return "major_fix"
         else:
             print("DEBUG: Code fixer didn't use expected format - routing to respond")
             return "respond"
@@ -1223,7 +1221,11 @@ The query completed successfully. Here are the raw results from your database.""
         error_type = "Unknown"
         
         if has_error:
-            if "ModuleNotFoundError" in result.stderr:
+            if "NameError: name 'python' is not defined" in result.stderr:
+                error_type = "NameError"
+            elif "no such column" in result.stderr or "DatabaseError" in result.stderr:
+                error_type = "DatabaseError"
+            elif "ModuleNotFoundError" in result.stderr:
                 error_type = "ModuleNotFoundError"
             elif "SyntaxError" in result.stderr:
                 error_type = "SyntaxError"
@@ -1236,10 +1238,27 @@ The query completed successfully. Here are the raw results from your database.""
         output_files = []
         if state["temp_dir"]:
             try:
+                import time
+                execution_start_time = time.time()  # Track when this execution started
+                
                 current_files = set(os.listdir(state["temp_dir"]))
                 previous_files = set(state["files"].keys())
                 new_files = current_files - previous_files
-                output_files = [f for f in new_files if f.endswith(('.png', '.html', '.csv', '.txt', '.pdf', '.jpg', '.jpeg', '.svg'))]
+                
+                # Only include files that were actually created during this execution
+                query_specific_files = []
+                for f in new_files:
+                    if f.endswith(('.png', '.html', '.csv', '.txt', '.pdf', '.jpg', '.jpeg', '.svg')):
+                        file_path = os.path.join(state["temp_dir"], f)
+                        if os.path.exists(file_path):
+                            file_creation_time = os.path.getctime(file_path)
+                            if file_creation_time >= execution_start_time:
+                                query_specific_files.append(f)
+                                print(f"DEBUG: Including file created during execution: {f} (created: {file_creation_time}, execution start: {execution_start_time})")
+                            else:
+                                print(f"DEBUG: Skipping file created before execution: {f} (created: {file_creation_time}, execution start: {execution_start_time})")
+                
+                output_files = query_specific_files
                 
                 # Add new output files to the state for frontend access
                 for output_file in output_files:
@@ -1461,16 +1480,19 @@ The query completed successfully. Here are the raw results from your database.""
         while code_content.endswith('`'):
             code_content = code_content[:-1].strip()
         
-        # Remove any lines that are just backticks or markdown artifacts
+        # Remove any lines that are just markdown artifacts or language indicators
         lines = code_content.split('\n')
         cleaned_lines = []
         for line in lines:
             stripped_line = line.strip()
             # Skip lines that are just markdown artifacts
-            if stripped_line in ['```', '```python', '```py', '`', '``']:
+            if stripped_line in ['```', '```python', '```py', '`', '``', 'python', 'py']:
                 continue
             # Skip lines that start with markdown artifacts
             if stripped_line.startswith('```'):
+                continue
+            # Skip lines that are just language indicators
+            if stripped_line in ['python', 'py']:
                 continue
             cleaned_lines.append(line)
         
@@ -1951,21 +1973,52 @@ print(f"Found data files: {data_files}")
         elif self.cached_database_schema:
             schema_context = self._build_schema_context(self.cached_database_schema)
         
+        # First determine the request type
         system_prompt = """You are analyzing a user request to determine how to handle it. You have three options:
 
-1. **SQL_QUERY** - For straightforward data requests that need simple SQL execution
-   Examples: "Show top 10 hubs", "What is total demand?", "List all routes", "give me the top 10 hubs with highest demand", "show me hubs with least demand", "find hubs with cost factors"
+1. **SQL_QUERY** - For straightforward data requests that need simple SQL execution and return tabular data
+   Examples: 
+   - "Show top 10 hubs", "What is total demand?", "List all routes"
+   - "give me the top 10 hubs with highest demand", "show me hubs with least demand"
+   - "find hubs with cost factors", "get all routes with cost > 500"
+   - "count total destinations", "sum all demand values"
+   - "show me the data", "display the results", "list the information"
 
-2. **VISUALIZATION** - For requests that need charts, graphs, or visual representations  
-   Examples: "Create a chart", "Show a graph", "Visualize the data", "Plot distribution", "draw a map", "create a scatter plot"
+2. **VISUALIZATION** - For requests that need charts, graphs, plots, or visual representations
+   Examples:
+   - "Create a chart", "Show a graph", "Visualize the data", "Plot distribution"
+   - "draw a map", "create a scatter plot", "make a bar chart"
+   - "show me a visualization", "generate a plot", "create a diagram"
+   - "visualize the hubs", "plot the demand", "chart the results"
+   - "show me a comparison chart", "create a heatmap", "draw a histogram"
+   - "bar chart of [data]", "scatter plot of [data]", "line chart of [data]"
+   - "pie chart", "histogram", "box plot", "area chart"
+   - "map", "location", "geographic", "allocation", "hub allocation"
+   - "which hubs are allocated to which location", "show allocation", "display map"
 
 3. **DATABASE_MODIFICATION** - For requests to change parameters or data
    Examples: "Change maximum hub demand to X", "Update cost to Y", "Set limit to Z", "modify parameter"
 
-IMPORTANT: 
-- If the user asks for data retrieval (like "show me", "give me", "find", "list"), it's usually SQL_QUERY
-- If the user asks for visual representation (like "chart", "graph", "plot", "visualize"), it's VISUALIZATION
-- If the user asks to change/modify data, it's DATABASE_MODIFICATION
+IMPORTANT DISTINCTION:
+- **SQL_QUERY**: User wants to see raw data in table format (rows and columns)
+- **VISUALIZATION**: User wants to see data represented as charts, graphs, plots, or visual diagrams
+- **DATABASE_MODIFICATION**: User wants to change values in the database
+
+KEY WORDS TO LOOK FOR:
+- SQL_QUERY: "show", "list", "get", "find", "count", "sum", "display", "table", "data"
+- VISUALIZATION: "chart", "graph", "plot", "visualize", "draw", "map", "diagram", "scatter", "bar", "line", "heatmap", "pie", "histogram", "box", "area", "location", "geographic", "allocation"
+- DATABASE_MODIFICATION: "change", "update", "set", "modify", "alter", "edit"
+
+SPECIFIC CHART TYPE DETECTION:
+If the user mentions any of these specific chart types, it's ALWAYS a VISUALIZATION request:
+- "bar chart", "scatter plot", "line chart", "pie chart", "histogram", "heatmap", "box plot", "area chart"
+- "create a [chart type]", "make a [chart type]", "draw a [chart type]"
+
+MAP AND ALLOCATION DETECTION:
+If the user mentions any of these terms, it's ALWAYS a VISUALIZATION request:
+- "map", "location", "geographic", "allocation", "hub allocation"
+- "which hubs are allocated to which location", "show allocation", "display map"
+- "create a map", "draw a map", "show locations"
 
 Analyze the request and respond with exactly one word: SQL_QUERY, VISUALIZATION, or DATABASE_MODIFICATION"""
 
@@ -1983,7 +2036,81 @@ Analyze the request and respond with exactly one word: SQL_QUERY, VISUALIZATION,
         except Exception as e:
             print(f"Error analyzing request: {e}")
             request_type = "SQL_QUERY"  # Default fallback
+
+        # If this is a visualization request, generate the visualization code directly
+        if request_type == "VISUALIZATION":
+            try:
+                # Get the visualization code from the agent
+                response = self.llm.invoke([
+                    HumanMessage(content=f"""You are a data visualization expert. Your task is to analyze the user's request and create Python code to visualize data from the database.
+
+Database Schema:
+{schema_context}
+
+User Request: {last_message}
+
+Create Python code that:
+1. Connects to the SQLite database
+2. Retrieves the necessary data using SQL
+3. Creates an appropriate visualization
+4. Saves the output to a file
+
+Basic template to follow:
+```python
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import pandas as pd
+import sqlite3
+import time
+
+# Get data
+conn = sqlite3.connect('project_data.db')
+df = pd.read_sql('YOUR_SQL_QUERY', conn)
+conn.close()
+
+# Create visualization
+plt.figure()
+# Your visualization code here
+plt.savefig(f'output_{int(time.time())}.png')
+plt.close()
+```
+
+Respond with:
+CREATE_FILE: [filename]
+[complete Python visualization code]""")
+                ])
+                
+                # Generate timestamp for unique filename
+                timestamp = int(time.time())
+                filename = f"visualization_data_{timestamp}.py"
+                
+                # Clean and enhance the code
+                code_content = self._clean_visualization_code(response.content)
+                
+                # Create the file
+                if state.get("temp_dir") and os.path.exists(state["temp_dir"]):
+                    file_path = os.path.join(state["temp_dir"], filename)
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(code_content)
+                    
+                    # Add file to the files dictionary for execution
+                    files_dict = state.get("files", {})
+                    files_dict[filename] = file_path
+                    
+                    return {
+                        **state,
+                        "current_file": filename,
+                        "created_files": state.get("created_files", []) + [filename],
+                        "files": files_dict,
+                        "request_type": request_type,
+                        "messages": state["messages"] + [AIMessage(content="🎨 Creating visualization...")]
+                    }
+            except Exception as e:
+                print(f"Error creating visualization: {e}")
+                # Fall back to normal request type handling
         
+        # For non-visualization requests or if visualization creation failed
         return {
             **state,
             "request_type": request_type,
@@ -2286,175 +2413,7 @@ finally:
             if os.path.exists(path):
                 return path
         return None
-    
-    def _create_visualization_node(self, state: AgentState) -> AgentState:
-        """Create Python script for visualization"""
-        last_message = state["messages"][-1].content if state["messages"] else ""
-        print(f"DEBUG: _create_visualization_node called with message: {last_message}")
-        
-        # Get database schema context
-        schema_context = ""
-        if state.get("database_schema"):
-            schema_context = self._build_schema_context(state["database_schema"])
-        elif self.cached_database_schema:
-            schema_context = self._build_schema_context(self.cached_database_schema)
-        
-        # Generate timestamp and random ID for unique filenames
-        import time
-        import random
-        timestamp = int(time.time())
-        random_id = random.randint(1000, 9999)
-        
-        system_prompt = f"""Create a Python script for data visualization based on the user's request.
 
-Database Schema:
-{schema_context}
-
-ANALYZE THE USER REQUEST FIRST:
-- If user asks for "map", "geographic", "location", "hub", "allocation" → Create a COORDINATE-BASED SCATTER PLOT
-- If user asks for "trend", "over time", "time series" → Create a LINE PLOT
-- If user asks for "distribution", "frequency", "count" → Create a BAR CHART or HISTOGRAM
-- If user asks for "correlation", "relationship" → Create a SCATTER PLOT
-- If user asks for "comparison" → Create a BAR CHART or BOX PLOT
-- If user asks for "heatmap", "matrix" → Create a HEATMAP
-
-FOR COORDINATE-BASED VISUALIZATIONS (instead of HTML maps):
-- Use matplotlib to create scatter plots with coordinates
-- If user mentions "both model runs" or "comparison", create subplots or use different colors/symbols
-- If user mentions "active hubs", query the database for hub status and color them appropriately
-- If user mentions "lines to locations", draw lines between hubs and their allocated destinations
-- Use different colors: red for active hubs, blue for inactive, green for destinations
-- Include legends and annotations for clarity
-- Save as PNG files for reliable browser display
-
-FOR COMPARISON VISUALIZATIONS:
-- If comparing "both model runs", create subplots or use different colors/symbols
-- Show before/after scenarios clearly
-- Include legends to distinguish between different runs or states
-
-Requirements:
-1. Start with the mandatory imports:
-```python
-import os
-import time
-import random
-import sqlite3
-import matplotlib
-matplotlib.use('Agg')
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-```
-
-2. Find and connect to database:
-```python
-import glob
-db_files = glob.glob('*.db')
-if db_files:
-    conn = sqlite3.connect(db_files[0])
-else:
-    raise FileNotFoundError("No database file found")
-```
-
-3. Query appropriate data using the schema - be specific about what you need:
-   - For hub allocations: query hub coordinates, destination coordinates, allocation data
-   - For model comparisons: query both initial and final states
-   - For active hubs: query hub status and capacity information
-
-4. Create the SPECIFIC visualization type requested by the user
-5. Save plot with unique filename: visualization_{timestamp}_{random_id}.png
-6. Close database connection
-
-IMPORTANT: 
-- Pay attention to specific user requirements (colors, lines, comparisons, etc.)
-- Query the database thoroughly to get all needed data
-- Create clear and informative visualizations
-- Handle multiple model runs or states if requested
-- Use coordinate-based plots instead of HTML maps for better compatibility
-
-Respond with: CREATE_FILE: visualization_data_{timestamp}.py
-Then provide the complete Python script."""
-
-        try:
-            response = self.llm.invoke([HumanMessage(content=f"{system_prompt}\n\nVisualization Request: {last_message}")])
-            
-            # Process the response to extract filename and code
-            content = response.content.strip()
-            if "CREATE_FILE:" in content:
-                lines = content.split('\n')
-                filename_line = [line for line in lines if line.startswith("CREATE_FILE:")][0]
-                filename = filename_line.replace("CREATE_FILE:", "").strip()
-                
-                # Extract code (everything after the filename line)
-                code_start_idx = content.find(filename_line) + len(filename_line)
-                code_content = content[code_start_idx:].strip()
-                
-                # Clean up code content - remove any markdown formatting
-                if code_content.startswith('```python'):
-                    code_content = code_content[9:]  # Remove ```python
-                if code_content.startswith('```'):
-                    code_content = code_content[3:]  # Remove ``` if no language specified
-                if code_content.endswith('```'):
-                    code_content = code_content[:-3]  # Remove trailing ```
-                
-                # Remove any remaining markdown artifacts
-                code_content = code_content.replace('```', '')
-                
-                # Clean up any extra whitespace and ensure proper Python formatting
-                code_content = code_content.strip()
-                
-                # Ensure the code ends properly (no hanging backticks or incomplete blocks)
-                lines = code_content.split('\n')
-                cleaned_lines = []
-                for line in lines:
-                    # Skip lines that are just markdown artifacts
-                    if line.strip() in ['```', '```python', '```py']:
-                        continue
-                    cleaned_lines.append(line)
-                
-                code_content = '\n'.join(cleaned_lines).strip()
-                
-                print(f"DEBUG: Cleaned code content length: {len(code_content)}")
-                print(f"DEBUG: Code content preview: {code_content[:200]}...")
-                
-                # Create the file
-                if state.get("temp_dir") and os.path.exists(state["temp_dir"]):
-                    file_path = os.path.join(state["temp_dir"], filename)
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write(code_content)
-                    
-                    print(f"DEBUG: Created visualization file: {filename}")
-                    print(f"DEBUG: File path: {file_path}")
-                    print(f"DEBUG: Code content length: {len(code_content)}")
-                    
-                    # Add file to the files dictionary for execution
-                    files_dict = state.get("files", {})
-                    files_dict[filename] = file_path
-                    
-                    return {
-                        **state,
-                        "current_file": filename,
-                        "created_files": state.get("created_files", []) + [filename],
-                        "files": files_dict,
-                        "visualization_request": last_message,
-                        "messages": state["messages"] + [AIMessage(content=f"Created visualization script: {filename}")]
-                    }
-            
-            # Fallback if parsing fails
-            print(f"DEBUG: Failed to parse CREATE_FILE from response: {content[:200]}...")
-            return {
-                **state,
-                "messages": state["messages"] + [AIMessage(content="Failed to create visualization script.")]
-            }
-            
-        except Exception as e:
-            print(f"DEBUG: Exception in _create_visualization_node: {str(e)}")
-            return {
-                **state,
-                "messages": state["messages"] + [AIMessage(content=f"Error creating visualization: {str(e)}")]
-            }
-    
     def _prepare_db_modification_node(self, state: AgentState) -> AgentState:
         """Prepare database modification by identifying tables and columns"""
         # Get the original user message, not the classification message
@@ -2473,48 +2432,98 @@ Then provide the complete Python script."""
         elif self.cached_database_schema:
             schema_context = self._build_schema_context(self.cached_database_schema)
         
-        def fuzzy_match_parameter(user_input, available_parameters, threshold=0.6):
-            """Find the best matching parameter using fuzzy logic"""
-            import difflib
+        try:
+            # Extract numeric value from the request
+            import re
+            value_patterns = [
+                r'to\s+(\d+(?:\.\d+)?)',  # matches "to 2000" or "to 2000.5"
+                r'=\s*(\d+(?:\.\d+)?)',    # matches "= 2000" or "=2000.5"
+                r'(\d+(?:\.\d+)?)\s*$'     # matches number at end of string
+            ]
             
-            # Clean the user input
-            user_input = user_input.lower().strip()
+            extracted_value = None
+            for pattern in value_patterns:
+                matches = re.findall(pattern, last_message)
+                if matches:
+                    extracted_value = matches[0]
+                    break
             
-            # Direct substring matching first
-            exact_matches = [p for p in available_parameters if user_input.lower() in p.lower() or p.lower() in user_input.lower()]
-            if exact_matches:
-                return exact_matches[0]
+            # Extract table name if specified
+            table_patterns = [
+                r'in\s+(\w+(?:_\w+)*)\s',  # matches "in table_name "
+                r'from\s+(\w+(?:_\w+)*)\s', # matches "from table_name "
+                r'to\s+(\w+(?:_\w+)*)\s',   # matches "to table_name "
+                r'update\s+(\w+(?:_\w+)*)\s', # matches "update table_name "
+                r'in\s+(\w+(?:_\w+)*)$',  # matches "in table_name" at end of string
+                r'from\s+(\w+(?:_\w+)*)$', # matches "from table_name" at end of string
+                r'to\s+(\w+(?:_\w+)*)$',   # matches "to table_name" at end of string
+                r'update\s+(\w+(?:_\w+)*)$', # matches "update table_name" at end of string
+            ]
             
-            # Use difflib for fuzzy matching
-            matches = difflib.get_close_matches(user_input, [p.lower() for p in available_parameters], n=1, cutoff=threshold)
-            if matches:
-                # Find the original parameter name (with proper casing)
-                for param in available_parameters:
-                    if param.lower() == matches[0]:
-                        return param
+            extracted_table = None
+            for pattern in table_patterns:
+                matches = re.findall(pattern, last_message.lower())
+                if matches:
+                    extracted_table = matches[0]
+                    break
             
-            # Try partial word matching
-            user_words = user_input.split()
-            best_match = None
-            best_score = 0
+            print(f"DEBUG: Extracted value: {extracted_value}")
+            print(f"DEBUG: Extracted table: {extracted_table}")
             
-            for param in available_parameters:
-                param_words = param.lower().split()
-                score = 0
-                for user_word in user_words:
-                    for param_word in param_words:
-                        if user_word in param_word or param_word in user_word:
-                            score += 1
-                        elif difflib.SequenceMatcher(None, user_word, param_word).ratio() > 0.7:
-                            score += 0.8
+            # Check if table exists in schema
+            table_exists = False
+            if extracted_table:
+                if state.get("database_schema"):
+                    schema_tables = state["database_schema"].get("tables", [])
+                    table_exists = any(t.get("name", "").lower() == extracted_table.lower() for t in schema_tables if isinstance(t, dict))
+                elif self.cached_database_schema:
+                    schema_tables = self.cached_database_schema.get("tables", [])
+                    table_exists = any(t.get("name", "").lower() == extracted_table.lower() for t in schema_tables if isinstance(t, dict))
                 
-                if score > best_score:
-                    best_score = score
-                    best_match = param
+                if not table_exists:
+                    # Try fuzzy matching for similar table names
+                    available_tables = []
+                    if state.get("database_schema"):
+                        schema_tables = state["database_schema"].get("tables", [])
+                        available_tables = [t["name"] for t in schema_tables if isinstance(t, dict) and "name" in t]
+                    elif self.cached_database_schema:
+                        schema_tables = self.cached_database_schema.get("tables", [])
+                        available_tables = [t["name"] for t in schema_tables if isinstance(t, dict) and "name" in t]
+                    
+                    # Find similar table names
+                    import difflib
+                    similar_tables = []
+                    for table in available_tables:
+                        ratio = difflib.SequenceMatcher(None, extracted_table.lower(), table.lower()).ratio()
+                        if ratio > 0.6:  # Adjust threshold as needed
+                            similar_tables.append(table)
+                    
+                    if similar_tables:
+                        print(f"DEBUG: Table '{extracted_table}' not found, but found similar: {similar_tables}")
+                        # Use the first (shortest) similar table
+                        extracted_table = similar_tables[0]
+                        table_exists = True
             
-            return best_match if best_score > 0 else None
-
-        system_prompt = f"""Analyze the database modification request and identify exactly what needs to be changed.
+            # For inputs_destinations table, we need special handling
+            if extracted_table == "inputs_destinations":
+                modification_data = {
+                    'table': 'inputs_destinations',
+                    'column': 'Demand',
+                    'new_value': extracted_value,
+                    'description': 'Update demand in inputs_destinations table'
+                }
+                return {
+                    **state,
+                    "modification_request": modification_data,
+                    "identified_tables": [modification_data['table']],
+                    "identified_columns": [modification_data['column']],
+                    "current_values": {"Demand": "unknown"},
+                    "new_values": {"Demand": extracted_value},
+                    "messages": state["messages"] + [AIMessage(content=f"Identified modification: {modification_data}")]
+                }
+            
+            # For other cases, use the LLM to analyze the request
+            system_prompt = f"""Analyze the database modification request and identify exactly what needs to be changed.
 
 Database Schema:
 {schema_context}
@@ -2566,331 +2575,8 @@ NEW_VALUE: [exact_numeric_value_from_request]
 WHERE_CONDITION: [if needed, e.g., Parameter = 'Maximum Hub Demand']
 DESCRIPTION: [brief description of the change]"""
 
-        try:
-            # Enhanced regex to extract numeric value and table name from the request
-            import re
-            
-            # Look for table-specific patterns
-            table_patterns = [
-                r'in\s+(?:the\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s+table',  # "in table_name table"
-                r'in\s+([a-zA-Z_][a-zA-Z0-9_]*)',                     # "in table_name"
-                r'from\s+(?:the\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s+table', # "from table_name table"
-                r'from\s+([a-zA-Z_][a-zA-Z0-9_]*)',                   # "from table_name"
-                r'(?:table|tab)\s+([a-zA-Z_][a-zA-Z0-9_]*)',          # "table table_name"
-            ]
-            
-            extracted_table = None
-            for pattern in table_patterns:
-                match = re.search(pattern, last_message, re.IGNORECASE)
-                if match:
-                    extracted_table = match.group(1).lower()
-                    break
-            
-            # Look for patterns like "to 20000", "= 15000", "with 25000", etc.
-            numeric_patterns = [
-                r'to\s+(\d+(?:\.\d+)?)',
-                r'=\s*(\d+(?:\.\d+)?)',
-                r'with\s+(\d+(?:\.\d+)?)',
-                r'set.*?(\d+(?:\.\d+)?)',
-                r'change.*?(\d+(?:\.\d+)?)',
-                r'\b(\d+(?:\.\d+)?)\s*$',  # Number at end of sentence
-                r'\b(\d+(?:\.\d+)?)\b'     # Any number
-            ]
-            
-            extracted_value = None
-            for pattern in numeric_patterns:
-                match = re.search(pattern, last_message, re.IGNORECASE)
-                if match:
-                    extracted_value = match.group(1)
-                    break
-            
-            print(f"DEBUG: Raw request: '{last_message}'")
-            print(f"DEBUG: Extracted numeric value: {extracted_value}")
-            print(f"DEBUG: Extracted table name: {extracted_table}")
-            
-            # Check if user specified a table name
-            if extracted_table and extracted_value:
-                print(f"DEBUG: User specified table '{extracted_table}' - validating table exists")
-                
-                # Validate that the table exists in the schema
-                available_tables = []
-                if state.get("database_schema"):
-                    # Extract table names from the "tables" key in the schema (list of table objects)
-                    schema_tables = state["database_schema"].get("tables", [])
-                    available_tables = [t["name"].lower() for t in schema_tables if isinstance(t, dict) and "name" in t]
-                elif self.cached_database_schema:
-                    # Extract table names from the "tables" key in the cached schema (list of table objects)
-                    schema_tables = self.cached_database_schema.get("tables", [])
-                    available_tables = [t["name"].lower() for t in schema_tables if isinstance(t, dict) and "name" in t]
-                
-                print(f"DEBUG: Available tables in database: {available_tables}")
-                print(f"DEBUG: Looking for table: '{extracted_table}'")
-                
-                # Check if the extracted table exists (case insensitive)
-                table_exists = extracted_table in available_tables
-                if not table_exists:
-                    # Try common variations and partial matches
-                    table_variations = {
-                        'params': 'inputs_params',
-                        'parameters': 'inputs_params', 
-                        'param': 'inputs_params',
-                        'inputs': 'inputs_params',
-                        'hubs': 'hubs_data',
-                        'routes': 'routes_data',
-                        'data': 'project_data'
-                    }
-                    
-                    # Check for direct mapping
-                    if extracted_table in table_variations:
-                        mapped_table = table_variations[extracted_table]
-                        if mapped_table.lower() in available_tables:
-                            extracted_table = mapped_table.lower()
-                            table_exists = True
-                            print(f"DEBUG: Mapped '{extracted_table}' to '{mapped_table}'")
-                    
-                    # If still not found, try to find similar table names
-                    if not table_exists:
-                        # Try fuzzy matching for table names
-                        fuzzy_table_match = fuzzy_match_parameter(extracted_table, available_tables)
-                        if fuzzy_table_match:
-                            print(f"DEBUG: Fuzzy matched table '{extracted_table}' to '{fuzzy_table_match}'")
-                            extracted_table = fuzzy_table_match.lower()
-                            table_exists = True
-                        else:
-                            # Try different fuzzy matching strategies
-                            similar_tables = []
-                            
-                            # Strategy 1: Substring matching
-                            similar_tables.extend([t for t in available_tables if extracted_table in t or t in extracted_table])
-                            
-                            # Strategy 2: Look for tables containing key words from the extracted table
-                            if 'inputs' in extracted_table:
-                                similar_tables.extend([t for t in available_tables if 'inputs' in t or 'params' in t or 'parameters' in t])
-                            
-                            if 'hublocopti' in extracted_table:
-                                similar_tables.extend([t for t in available_tables if 'hub' in t or 'opti' in t])
-                            
-                            if 'parameters' in extracted_table:
-                                similar_tables.extend([t for t in available_tables if 'param' in t or 'inputs' in t])
-                            
-                            # Remove duplicates and sort by length (prefer shorter, more likely matches)
-                            similar_tables = list(set(similar_tables))
-                            similar_tables.sort(key=len)
-                            
-                            if similar_tables:
-                                print(f"DEBUG: Table '{extracted_table}' not found, but found similar: {similar_tables}")
-                                # Use the first (shortest) similar table
-                                extracted_table = similar_tables[0]
-                                table_exists = True
-                
-                if table_exists:
-                    print(f"DEBUG: Using validated table '{extracted_table}' - creating direct response")
-                    
-                    # Pass to LLM to identify the specific column within the specified table
-                    enhanced_prompt = f"""{system_prompt}
-
-USER SPECIFIED TABLE: {extracted_table}
-EXTRACTED VALUE FROM REQUEST: {extracted_value}
-
-The user has specifically requested to modify the '{extracted_table}' table. Focus ONLY on this table.
-You need to identify which column in the '{extracted_table}' table should be updated.
-
-Look at the schema for '{extracted_table}' table and determine the appropriate column name."""
-
-                    response = self.llm.invoke([HumanMessage(content=f"{enhanced_prompt}\n\nModification Request: {last_message}")])
-                    content = response.content.strip()
-                else:
-                    print(f"DEBUG: Table '{extracted_table}' not found in schema")
-                    # Provide immediate feedback about available tables
-                    available_table_names = []
-                    if state.get("database_schema"):
-                        schema_tables = state["database_schema"].get("tables", [])
-                        available_table_names = [t["name"] for t in schema_tables if isinstance(t, dict) and "name" in t]
-                    elif self.cached_database_schema:
-                        schema_tables = self.cached_database_schema.get("tables", [])
-                        available_table_names = [t["name"] for t in schema_tables if isinstance(t, dict) and "name" in t]
-                    
-                    error_msg = f"❌ Table '{extracted_table}' not found in database.\n\n"
-                    error_msg += f"**Available tables:**\n"
-                    for table in available_table_names:
-                        error_msg += f"• {table}\n"
-                    error_msg += f"\n**Suggestion:** Try one of the available table names above.\n"
-                    error_msg += f"**Example:** 'Change maximum demand to {extracted_value} in [table_name]'\n\n"
-                    error_msg += f"**Your request:** {last_message}"
-                    
-                    return {
-                        **state,
-                        "messages": state["messages"] + [AIMessage(content=error_msg)]
-                    }
-                
-            # For Hub Demand requests (minimum or maximum), provide a direct response
-            elif 'hub demand' in last_message.lower() and extracted_value:
-                # Determine if it's minimum or maximum hub demand
-                if 'minimum' in last_message.lower():
-                    parameter_name = 'Minimum Hub Demand'
-                    description = 'Update minimum hub demand parameter'
-                else:
-                    parameter_name = 'Maximum Hub Demand' 
-                    description = 'Update maximum hub demand parameter'
-                    
-                content = f"""TABLE: inputs_params
-COLUMN: Value
-NEW_VALUE: {extracted_value}
-WHERE_CONDITION: Parameter = '{parameter_name}'
-DESCRIPTION: {description}"""
-                print(f"DEBUG: Using direct response for {parameter_name.lower()} modification")
-            
-            # Try fuzzy matching for parameter names if we have a specific table (inputs_params)
-            elif extracted_table and extracted_table.lower() in ['inputs_params', 'params'] and extracted_value:
-                # Get available parameters from inputs_params table
-                available_parameters = []
-                if database_path and os.path.exists(database_path):
-                    try:
-                        import sqlite3
-                        conn = sqlite3.connect(database_path)
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT DISTINCT Parameter FROM inputs_params")
-                        available_parameters = [row[0] for row in cursor.fetchall()]
-                        conn.close()
-                        print(f"DEBUG: Available parameters for fuzzy matching: {available_parameters}")
-                    except Exception as e:
-                        print(f"DEBUG: Could not fetch parameters for fuzzy matching: {e}")
-                
-                if available_parameters:
-                    # Extract potential parameter name from the request
-                    parameter_keywords = []
-                    
-                    # Look for common parameter patterns
-                    import re
-                    
-                    # Pattern: "update X to Y" or "change X to Y" or "set X to Y"
-                    patterns = [
-                        r'(?:update|change|set|modify)\s+(.+?)\s+(?:to|=)\s+\d+',
-                        r'(?:update|change|set|modify)\s+(.+?)\s+(?:to|=)',
-                        r'(.+?)\s+(?:to|=)\s+\d+',
-                        r'(?:parameter|param)\s+(.+?)(?:\s+to|\s+=|\s+in)',
-                    ]
-                    
-                    for pattern in patterns:
-                        matches = re.findall(pattern, last_message, re.IGNORECASE)
-                        parameter_keywords.extend(matches)
-                    
-                    # Also try extracting from common phrases
-                    if 'operating cost' in last_message.lower():
-                        if 'fixed' in last_message.lower():
-                            parameter_keywords.append('Operating Cost (Fixed)')
-                        elif 'unit' in last_message.lower():
-                            parameter_keywords.append('Operating Cost per Unit')
-                        else:
-                            parameter_keywords.extend(['Operating Cost (Fixed)', 'Operating Cost per Unit'])
-                    
-                    if 'opening cost' in last_message.lower():
-                        parameter_keywords.append('Opening Cost')
-                    
-                    if 'closing cost' in last_message.lower():
-                        parameter_keywords.append('Closing Cost')
-                    
-                    if 'km cost' in last_message.lower() or 'km cost per unit' in last_message.lower():
-                        parameter_keywords.append('KM Cost per Unit')
-                    
-                    if 'base cost' in last_message.lower() or 'base cost per unit' in last_message.lower():
-                        parameter_keywords.append('Base Cost per Unit')
-                    
-                    if 'hub demand' in last_message.lower():
-                        if 'minimum' in last_message.lower():
-                            parameter_keywords.append('Minimum Hub Demand')
-                        elif 'maximum' in last_message.lower():
-                            parameter_keywords.append('Maximum Hub Demand')
-                        else:
-                            parameter_keywords.extend(['Minimum Hub Demand', 'Maximum Hub Demand'])
-                    
-                    print(f"DEBUG: Extracted parameter keywords: {parameter_keywords}")
-                    
-                    # Try fuzzy matching
-                    best_match = None
-                    best_confidence = 0
-                    
-                    for keyword in parameter_keywords:
-                        matched_param = fuzzy_match_parameter(keyword, available_parameters)
-                        if matched_param:
-                            # Calculate confidence based on similarity
-                            import difflib
-                            confidence = difflib.SequenceMatcher(None, keyword.lower(), matched_param.lower()).ratio()
-                            if confidence > best_confidence:
-                                best_match = matched_param
-                                best_confidence = confidence
-                    
-                    if best_match:
-                        print(f"DEBUG: Fuzzy matched parameter '{best_match}' with confidence {best_confidence:.2f}")
-                        content = f"""TABLE: inputs_params
-COLUMN: Value
-NEW_VALUE: {extracted_value}
-WHERE_CONDITION: Parameter = '{best_match}'
-DESCRIPTION: Update {best_match.lower()} parameter using fuzzy matching"""
-                    else:
-                        # Try direct fuzzy matching on the entire message
-                        print(f"DEBUG: No direct keywords found, trying fuzzy match on entire message")
-                        words_in_message = last_message.lower().split()
-                        for param in available_parameters:
-                            param_words = param.lower().split()
-                            for word in words_in_message:
-                                if len(word) > 2:  # Skip very short words
-                                    fuzzy_result = fuzzy_match_parameter(word, available_parameters)
-                                    if fuzzy_result:
-                                        import difflib
-                                        confidence = difflib.SequenceMatcher(None, word, fuzzy_result.lower()).ratio()
-                                        if confidence > best_confidence and confidence > 0.6:
-                                            best_match = fuzzy_result
-                                            best_confidence = confidence
-                        
-                        if best_match:
-                            print(f"DEBUG: Fallback fuzzy matched parameter '{best_match}' with confidence {best_confidence:.2f}")
-                            content = f"""TABLE: inputs_params
-COLUMN: Value
-NEW_VALUE: {extracted_value}
-WHERE_CONDITION: Parameter = '{best_match}'
-DESCRIPTION: Update {best_match.lower()} parameter using fallback fuzzy matching"""
-                        else:
-                            print(f"DEBUG: No fuzzy match found, falling back to LLM")
-                            content = None
-                
-                # If fuzzy matching didn't work, fall back to LLM
-                if content is None:
-                    print(f"DEBUG: Fuzzy matching failed, using LLM with enhanced prompts")
-                    enhanced_prompt = f"""{system_prompt}
-
-EXTRACTED VALUE FROM REQUEST: {extracted_value if extracted_value else 'NOT_FOUND'}
-EXTRACTED TABLE FROM REQUEST: {extracted_table if extracted_table else 'NOT_SPECIFIED'}
-
-Available parameters in inputs_params table for reference:
-{available_parameters if 'available_parameters' in locals() and available_parameters else 'Not available'}
-
-The user's exact request was: "{last_message}"
-
-Please identify the closest matching parameter name from the available parameters list above.
-Use fuzzy matching if needed - small typos or missing letters should not prevent correct identification."""
-
-                    response = self.llm.invoke([HumanMessage(content=f"{enhanced_prompt}\n\nModification Request: {last_message}")])
-                    content = response.content.strip()
-            else:
-                # Enhanced prompt with the extracted values
-                enhanced_prompt = f"""{system_prompt}
-
-EXTRACTED VALUE FROM REQUEST: {extracted_value if extracted_value else 'NOT_FOUND'}
-EXTRACTED TABLE FROM REQUEST: {extracted_table if extracted_table else 'NOT_SPECIFIED'}
-
-If EXTRACTED VALUE is NOT_FOUND, you MUST look harder in the request text: "{last_message}"
-If EXTRACTED TABLE is specified, prioritize that table for the modification.
-
-For Hub Demand requests, always respond:
-TABLE: inputs_params
-COLUMN: Value  
-NEW_VALUE: {extracted_value if extracted_value else '[EXTRACT_FROM_REQUEST]'}
-WHERE_CONDITION: Parameter = 'Minimum Hub Demand' OR Parameter = 'Maximum Hub Demand' (depending on request)
-DESCRIPTION: Update minimum or maximum hub demand parameter"""
-
-                response = self.llm.invoke([HumanMessage(content=f"{enhanced_prompt}\n\nModification Request: {last_message}")])
-                content = response.content.strip()
+            response = self.llm.invoke([HumanMessage(content=f"{system_prompt}\n\nModification Request: {last_message}")])
+            content = response.content.strip()
             
             # Parse the response and clean backticks/formatting
             modification_data = {}
@@ -2910,105 +2596,16 @@ DESCRIPTION: Update minimum or maximum hub demand parameter"""
             print(f"DEBUG: LLM raw response for modification: {content}")
             print(f"DEBUG: Parsed modification data: {modification_data}")
             
-            # Get current value if possible
-            current_value = "unknown"
-            # Try to find the database file
-            database_path = None
-            if state.get("database_path"):
-                database_path = state["database_path"]
-            elif state.get("temp_dir"):
-                # Look for any .db file in temp_dir
-                import glob
-                db_files = glob.glob(os.path.join(state["temp_dir"], "*.db"))
-                if db_files:
-                    database_path = db_files[0]
-            
-            if database_path and os.path.exists(database_path) and modification_data.get('table') and modification_data.get('column'):
-                try:
-                    conn = sqlite3.connect(database_path)
-                    cursor = conn.cursor()
-                    
-                    # If there's a WHERE condition, use it to get the specific value
-                    where_condition = modification_data.get('where_condition')
-                    if where_condition:
-                        query = f"SELECT {modification_data['column']} FROM {modification_data['table']} WHERE {where_condition}"
-                        cursor.execute(query)
-                        result = cursor.fetchone()
-                        current_value = result[0] if result else "Not found"
-                    else:
-                        # Fall back to getting distinct values
-                        cursor.execute(f"SELECT DISTINCT {modification_data['column']} FROM {modification_data['table']} LIMIT 5")
-                        values = cursor.fetchall()
-                        if values:
-                            current_value = values[0][0] if len(values) == 1 else f"Multiple values: {[v[0] for v in values]}"
-                    
-                    conn.close()
-                except Exception as e:
-                    current_value = f"Error retrieving: {str(e)}"
-            
-            modification_data['current_value'] = current_value
-            
-            # Check if we successfully identified table and column  
-            if not modification_data.get('table') or not modification_data.get('column') or modification_data.get('table') == 'Unknown':
-                # Provide fallback error with schema information
-                schema_tables = []
-                if state.get("database_schema"):
-                    schema_data = state["database_schema"].get("tables", [])
-                    schema_tables = [t["name"] for t in schema_data if isinstance(t, dict) and "name" in t]
-                elif self.cached_database_schema:
-                    schema_data = self.cached_database_schema.get("tables", [])
-                    schema_tables = [t["name"] for t in schema_data if isinstance(t, dict) and "name" in t]
-                
-                error_msg = f"❌ Could not identify which table/column to modify.\n\n"
-                error_msg += f"**Available tables in database:** {', '.join(schema_tables)}\n\n"
-                error_msg += f"**Please specify the exact table name, for example:**\n"
-                error_msg += f"• 'Change maximum hub demand to 20000 in inputs_params'\n"
-                error_msg += f"• 'Update cost to 500 in routes table'\n"
-                error_msg += f"• 'Set capacity to 15000 in hubs_data'\n"
-                error_msg += f"• 'Modify value to 25000 in parameters'\n\n"
-                error_msg += f"**Alternative syntax:**\n"
-                error_msg += f"• 'Change x in [table_name] to [value]'\n"
-                error_msg += f"• 'Update [column] in [table] to [value]'\n\n"
-                if extracted_table:
-                    error_msg += f"**Note:** I detected you mentioned table '{extracted_table}', but couldn't find it or identify the column. Please check the table name.\n\n"
-                error_msg += f"Raw analysis: {content}"
-                
-                return {
-                    **state,
-                    "modification_request": {},  # Clear any old modification data when parsing fails
-                    "messages": state["messages"] + [AIMessage(content=error_msg)]
-                }
-            
-            # Special handling for inputs_params table - add WHERE condition if not specified
-            if modification_data.get('table') == 'inputs_params' and not modification_data.get('where_condition'):
-                # Look for hub demand parameters in the request
-                if 'hub demand' in last_message.lower():
-                    if 'minimum' in last_message.lower():
-                        parameter_name = 'Minimum Hub Demand'
-                    else:
-                        parameter_name = 'Maximum Hub Demand'
-                    modification_data['where_condition'] = f"Parameter = '{parameter_name}'"
-                    print(f"DEBUG: Added automatic WHERE condition for inputs_params: {modification_data['where_condition']}")
-            
             # If we have the correct table but the LLM didn't extract the numeric value, try again
-            if (modification_data.get('table') == 'inputs_params' and 
-                modification_data.get('new_value') in ['<exact_numeric_value_from_request>', '[EXTRACT_FROM_REQUEST]', None] and
-                extracted_value):
+            if modification_data.get('new_value') in ['<exact_numeric_value_from_request>', '[EXTRACT_FROM_REQUEST]', None]:
                 modification_data['new_value'] = extracted_value
-                print(f"DEBUG: Fixed new_value using extracted value: {extracted_value}")
-            
-            # Ensure we have a proper WHERE condition for parameter tables
-            if 'param' in modification_data.get('table', '').lower() and not modification_data.get('where_condition'):
-                # Default WHERE condition to prevent updating all parameters
-                modification_data['where_condition'] = "1=0"  # This will prevent any updates without proper WHERE
-                print(f"DEBUG: Added safety WHERE condition to prevent bulk updates")
             
             return {
                 **state,
                 "modification_request": modification_data,
                 "identified_tables": [modification_data.get('table', '')],
                 "identified_columns": [modification_data.get('column', '')],
-                "current_values": {modification_data.get('column', ''): current_value},
+                "current_values": {modification_data.get('column', ''): "unknown"},
                 "new_values": {modification_data.get('column', ''): modification_data.get('new_value', '')},
                 "messages": state["messages"] + [AIMessage(content=f"Identified modification: {modification_data}")]
             }
@@ -3153,10 +2750,16 @@ DESCRIPTION: Update minimum or maximum hub demand parameter"""
             
             # Generate SQL UPDATE statement with proper quoting
             try:
-                float(new_value)
-                sql = f"UPDATE {quoted_table} SET {quoted_column} = {new_value}"
+                # Clean and validate the new value
+                clean_value = str(new_value).strip()
+                if not clean_value:
+                    raise ValueError("Empty value")
+                float(clean_value)  # Test if it's a valid number
+                sql = f"UPDATE {quoted_table} SET {quoted_column} = {clean_value}"
             except ValueError:
-                sql = f"UPDATE {quoted_table} SET {quoted_column} = '{new_value}'"
+                # If not a valid number, treat as string but prevent SQL injection
+                clean_value = clean_value.replace("'", "''")  # Escape single quotes
+                sql = f"UPDATE {quoted_table} SET {quoted_column} = '{clean_value}'"
             
             # Add WHERE condition if specified (use the formatted where condition)
             if where_condition:
@@ -3653,6 +3256,205 @@ DESCRIPTION: Update minimum or maximum hub demand parameter"""
                 
         except Exception as e:
             print(f"DEBUG: Error importing model outputs to database: {e}")
+
+
+
+    def _clean_visualization_code(self, code_content: str) -> str:
+        """Enhanced cleaning for visualization code to remove all markdown artifacts and fix indentation"""
+        import re
+        
+        # First, extract only the actual Python code if there's markdown text
+        code_blocks = re.findall(r'```(?:python|py)?\n(.*?)```', code_content, re.DOTALL)
+        if code_blocks:
+            # Use the last code block if multiple exist
+            code_content = code_blocks[-1]
+        
+        # Remove any remaining markdown explanation lines
+        lines = code_content.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            # Skip lines that look like markdown text
+            if line.strip().endswith(':') and not line.strip().startswith('#'):
+                continue
+            if line.strip().startswith(('Here', 'Now', 'First', 'Then', 'Finally', 'Next', 'Let')):
+                continue
+            cleaned_lines.append(line)
+        
+        # Fix indentation
+        fixed_lines = []
+        current_block_indent = 0
+        in_function = False
+        in_loop = False
+        in_if = False
+        
+        for i, line in enumerate(cleaned_lines):
+            stripped = line.strip()
+            if not stripped:  # Empty line
+                fixed_lines.append('')
+                continue
+                
+            # Determine the base indentation for this line
+            if stripped.startswith(('def ', 'class ')):
+                current_block_indent = 4
+                in_function = True
+            elif stripped.startswith(('if ', 'for ', 'while ', 'try:', 'else:', 'elif ')):
+                if not in_function:
+                    current_block_indent = 4
+                else:
+                    current_block_indent += 4
+                if stripped.startswith(('for ', 'while ')):
+                    in_loop = True
+                if stripped.startswith(('if ', 'elif ', 'else:')):
+                    in_if = True
+            elif stripped.endswith(':'):  # Other block starts
+                current_block_indent += 4
+            elif in_loop and any(x in stripped for x in ['break', 'continue']):
+                # These should be at the same level as the loop body
+                pass
+            elif in_if and stripped.startswith(('break', 'continue', 'return')):
+                # These should be at the same level as the if body
+                pass
+            elif stripped.startswith(('return', 'break', 'continue', 'raise')):
+                # These should be at the same level as the function body
+                if in_function:
+                    current_block_indent = 4
+            elif i > 0 and cleaned_lines[i-1].strip().endswith(':'):
+                # This line should be indented if it follows a block starter
+                pass
+            else:
+                # Check if this line looks like it should end a block
+                if current_block_indent > 0 and not any(stripped.startswith(x) for x in ['.', '+', '-', '*', '/', '=', 'and ', 'or ']):
+                    current_block_indent = max(0, current_block_indent - 4)
+                    in_loop = False
+                    in_if = False
+            
+            # Apply the indentation
+            fixed_lines.append(' ' * current_block_indent + stripped)
+        
+        code_content = '\n'.join(fixed_lines)
+        
+        # Ensure all required imports are at the start
+        required_imports = '''import os
+import time
+import datetime
+import random
+import sqlite3
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np'''
+        
+        # Remove any existing imports
+        code_lines = code_content.split('\n')
+        non_import_lines = [line for line in code_lines if not line.strip().startswith('import') and not line.strip().startswith('matplotlib.use')]
+        
+        # Combine required imports with cleaned code
+        code_content = required_imports + '\n\n' + '\n'.join(non_import_lines)
+        
+        # Add standard database connection if not present
+        db_connection = '''
+# Connect to the database
+conn = sqlite3.connect('project_data.db')
+print("Connected to database: project_data.db")
+
+# Check available tables
+cursor = conn.cursor()
+cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+tables = [row[0] for row in cursor.fetchall()]
+print(f"Available tables: {tables}")'''
+        
+        if 'sqlite3.connect' not in code_content:
+            # Find the first non-import, non-empty line
+            lines = code_content.split('\n')
+            insert_idx = 0
+            for i, line in enumerate(lines):
+                if line.strip() and not line.strip().startswith(('import', 'matplotlib.use', '#')):
+                    insert_idx = i
+                    break
+            
+            # Insert the database connection code
+            lines.insert(insert_idx, db_connection)
+            code_content = '\n'.join(lines)
+        
+        # Ensure proper cleanup at the end
+        if 'conn.close()' not in code_content:
+            code_content += '\n\n# Close database connection\nconn.close()'
+        
+        # Clean up multiple empty lines
+        code_content = re.sub(r'\n\s*\n\s*\n', '\n\n', code_content)
+        
+        # Final strip
+        return code_content.strip()
+
+    def _get_data_sample(self, table: str, columns: List[str], filters: str = None, limit: int = 5) -> Dict:
+        """Get a sample of data and statistics for specified table and columns"""
+        try:
+            conn = sqlite3.connect('project_data.db')
+            cursor = conn.cursor()
+            
+            # Build the query
+            columns_str = ", ".join(columns)
+            query = f"SELECT {columns_str} FROM {table}"
+            if filters:
+                query += f" WHERE {filters}"
+            query += f" LIMIT {limit}"
+            
+            # Get sample data
+            cursor.execute(query)
+            sample_rows = cursor.fetchall()
+            
+            # Get basic statistics for each column
+            stats = {}
+            for col in columns:
+                stats_query = f"""
+                SELECT 
+                    COUNT(*) as count,
+                    COUNT(DISTINCT {col}) as unique_count,
+                    MIN({col}) as min_val,
+                    MAX({col}) as max_val,
+                    AVG({col}) as avg_val
+                FROM {table}
+                {f'WHERE {filters}' if filters else ''}
+                """
+                try:
+                    cursor.execute(stats_query)
+                    count, unique_count, min_val, max_val, avg_val = cursor.fetchone()
+                    stats[col] = {
+                        "count": count,
+                        "unique_count": unique_count,
+                        "min": min_val,
+                        "max": max_val,
+                        "avg": avg_val,
+                        "data_type": type(min_val).__name__ if min_val is not None else "unknown"
+                    }
+                except sqlite3.OperationalError:
+                    # If statistical analysis fails (e.g., for text columns)
+                    cursor.execute(f"SELECT COUNT(*), COUNT(DISTINCT {col}) FROM {table}")
+                    count, unique_count = cursor.fetchone()
+                    stats[col] = {
+                        "count": count,
+                        "unique_count": unique_count,
+                        "data_type": "text"
+                    }
+            
+            conn.close()
+            return {
+                "sample_data": sample_rows,
+                "columns": columns,
+                "statistics": stats
+            }
+            
+        except Exception as e:
+            print(f"Error getting data sample: {e}")
+            return {"error": str(e)}
+
+
+
+
+
+
 
 def create_agent(ai_model: str, temp_dir: str, agent_type: str = None) -> CodeExecutorAgent:
     """Factory function to create an agent"""

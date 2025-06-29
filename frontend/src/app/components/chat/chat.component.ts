@@ -113,17 +113,33 @@ Ready to analyze your data?`,
           if (response.has_execution_results || response.output_files) {
             console.log('Processing execution results:', response);
             
-            // Emit execution result for output display component
-            const executionResult = {
-              command: 'Visualization Script Execution',
-              output: response.execution_output || '',
-              error: response.execution_error || '',
-              returnCode: response.execution_error ? 1 : 0,
-              outputFiles: response.output_files || []
-            };
+            // Determine command type based on response content and output files
+            let commandType = 'Script Execution';
+            if (response.output_files && response.output_files.length > 0) {
+              commandType = 'Visualization Script Execution';
+            } else if (response.execution_output && !response.execution_error) {
+              commandType = 'Query Execution';
+            } else if (response.execution_error) {
+              commandType = 'Execution Error';
+            }
             
-            this.executionService.emitExecutionResult(executionResult);
-            console.log('Emitted execution result with output files:', response.output_files);
+            // Only show execution result if there's actual output/error or output files
+            const hasContent = response.execution_output || response.execution_error || 
+                             (response.output_files && response.output_files.length > 0);
+            
+            if (hasContent) {
+              // Emit execution result for output display component
+              const executionResult = {
+                command: commandType,
+                output: response.execution_output || '',
+                error: response.execution_error || '',
+                returnCode: response.execution_error ? 1 : 0,
+                outputFiles: response.output_files || []
+              };
+              
+              this.executionService.emitExecutionResult(executionResult);
+              console.log('Emitted execution result with output files:', response.output_files);
+            }
           }
           
           // Emit files created event if files were created

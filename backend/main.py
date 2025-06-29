@@ -909,21 +909,20 @@ async def langgraph_chat(message: ChatMessage):
                 print(f"DEBUG: Current uploaded_files keys: {list(uploaded_files.keys())}")
                 print(f"DEBUG: New AI created files: {list(new_files)}")
                 
-                # Include ALL output files that are in uploaded_files (they were created by this execution)
-                # This ensures we don't miss files that were registered by refresh_file_list()
+                # Only include output files that were created in THIS execution (new_files)
+                # This prevents showing all previous visualizations
                 output_files_to_include = []
                 for rel_path, abs_path in all_files:
-                    # Only include actual output files, not input files
-                    # Exclude files that were part of the original upload (not in ai_created_files)
-                    if rel_path in uploaded_files and rel_path in ai_created_files:
+                    # Only include files created in this execution
+                    if rel_path in new_files:
                         # Only include image files and other output files, exclude input files
                         if rel_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg', '.html', '.pdf')):
                             output_files_to_include.append((rel_path, abs_path))
-                            print(f"DEBUG: Including output file: {rel_path}")
+                            print(f"DEBUG: Including NEW output file: {rel_path}")
                         else:
                             print(f"DEBUG: Skipping non-output file: {rel_path}")
                     else:
-                        print(f"DEBUG: Skipping file not in ai_created_files: {rel_path}")
+                        print(f"DEBUG: Skipping file not created in this execution: {rel_path}")
                 
                 # Create output file objects for frontend
                 for rel_path, abs_path in output_files_to_include:
