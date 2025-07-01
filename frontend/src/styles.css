@@ -1219,11 +1219,11 @@ body.dark-mode .sql-database-container .mat-paginator .mat-paginator-icon {
 }
 
 /* 3. Download Database (.db) button blue in dark mode */
-body.dark-mode .sql-database-container .btn {
+body.dark-mode .sql-database-container .btn:not(.btn-toggle) {
   background: #FFE600 !important;
   color: #333 !important;
 }
-body.dark-mode .sql-database-container .btn:hover {
+body.dark-mode .sql-database-container .btn:not(.btn-toggle):hover {
   background: #E6CC00 !important;
 }
 body.dark-mode .sql-database-container .btn-secondary {
@@ -1447,4 +1447,21 @@ body.dark-mode .maximized-image-container {
 
 body.dark-mode .maximized-image {
   border-color: #444 !important;
+}
+
+/* --- SQL Database Tab dark mode hover overrides --- */
+body.dark-mode .sql-database-container .btn.btn-toggle {
+  background: #2d3748 !important;
+  border-color: #4a5568 !important;
+  color: #cbd5e0 !important;
+}
+body.dark-mode .sql-database-container .btn.btn-toggle:hover {
+  background: #4a5568 !important;
+  border-color: #3182ce !important;
+  color: #cbd5e0 !important;
+}
+
+/* Checkbox hover color in whitelist grid */
+body.dark-mode .sql-database-container .checkbox-container:hover .checkmark {
+  border-color: #3182ce !important;
 } 

@@ -1055,18 +1055,42 @@ body.dark-mode .btn-toggle:hover {
   border-color: #FFE600;
 }
 
-/* Force override for dark mode buttons and checkmarks */
+/* Dark mode overrides for toggle buttons */
 body.dark-mode .sql-database-container .btn-toggle {
-  background: #2d3748 !important;
-  color: #cbd5e0 !important;
-  border-color: #4a5568 !important;
+  background: #2d3748 !important; /* dark grey background */
+  border-color: #4a5568 !important; /* grey border */
+  color: #cbd5e0 !important; /* light grey text */
 }
 
 body.dark-mode .sql-database-container .btn-toggle:hover {
-  background: #4a5568 !important;
-  border-color: #FFE600 !important;
+  background: #4a5568 !important; /* lighter grey on hover */
+  border-color: #3182ce !important; /* blue border on hover */
 }
 
-body.dark-mode .checkbox-container:hover .checkmark {
+/* Dark mode override for whitelist checkbox hover */
+body.dark-mode .whitelist-section .checkbox-container:hover .checkmark {
+  border-color: #3182ce !important; /* blue border on hover */
+}
+
+/* Light mode button styles */
+body:not(.dark-mode) .btn {
+  background: #FFE600;
+  color: black;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+  font-family: inherit;
+}
+
+/* Light mode button hover */
+body:not(.dark-mode) .btn:hover {
+  background: #E6CC00;
+}
+
+/* Light mode checkbox hover */
+body:not(.dark-mode) .checkbox-container:hover .checkmark {
   border-color: #FFE600;
 } 
