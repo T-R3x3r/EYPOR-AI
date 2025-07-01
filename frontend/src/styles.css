@@ -1177,19 +1177,17 @@ body.dark-mode .sql-database-container .table-paginator {
   border-top-color: #474755 !important;
   color: #eaeaf2 !important;
 }
-body.dark-mode .sql-database-container .btn {
+body.dark-mode .sql-database-container .btn:not(.btn-toggle) {
   background: #FFE600 !important;
   color: #333 !important;
 }
-body.dark-mode .sql-database-container .btn:hover {
+body.dark-mode .sql-database-container .btn:not(.btn-toggle):hover {
   background: #E6CC00 !important;
 }
 body.dark-mode .sql-database-container .btn-secondary {
   background: #474755 !important;
-  color: #eaeaf2 !important;
-}
-body.dark-mode .sql-database-container .btn-secondary:hover {
-  background: #5a5a6a !important;
+  color: #fff !important;
+  fill: #fff !important;
 }
 body.dark-mode .sql-database-container .debug-info {
   background: #1a1a24 !important;
@@ -1224,6 +1222,14 @@ body.dark-mode .sql-database-container .mat-paginator .mat-paginator-icon {
 body.dark-mode .sql-database-container .btn {
   background: #FFE600 !important;
   color: #333 !important;
+}
+body.dark-mode .sql-database-container .btn:hover {
+  background: #E6CC00 !important;
+}
+body.dark-mode .sql-database-container .btn-secondary {
+  background: #474755 !important;
+  color: #fff !important;
+  fill: #fff !important;
 }
 body.dark-mode .sql-database-container .btn.download-db {
   background: #21acf6 !important;

@@ -78,6 +78,9 @@ current_database_path = None
 # Global database schema cache (automatically generated when database is created)
 database_schema = None
 
+# Database whitelist system
+table_whitelist = set()  # Tables allowed for modifications
+
 # Global LangGraph agent
 langgraph_agent = None
 current_agent_type = get_default_agent()  # This will now be "data_analyst"
@@ -180,6 +183,41 @@ class ApprovalRequest(BaseModel):
 class ModelExecutionRequest(BaseModel):
     model_filename: str
     parameters: Optional[Dict[str, Any]] = {}
+
+class WhitelistRequest(BaseModel):
+    tables: List[str]
+
+def initialize_default_whitelist():
+    """Initialize default whitelist with inputs_ prefixed tables and params tables"""
+    global table_whitelist
+    
+    # Get current database info to find tables that should be whitelisted by default
+    if current_database_path and os.path.exists(current_database_path):
+        try:
+            db_info = get_database_info(current_database_path)
+            if "tables" in db_info:
+                default_tables = set()
+                for table in db_info["tables"]:
+                    table_name = table.get("name", "")
+                    # Add tables with "inputs_" prefix or "params" in name
+                    if table_name.startswith("inputs_") or "params" in table_name.lower():
+                        default_tables.add(table_name)
+                table_whitelist.update(default_tables)
+                print(f"DEBUG: Initialized whitelist with default tables: {default_tables}")
+        except Exception as e:
+            print(f"DEBUG: Error initializing default whitelist: {e}")
+    
+    # If no database or error, set basic defaults
+    if not table_whitelist:
+        table_whitelist.update({"inputs_destinations", "inputs_params", "params"})
+        print(f"DEBUG: Using fallback default whitelist: {table_whitelist}")
+
+def get_table_whitelist():
+    """Get current table whitelist, initializing if empty"""
+    global table_whitelist
+    if not table_whitelist:
+        initialize_default_whitelist()
+    return table_whitelist
 
 def read_file_content(file_path: str) -> str:
     """Read file content safely, handling different encodings"""
@@ -421,6 +459,9 @@ async def upload_files(file: UploadFile = File(...)):
                 
                 # Cache the schema globally for immediate agent access
                 database_schema = db_info
+                
+                # Initialize default whitelist when database is loaded
+                initialize_default_whitelist()
                 
                 # Create table names message for chat
                 if db_info.get("tables"):
@@ -1348,6 +1389,66 @@ async def export_database(format: str):
     finally:
         if conn:
             conn.close()
+
+@app.get("/database/whitelist")
+async def get_database_whitelist():
+    """Get current database table whitelist"""
+    global table_whitelist
+    
+    # Initialize whitelist if empty
+    current_whitelist = get_table_whitelist()
+    
+    # Get available tables for reference
+    available_tables = []
+    if current_database_path and os.path.exists(current_database_path):
+        try:
+            db_info = get_database_info(current_database_path)
+            if "tables" in db_info:
+                available_tables = [table["name"] for table in db_info["tables"]]
+        except Exception as e:
+            print(f"DEBUG: Error getting available tables: {e}")
+    
+    return {
+        "whitelist": list(current_whitelist),
+        "available_tables": available_tables,
+        "total_whitelisted": len(current_whitelist),
+        "total_available": len(available_tables)
+    }
+
+@app.post("/database/whitelist")
+async def update_database_whitelist(request: WhitelistRequest):
+    """Update database table whitelist"""
+    global table_whitelist
+    
+    try:
+        # Validate that the tables exist in the database
+        if current_database_path and os.path.exists(current_database_path):
+            db_info = get_database_info(current_database_path)
+            if "tables" in db_info:
+                available_tables = {table["name"] for table in db_info["tables"]}
+                invalid_tables = set(request.tables) - available_tables
+                
+                if invalid_tables:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Invalid tables: {list(invalid_tables)}. Available tables: {list(available_tables)}"
+                    )
+        
+        # Update the whitelist
+        table_whitelist = set(request.tables)
+        
+        print(f"DEBUG: Updated table whitelist: {table_whitelist}")
+        
+        return {
+            "message": "Table whitelist updated successfully",
+            "whitelist": list(table_whitelist),
+            "total_whitelisted": len(table_whitelist)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating whitelist: {str(e)}")
 
 @app.post("/action-chat")
 async def action_chat(request: ActionRequest):

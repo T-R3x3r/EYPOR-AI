@@ -198,6 +198,24 @@ export interface ActionTypesResponse {
   classification_info: string;
 }
 
+// Database whitelist interfaces
+export interface WhitelistRequest {
+  tables: string[];
+}
+
+export interface WhitelistResponse {
+  whitelist: string[];
+  available_tables: string[];
+  total_whitelisted: number;
+  total_available: number;
+}
+
+export interface WhitelistUpdateResponse {
+  message: string;
+  whitelist: string[];
+  total_whitelisted: number;
+}
+
 interface FileResponse {
   files: string[];
   uploaded_files: string[];
@@ -329,6 +347,16 @@ export class ApiService {
   // === SQL Mode Status ===
   getSQLModeStatus(): Observable<SQLModeStatus> {
     return this.http.get<SQLModeStatus>(`${this.baseUrl}/sql/mode`);
+  }
+
+  // === Database Whitelist Methods ===
+  getDatabaseWhitelist(): Observable<WhitelistResponse> {
+    return this.http.get<WhitelistResponse>(`${this.baseUrl}/database/whitelist`);
+  }
+
+  updateDatabaseWhitelist(tables: string[]): Observable<WhitelistUpdateResponse> {
+    const request: WhitelistRequest = { tables };
+    return this.http.post<WhitelistUpdateResponse>(`${this.baseUrl}/database/whitelist`, request);
   }
 
   // ====== DATABASE FILE MANAGEMENT ======

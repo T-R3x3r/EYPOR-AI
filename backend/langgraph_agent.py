@@ -2483,6 +2483,22 @@ finally:
             
             # For inputs_destinations table, we need special handling
             if extracted_table == "inputs_destinations":
+                # Check if inputs_destinations is whitelisted
+                try:
+                    import main
+                    current_whitelist = main.get_table_whitelist()
+                    
+                    if "inputs_destinations" not in current_whitelist:
+                        error_message = f"❌ Table 'inputs_destinations' is not whitelisted for modifications. Please enable it in the SQL Database tab."
+                        print(f"DEBUG: Table 'inputs_destinations' not in whitelist: {current_whitelist}")
+                        return {
+                            **state,
+                            "messages": state["messages"] + [AIMessage(content=error_message)]
+                        }
+                except Exception as e:
+                    print(f"DEBUG: Error checking whitelist for inputs_destinations: {e}")
+                    # Continue without whitelist check if there's an error accessing it
+                
                 modification_data = {
                     'table': 'inputs_destinations',
                     'column': 'Demand',
@@ -2577,6 +2593,28 @@ DESCRIPTION: [brief description of the change]"""
             if modification_data.get('new_value') in ['<exact_numeric_value_from_request>', '[EXTRACT_FROM_REQUEST]', None]:
                 modification_data['new_value'] = extracted_value
             
+            # Check if target table is whitelisted for modifications
+            target_table = modification_data.get('table', '')
+            if target_table:
+                try:
+                    # Import the whitelist from main module
+                    import main
+                    current_whitelist = main.get_table_whitelist()
+                    
+                    if target_table not in current_whitelist:
+                        error_message = f"❌ Table '{target_table}' is not whitelisted for modifications. Please enable it in the SQL Database tab."
+                        print(f"DEBUG: Table '{target_table}' not in whitelist: {current_whitelist}")
+                        return {
+                            **state,
+                            "whitelist_error": True,  # Flag to prevent execute node from running its error message
+                            "messages": state["messages"] + [AIMessage(content=error_message)]
+                        }
+                    else:
+                        print(f"DEBUG: Table '{target_table}' is whitelisted for modification")
+                except Exception as e:
+                    print(f"DEBUG: Error checking whitelist: {e}")
+                    # Continue without whitelist check if there's an error accessing it
+            
             return {
                 **state,
                 "modification_request": modification_data,
@@ -2595,6 +2633,11 @@ DESCRIPTION: [brief description of the change]"""
     
     def _execute_db_modification_node(self, state: AgentState) -> AgentState:
         """Execute the database modification with detailed change tracking and parameter validation"""
+        # Check if whitelist error already occurred in prepare phase
+        if state.get("whitelist_error"):
+            print(f"DEBUG: Whitelist error already handled in prepare phase, skipping execute")
+            return state
+        
         # Clear any old modification data and get fresh data
         state_copy = dict(state)
         if "modification_request" in state_copy and not state_copy["modification_request"]:
@@ -2618,9 +2661,11 @@ DESCRIPTION: [brief description of the change]"""
             print(f"DEBUG: No modification data found in state")
             
             # Try to provide helpful information about what went wrong
-            error_msg = "❌ **No modification data available.** The preparation step may have failed.\n\n"
+            error_msg = "❌ **No modification data available.** This could be because:\n"
+            error_msg += "• The requested table is not whitelisted for modifications\n"
+            error_msg += "• The preparation step failed to identify the table or column\n\n"
             
-            # Check if we have database schema information
+            # Check if we have database schema information and whitelist
             if state.get("database_schema") or self.cached_database_schema:
                 available_tables = []
                 if state.get("database_schema"):
@@ -2630,10 +2675,28 @@ DESCRIPTION: [brief description of the change]"""
                     schema_data = self.cached_database_schema.get("tables", [])
                     available_tables = [t["name"] for t in schema_data if isinstance(t, dict) and "name" in t]
                 
-                error_msg += f"**Available tables in database ({len(available_tables)} total):**\n"
-                for table in available_tables:
-                    error_msg += f"• {table}\n"
-                error_msg += f"\n**Please try again with one of the table names above.**"
+                # Get whitelisted tables
+                try:
+                    import main
+                    current_whitelist = main.get_table_whitelist()
+                    whitelisted_tables = [table for table in available_tables if table in current_whitelist]
+                    
+                    if whitelisted_tables:
+                        error_msg += f"**Tables whitelisted for modifications ({len(whitelisted_tables)} total):**\n"
+                        for table in whitelisted_tables:
+                            error_msg += f"• {table}\n"
+                        error_msg += f"\n**Please try again with one of the whitelisted table names above.**\n"
+                        error_msg += f"\n💡 **Tip:** You can manage table permissions in the SQL Database tab."
+                    else:
+                        error_msg += "**No tables are currently whitelisted for modifications.**\n"
+                        error_msg += "Please enable table modifications in the SQL Database tab first."
+                except Exception as e:
+                    print(f"DEBUG: Error getting whitelist: {e}")
+                    # Fallback to showing all tables if whitelist access fails
+                    error_msg += f"**Available tables in database ({len(available_tables)} total):**\n"
+                    for table in available_tables:
+                        error_msg += f"• {table}\n"
+                    error_msg += f"\n**Please try again with one of the table names above.**"
             else:
                 error_msg += "**Unable to retrieve database schema information.**"
             

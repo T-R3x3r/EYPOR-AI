@@ -3,7 +3,7 @@ import { FormControl } from '@angular/forms';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
-import { ApiService } from '../../services/api.service';
+import { ApiService, WhitelistResponse, WhitelistUpdateResponse } from '../../services/api.service';
 import { DatabaseTrackingService } from '../../services/database-tracking.service';
 import { Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -52,6 +52,15 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
   lastError = '';
   showDebug = false; // Debug menu hidden by default
   isRefreshing = false; // Track refresh button state
+
+  // Whitelist management
+  whitelistData: WhitelistResponse | null = null;
+  whitelistLoading = false;
+  selectAllEnabled = false;
+
+  // UI state for collapsible sections
+  showDatabaseOverview = false;
+  showModificationPermissions = false;
 
   private subscriptions: Subscription[] = [];
 
@@ -133,6 +142,8 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
         this.databaseInfo = data;
         if (data && data.database_path) {
           this.getDetailedDatabaseInfo();
+          // Load whitelist data after database info is available
+          this.loadWhitelistData();
         }
         this.isLoading = false;
       },
@@ -174,6 +185,9 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     
     // Then refresh detailed info
     this.getDetailedDatabaseInfo();
+    
+    // Refresh whitelist data
+    this.loadWhitelistData();
     
     // If a table is currently selected, reload its data
     if (this.selectedTable) {
@@ -419,6 +433,83 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
         console.error('Database connection test failed:', error);
         const errorMsg = error.error?.detail || error.message || JSON.stringify(error);
         this.lastError = `Connection Failed: ${errorMsg}`;
+      }
+    });
+  }
+
+  // Toggle methods for collapsible sections
+  toggleDatabaseOverview(): void {
+    this.showDatabaseOverview = !this.showDatabaseOverview;
+  }
+
+  toggleModificationPermissions(): void {
+    this.showModificationPermissions = !this.showModificationPermissions;
+  }
+
+  loadWhitelistData(): void {
+    this.apiService.getDatabaseWhitelist().subscribe({
+      next: (data: WhitelistResponse) => {
+        console.log('Whitelist data received:', data);
+        this.whitelistData = data;
+        this.updateSelectAllState();
+      },
+      error: (error: any) => {
+        console.error('Error loading whitelist data:', error);
+      }
+    });
+  }
+
+  // Whitelist management methods
+  updateSelectAllState(): void {
+    if (!this.whitelistData) {
+      this.selectAllEnabled = false;
+      return;
+    }
+    this.selectAllEnabled = this.whitelistData.whitelist.length === this.whitelistData.available_tables.length;
+  }
+
+  isTableWhitelisted(tableName: string): boolean {
+    return this.whitelistData?.whitelist.includes(tableName) || false;
+  }
+
+  toggleTableWhitelist(tableName: string): void {
+    if (!this.whitelistData) return;
+
+    this.whitelistLoading = true;
+    let updatedWhitelist = [...this.whitelistData.whitelist];
+
+    if (this.isTableWhitelisted(tableName)) {
+      // Remove from whitelist
+      updatedWhitelist = updatedWhitelist.filter(name => name !== tableName);
+    } else {
+      // Add to whitelist
+      updatedWhitelist.push(tableName);
+    }
+
+    this.updateWhitelist(updatedWhitelist);
+  }
+
+  toggleSelectAll(): void {
+    if (!this.whitelistData) return;
+
+    this.whitelistLoading = true;
+    const newWhitelist = this.selectAllEnabled ? [] : [...this.whitelistData.available_tables];
+    this.updateWhitelist(newWhitelist);
+  }
+
+  private updateWhitelist(newWhitelist: string[]): void {
+    this.apiService.updateDatabaseWhitelist(newWhitelist).subscribe({
+      next: (response: WhitelistUpdateResponse) => {
+        console.log('Whitelist updated successfully:', response);
+        // Reload whitelist data to get the current state
+        this.loadWhitelistData();
+        this.whitelistLoading = false;
+      },
+      error: (error: any) => {
+        console.error('Error updating whitelist:', error);
+        this.whitelistLoading = false;
+        // Optionally show an error message to the user
+        alert('Failed to update table whitelist. Please try again.');
       }
     });
   }

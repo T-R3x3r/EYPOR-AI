@@ -90,6 +90,38 @@
   min-height: 0; /* Allow flexbox shrinking */
 }
 
+/* Toggle Buttons for Collapsible Sections */
+.toggle-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-toggle {
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-toggle:hover {
+  background: #e9ecef;
+  border-color: #FFE600;
+}
+
+.btn-toggle i {
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
 /* Compact Database Information */
 .database-info-compact {
   background: #f8f9fa;
@@ -716,16 +748,6 @@ body.dark-mode .data-row:hover {
 body.dark-mode .table-paginator {
   background: #1a1a24 !important;
   border-top-color: #474755 !important;
-  color: #eaeaf2 !important;
-}
-
-body.dark-mode .btn {
-  background: #FFE600 !important;
-  color: #333 !important;
-}
-
-body.dark-mode .btn:hover {
-  background: #E6CC00 !important;
 }
 
 body.dark-mode .btn-secondary {
@@ -752,5 +774,299 @@ body.dark-mode .table-container::-webkit-scrollbar-thumb {
 }
 
 body.dark-mode .table-container::-webkit-scrollbar-thumb:hover {
-  background: #5a5a6a !important;
+  background: #666;
+}
+
+/* Whitelist Section Styles */
+.whitelist-section {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.whitelist-section h4 {
+  color: #555;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whitelist-description {
+  color: #666;
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whitelist-description i {
+  color: #28a745;
+}
+
+/* Loading state for whitelist */
+.whitelist-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+  font-size: 14px;
+  padding: 12px 0;
+}
+
+.loading-spinner-small {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #FFE600;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* Select All Container */
+.select-all-container {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.select-all-checkbox .checkbox-label {
+  font-weight: 600;
+  color: #333;
+}
+
+/* Table Whitelist Grid */
+.table-whitelist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.table-whitelist-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  transition: all 0.2s;
+}
+
+.table-whitelist-item.whitelisted {
+  border-color: #28a745;
+  background: #f8fff9;
+}
+
+.table-whitelist-item:hover {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Custom Checkbox Styles */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.checkbox-container input {
+  display: none;
+}
+
+.checkmark {
+  width: 18px;
+  height: 18px;
+  background: white;
+  border: 2px solid #ddd;
+  border-radius: 3px;
+  margin-right: 8px;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.checkbox-container:hover .checkmark {
+  border-color: #FFE600;
+}
+
+.checkbox-container input:checked + .checkmark {
+  background: #28a745;
+  border-color: #28a745;
+}
+
+.checkbox-container input:checked + .checkmark:after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.checkbox-container input:disabled + .checkmark {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-label {
+  color: #333;
+  font-weight: 500;
+}
+
+/* Table Info */
+.table-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #666;
+}
+
+.row-count {
+  color: #888;
+}
+
+.permission-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.permission-status.allowed {
+  color: #28a745;
+}
+
+.permission-status.denied {
+  color: #dc3545;
+}
+
+/* Whitelist Summary */
+.whitelist-summary {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+  text-align: center;
+}
+
+.summary-info {
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* No whitelist data */
+.no-whitelist-data {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  padding: 16px;
+}
+
+/* Dark mode support for whitelist */
+body.dark-mode .whitelist-section {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+body.dark-mode .whitelist-section h4 {
+  color: #e2e8f0;
+}
+
+body.dark-mode .whitelist-description {
+  color: #cbd5e0;
+}
+
+body.dark-mode .whitelist-loading {
+  color: #cbd5e0;
+}
+
+body.dark-mode .loading-spinner-small {
+  border-color: #4a5568;
+  border-top-color: #FFE600;
+}
+
+body.dark-mode .select-all-container {
+  border-bottom-color: #4a5568;
+}
+
+body.dark-mode .select-all-checkbox .checkbox-label {
+  color: #e2e8f0;
+}
+
+body.dark-mode .table-whitelist-item {
+  background: #1a202c;
+  border-color: #4a5568;
+}
+
+body.dark-mode .table-whitelist-item.whitelisted {
+  border-color: #28a745;
+  background: #1a2e1a;
+}
+
+body.dark-mode .checkmark {
+  background: #2d3748;
+  border-color: #4a5568;
+}
+
+body.dark-mode .checkbox-container:hover .checkmark {
+  border-color: #FFE600;
+}
+
+body.dark-mode .checkbox-label {
+  color: #e2e8f0;
+}
+
+body.dark-mode .table-info {
+  color: #cbd5e0;
+}
+
+body.dark-mode .row-count {
+  color: #a0aec0;
+}
+
+body.dark-mode .whitelist-summary {
+  border-top-color: #4a5568;
+}
+
+body.dark-mode .summary-info {
+  color: #cbd5e0;
+}
+
+body.dark-mode .no-whitelist-data {
+  color: #cbd5e0;
+}
+
+/* Dark mode support for toggle buttons */
+body.dark-mode .btn-toggle {
+  background: #2d3748;
+  border-color: #4a5568;
+  color: #cbd5e0;
+}
+
+body.dark-mode .btn-toggle:hover {
+  background: #4a5568;
+  border-color: #FFE600;
+}
+
+/* Force override for dark mode buttons and checkmarks */
+body.dark-mode .sql-database-container .btn-toggle {
+  background: #2d3748 !important;
+  color: #cbd5e0 !important;
+  border-color: #4a5568 !important;
+}
+
+body.dark-mode .sql-database-container .btn-toggle:hover {
+  background: #4a5568 !important;
+  border-color: #FFE600 !important;
+}
+
+body.dark-mode .checkbox-container:hover .checkmark {
+  border-color: #FFE600;
 } 

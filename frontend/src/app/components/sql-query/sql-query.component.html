@@ -20,8 +20,20 @@
   <!-- Database Content -->
   <div *ngIf="!isLoading && databaseInfo" class="database-content">
     
-    <!-- Compact Database Information -->
-    <div class="database-info-compact">
+    <!-- Toggle Buttons for Collapsible Sections -->
+    <div class="toggle-buttons">
+      <button class="btn btn-toggle" (click)="toggleDatabaseOverview()">
+        <i class="fas" [class.fa-chevron-down]="!showDatabaseOverview" [class.fa-chevron-up]="showDatabaseOverview"></i>
+        Database Overview
+      </button>
+      <button class="btn btn-toggle" (click)="toggleModificationPermissions()">
+        <i class="fas" [class.fa-chevron-down]="!showModificationPermissions" [class.fa-chevron-up]="showModificationPermissions"></i>
+        Table Modification Permissions
+      </button>
+    </div>
+
+    <!-- Compact Database Information (Collapsible) -->
+    <div *ngIf="showDatabaseOverview" class="database-info-compact">
       <h4>Database Overview</h4>
       <div class="compact-info-grid">
         <div class="compact-info-item">
@@ -42,6 +54,79 @@
         <div class="compact-info-item" *ngIf="detailedDbInfo">
           <strong>SQLite:</strong> {{ detailedDbInfo.sqlite_version }}
         </div>
+      </div>
+    </div>
+
+    <!-- Table Modification Controls (Collapsible) -->
+    <div *ngIf="showModificationPermissions" class="whitelist-section">
+      <h4>Table Modification Permissions</h4>
+      <p class="whitelist-description">
+        <i class="fas fa-shield-alt"></i>
+        Control which tables can be modified by the AI agent. Only whitelisted tables allow data modifications.
+      </p>
+      
+      <!-- Loading state -->
+      <div *ngIf="whitelistLoading" class="whitelist-loading">
+        <div class="loading-spinner-small"></div>
+        <span>Updating permissions...</span>
+      </div>
+
+      <!-- Whitelist controls -->
+      <div *ngIf="whitelistData && !whitelistLoading" class="whitelist-controls">
+        
+        <!-- Select All / Deselect All -->
+        <div class="select-all-container">
+          <label class="checkbox-container select-all-checkbox">
+            <input type="checkbox" 
+                   [checked]="selectAllEnabled"
+                   (change)="toggleSelectAll()"
+                   [disabled]="whitelistLoading">
+            <span class="checkmark"></span>
+            <span class="checkbox-label">
+              {{ selectAllEnabled ? 'Deselect All Tables' : 'Select All Tables' }}
+            </span>
+          </label>
+        </div>
+
+        <!-- Individual table checkboxes -->
+        <div class="table-whitelist-grid">
+          <div *ngFor="let table of whitelistData.available_tables" 
+               class="table-whitelist-item"
+               [class.whitelisted]="isTableWhitelisted(table)">
+            
+            <label class="checkbox-container">
+              <input type="checkbox" 
+                     [checked]="isTableWhitelisted(table)"
+                     (change)="toggleTableWhitelist(table)"
+                     [disabled]="whitelistLoading">
+              <span class="checkmark"></span>
+              <span class="checkbox-label">{{ table }}</span>
+            </label>
+            
+            <div class="table-info">
+              <span class="row-count">{{ getTableRowCount(table) | number }} rows</span>
+              <span class="permission-status" 
+                    [class.allowed]="isTableWhitelisted(table)"
+                    [class.denied]="!isTableWhitelisted(table)">
+                <i class="fas" [class.fa-check-circle]="isTableWhitelisted(table)" 
+                                [class.fa-times-circle]="!isTableWhitelisted(table)"></i>
+                {{ isTableWhitelisted(table) ? 'Modifications Allowed' : 'Read Only' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Whitelist summary -->
+        <div class="whitelist-summary">
+          <span class="summary-info">
+            {{ whitelistData.total_whitelisted }} of {{ whitelistData.total_available }} tables allow modifications
+          </span>
+        </div>
+      </div>
+
+      <!-- No whitelist data -->
+      <div *ngIf="!whitelistData && !whitelistLoading" class="no-whitelist-data">
+        <p>Unable to load table modification permissions. Please refresh the page.</p>
       </div>
     </div>
 
