@@ -62,6 +62,23 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
   showDatabaseOverview = false;
   showModificationPermissions = false;
 
+  // Context menu properties
+  showContextMenu = false;
+  contextMenuX = 0;
+  contextMenuY = 0;
+  contextMenuType: 'column' | 'row' | 'cell' | null = null;
+  contextMenuTarget: any = null;
+  selectedRowIndex = -1;
+  selectedColumnName = '';
+  
+  // Cell editing properties
+  editingCells: Set<string> = new Set();
+  cellValues: { [key: string]: any } = {};
+  
+  // Track newly added rows for editing
+  newlyAddedRowIndex: number = -1;
+  private isRefreshingAfterAdd: boolean = false;
+
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -218,6 +235,11 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     this.filteredRows = 0;
     this.lastError = '';
     
+    // Clear any editing state when switching tables
+    this.editingCells.clear();
+    this.cellValues = {};
+    this.newlyAddedRowIndex = -1;
+    
     // Load table data directly and extract columns from the result
     const sqlQuery = `SELECT * FROM ${tableName}`;
     console.log('Executing SQL query:', sqlQuery);
@@ -246,6 +268,27 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
           
           console.log('Extracted columns:', this.displayedColumns);
           console.log('Setting table data with', data.length, 'rows');
+          console.log('First few rows of data:', data.slice(0, 3));
+          
+          // Check for any rows with placeholder values
+          data.forEach((row: any, index: number) => {
+            let placeholderCount = 0;
+            this.displayedColumns.forEach(column => {
+              const value = row[column];
+              if (value === '' || 
+                  value === 'New Entry' || 
+                  value === 'example@email.com' || 
+                  value === 0 || 
+                  value === 0.0 ||
+                  value === null ||
+                  (typeof value === 'string' && value.includes('New Entry'))) {
+                placeholderCount++;
+              }
+            });
+            if (placeholderCount > 0) {
+              console.log(`Row ${index} has ${placeholderCount} placeholder values:`, row);
+            }
+          });
           
           // Set up the Material table data source
           this.tableData = new MatTableDataSource(data);
@@ -262,6 +305,15 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
               this.tableData.sort = this.sort;
               console.log('Sort connected');
             }
+            
+            // Ensure sorting is properly configured
+            this.tableData.sortingDataAccessor = (item: any, property: string) => {
+              const value = item[property];
+              // Handle null/undefined values for proper sorting
+              if (value === null || value === undefined) return '';
+              // Convert to string for consistent sorting
+              return String(value).toLowerCase();
+            };
           });
           
           console.log('Table data setup complete. Total rows:', this.totalRows);
@@ -512,5 +564,588 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
         alert('Failed to update table whitelist. Please try again.');
       }
     });
+  }
+
+  // Context menu methods
+  onColumnRightClick(event: MouseEvent, columnName: string): void {
+    event.preventDefault();
+    this.showContextMenu = true;
+    this.contextMenuX = event.clientX;
+    this.contextMenuY = event.clientY;
+    this.contextMenuType = 'column';
+    this.selectedColumnName = columnName;
+    this.contextMenuTarget = { columnName };
+  }
+
+  onRowRightClick(event: MouseEvent, rowData: any, rowIndex: number): void {
+    event.preventDefault();
+    this.showContextMenu = true;
+    this.contextMenuX = event.clientX;
+    this.contextMenuY = event.clientY;
+    this.contextMenuType = 'row';
+    this.selectedRowIndex = this.getGlobalRowIndex(rowIndex);
+    this.contextMenuTarget = { rowData, rowIndex };
+  }
+
+  onCellRightClick(event: MouseEvent, rowData: any, columnName: string, rowIndex: number): void {
+    event.preventDefault();
+    this.showContextMenu = true;
+    this.contextMenuX = event.clientX;
+    this.contextMenuY = event.clientY;
+    this.contextMenuType = 'cell';
+    this.selectedRowIndex = this.getGlobalRowIndex(rowIndex);
+    this.selectedColumnName = columnName;
+    this.contextMenuTarget = { rowData, columnName, rowIndex };
+  }
+
+  hideContextMenu(): void {
+    this.showContextMenu = false;
+    this.contextMenuType = null;
+    this.contextMenuTarget = null;
+  }
+
+  // Table modification methods
+  addColumn(): void {
+    if (!this.selectedTable) return;
+    
+    const columnName = prompt('Enter new column name:');
+    if (!columnName || columnName.trim() === '') return;
+    
+    const columnType = prompt('Enter column type (TEXT, INTEGER, REAL, BLOB):', 'TEXT');
+    if (!columnType || columnType.trim() === '') return;
+
+    this.executeStructuralChange('ADD_COLUMN', {
+      table: this.selectedTable,
+      column: columnName.trim(),
+      columnType: columnType.trim()
+    });
+    this.hideContextMenu();
+  }
+
+  deleteColumn(): void {
+    if (!this.selectedTable || !this.selectedColumnName) return;
+    
+    const confirmed = confirm(`Are you sure you want to delete column "${this.selectedColumnName}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    this.executeStructuralChange('REMOVE_COLUMN', {
+      table: this.selectedTable,
+      column: this.selectedColumnName
+    });
+    this.hideContextMenu();
+  }
+
+  addRow(): void {
+    if (!this.selectedTable) return;
+
+    // Get the row data from the context menu target
+    const targetRowData = this.contextMenuTarget?.rowData;
+    const targetRowIndex = this.contextMenuTarget?.rowIndex;
+    
+    if (!targetRowData) {
+      console.error('No target row data found for adding new row');
+      return;
+    }
+
+    // Store the target row index to position the new row correctly
+    this.newlyAddedRowIndex = targetRowIndex + 1; // New row should be right after the target row
+
+    // Execute INSERT statement to actually add row to database
+    // Let the database handle default values instead of sending placeholder values
+    this.executeStructuralChange('ADD_ROW', {
+      table: this.selectedTable,
+      targetRowData: targetRowData,
+      targetRowIndex: targetRowIndex
+    });
+    
+    this.hideContextMenu();
+  }
+
+  deleteRow(): void {
+    if (!this.selectedTable || this.selectedRowIndex < 0) return;
+    
+    const confirmed = confirm('Are you sure you want to delete this row? This action cannot be undone.');
+    if (!confirmed) return;
+
+    const rowData = this.contextMenuTarget?.rowData;
+    if (!rowData) return;
+
+    // Try to create WHERE clause from row data first
+    const whereConditions: string[] = [];
+    Object.keys(rowData).forEach(key => {
+      const value = rowData[key];
+      if (value !== null && value !== undefined && value !== '') {
+        if (typeof value === 'string') {
+          whereConditions.push(`${key} = '${value.replace(/'/g, "''")}'`);
+        } else {
+          whereConditions.push(`${key} = ${value}`);
+        }
+      }
+    });
+
+    // If we have conditions, use them
+    if (whereConditions.length > 0) {
+      console.log('Using WHERE conditions for row deletion:', whereConditions);
+      this.executeStructuralChange('REMOVE_ROW', {
+        table: this.selectedTable,
+        whereCondition: whereConditions.join(' AND ')
+      });
+    } else {
+      // If no conditions (all values are null/empty), try a different approach
+      // Create a WHERE clause that includes all columns with their actual values (including nulls)
+      const allConditions: string[] = [];
+      Object.keys(rowData).forEach(key => {
+        const value = rowData[key];
+        if (value === null || value === undefined) {
+          allConditions.push(`${key} IS NULL`);
+        } else if (value === '') {
+          allConditions.push(`${key} = ''`);
+        } else if (typeof value === 'string') {
+          allConditions.push(`${key} = '${value.replace(/'/g, "''")}'`);
+        } else {
+          allConditions.push(`${key} = ${value}`);
+        }
+      });
+      
+      console.log('Using all-column conditions for row deletion:', allConditions);
+      this.executeStructuralChange('REMOVE_ROW', {
+        table: this.selectedTable,
+        whereCondition: allConditions.join(' AND ')
+      });
+    }
+    
+    this.hideContextMenu();
+  }
+
+  // Helper method to get global row index from page-local index
+  getGlobalRowIndex(pageLocalIndex: number): number {
+    if (!this.paginator) {
+      return pageLocalIndex;
+    }
+    return this.paginator.pageIndex * this.paginator.pageSize + pageLocalIndex;
+  }
+
+  // Cell editing methods
+  startCellEdit(rowIndex: number, columnName: string): void {
+    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
+    const cellKey = `${globalRowIndex}_${columnName}`;
+    this.editingCells.add(cellKey);
+    
+    // Initialize with current value
+    const currentValue = this.tableData.data[globalRowIndex][columnName];
+    this.cellValues[cellKey] = currentValue;
+  }
+
+  saveCellEdit(rowIndex: number, columnName: string): void {
+    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
+    const cellKey = `${globalRowIndex}_${columnName}`;
+    const newValue = this.cellValues[cellKey];
+    
+    if (newValue !== undefined) {
+      // Update the data
+      this.tableData.data[globalRowIndex][columnName] = newValue;
+      
+      // Execute UPDATE query
+      this.executeCellUpdate(globalRowIndex, columnName, newValue);
+    }
+    
+    this.editingCells.delete(cellKey);
+    delete this.cellValues[cellKey];
+  }
+
+  cancelCellEdit(rowIndex: number, columnName: string): void {
+    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
+    const cellKey = `${globalRowIndex}_${columnName}`;
+    this.editingCells.delete(cellKey);
+    delete this.cellValues[cellKey];
+  }
+
+  isCellEditing(rowIndex: number, columnName: string): boolean {
+    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
+    const cellKey = `${globalRowIndex}_${columnName}`;
+    return this.editingCells.has(cellKey);
+  }
+
+  getCellValue(rowIndex: number, columnName: string): any {
+    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
+    const cellKey = `${globalRowIndex}_${columnName}`;
+    if (this.isCellEditing(rowIndex, columnName)) {
+      return this.cellValues[cellKey];
+    }
+    return this.tableData.data[globalRowIndex][columnName];
+  }
+
+  isNewlyAddedRow(rowIndex: number): boolean {
+    if (this.newlyAddedRowIndex < 0) return false;
+    
+    // Check if this row has default values (indicating it's newly added)
+    const row = this.tableData.data[rowIndex];
+    if (!row) return false;
+    
+    let defaultCount = 0;
+    this.displayedColumns.forEach(column => {
+      const value = row[column];
+      if (value === '' || 
+          value === 'New Entry' || 
+          value === 'example@email.com' || 
+          value === 0 || 
+          value === 0.0 ||
+          value === null ||
+          (typeof value === 'string' && value.includes('New Entry'))) {
+        defaultCount++;
+      }
+    });
+    
+    // Consider it a newly added row if it has mostly default values
+    return defaultCount >= Math.floor(this.displayedColumns.length / 2);
+  }
+
+  // Backend API calls
+  private executeStructuralChange(operationType: string, params: any): void {
+    const sql = this.generateStructuralSQL(operationType, params);
+    if (!sql) return;
+
+    console.log('Executing structural change:', operationType, params);
+    console.log('Generated SQL:', sql);
+    console.log('SQL parameters:', { table: params.table, whereCondition: params.whereCondition });
+    
+    this.apiService.executeSQL(sql).subscribe({
+      next: (result) => {
+        if (result.success) {
+          console.log('Structural change successful');
+          
+          // Refresh both database schema and table data
+          this.refreshAfterStructuralChange(operationType);
+        } else {
+          alert(`Failed to ${operationType.toLowerCase()}: ${result.error}`);
+        }
+      },
+      error: (error) => {
+        console.error('Structural change error:', error);
+        alert(`Error during ${operationType.toLowerCase()}: ${error.message || 'Unknown error'}`);
+      }
+    });
+  }
+
+  private refreshAfterStructuralChange(operationType?: string): void {
+    console.log('Refreshing database schema and table data after structural change...');
+    
+    // Refresh database info to update schema
+    this.loadDatabaseInfo();
+    
+    // Refresh detailed database info
+    this.getDetailedDatabaseInfo();
+    
+    // Refresh current table data with force refresh
+    if (this.selectedTable) {
+      // Small delay to ensure database info is updated
+      setTimeout(() => {
+        console.log('Refreshing table data after structural change...');
+        this.forceDataRefresh();
+        
+        // If we just added a row, make it editable after data is loaded
+        if (operationType === 'ADD_ROW') {
+          this.isRefreshingAfterAdd = true;
+          setTimeout(() => {
+            console.log('Making newly added row editable...');
+            this.makeFirstRowEditable();
+            this.isRefreshingAfterAdd = false;
+          }, 500); // Increased delay to ensure data is fully loaded
+        }
+      }, 800); // Increased delay to ensure database is fully updated
+    }
+  }
+
+  // Force a complete data refresh to ensure UI shows actual database values
+  private forceDataRefresh(): void {
+    if (!this.selectedTable) return;
+    
+    console.log('Forcing complete data refresh...');
+    
+    // Clear current data
+    this.tableData.data = [];
+    this.totalRows = 0;
+    this.filteredRows = 0;
+    
+    // Reload from database
+    this.loadCompleteTable(this.selectedTable);
+  }
+
+  private makeFirstRowEditable(): void {
+    if (this.tableData.data.length === 0) return;
+    
+    let targetRowIndex = -1;
+    
+    // First, try to use the tracked newly added row index
+    if (this.newlyAddedRowIndex >= 0 && this.newlyAddedRowIndex < this.tableData.data.length) {
+      targetRowIndex = this.newlyAddedRowIndex;
+      console.log(`Using tracked newly added row index: ${targetRowIndex}`);
+    } else {
+      // Fallback: find the row with the most default values
+      let maxDefaultCount = 0;
+      
+      for (let i = 0; i < this.tableData.data.length; i++) {
+        const row = this.tableData.data[i];
+        let defaultCount = 0;
+        
+        this.displayedColumns.forEach(column => {
+          const value = row[column];
+          // Check for various default value patterns
+          if (value === '' || 
+              value === 'New Entry' || 
+              value === 'example@email.com' || 
+              value === 0 || 
+              value === 0.0 ||
+              value === null ||
+              (typeof value === 'string' && value.includes('New Entry'))) {
+            defaultCount++;
+          }
+        });
+        
+        if (defaultCount > maxDefaultCount) {
+          maxDefaultCount = defaultCount;
+          targetRowIndex = i;
+        }
+      }
+      
+      console.log(`Found row with most default values: ${targetRowIndex} (${maxDefaultCount} defaults)`);
+      
+      // If we found a row with mostly default values, check if it's actually a newly added row
+      // by looking for the last row in the table (new rows are typically added at the end)
+      if (maxDefaultCount > 0) {
+        const lastRowIndex = this.tableData.data.length - 1;
+        const lastRow = this.tableData.data[lastRowIndex];
+        let lastRowDefaultCount = 0;
+        
+        this.displayedColumns.forEach(column => {
+          const value = lastRow[column];
+          if (value === '' || 
+              value === 'New Entry' || 
+              value === 'example@email.com' || 
+              value === 0 || 
+              value === 0.0 ||
+              value === null ||
+              (typeof value === 'string' && value.includes('New Entry'))) {
+            lastRowDefaultCount++;
+          }
+        });
+        
+        // If the last row has more defaults, use that instead
+        if (lastRowDefaultCount >= maxDefaultCount) {
+          targetRowIndex = lastRowIndex;
+          console.log(`Using last row as newly added row: ${targetRowIndex} (${lastRowDefaultCount} defaults)`);
+        }
+      }
+    }
+    
+    // If we found a target row, check if it still has placeholder values
+    if (targetRowIndex >= 0) {
+      const targetRow = this.tableData.data[targetRowIndex];
+      let placeholderCount = 0;
+      
+      this.displayedColumns.forEach(column => {
+        const value = targetRow[column];
+        if (value === '' || 
+            value === 'New Entry' || 
+            value === 'example@email.com' || 
+            value === 0 || 
+            value === 0.0 ||
+            value === null ||
+            (typeof value === 'string' && value.includes('New Entry'))) {
+          placeholderCount++;
+        }
+      });
+      
+      // Only make editable if it still has placeholder values
+      if (placeholderCount > 0) {
+        console.log(`Row ${targetRowIndex} still has ${placeholderCount} placeholder values`);
+        
+        // If we still have placeholder values and we're not already refreshing, try one more force refresh
+        if (placeholderCount >= Math.floor(this.displayedColumns.length / 2) && !this.isRefreshingAfterAdd) {
+          console.log('Too many placeholder values, forcing another data refresh...');
+          this.isRefreshingAfterAdd = true;
+          setTimeout(() => {
+            this.forceDataRefresh();
+            setTimeout(() => {
+              this.makeFirstRowEditable();
+              this.isRefreshingAfterAdd = false;
+            }, 300);
+          }, 200);
+          return;
+        }
+        
+        console.log(`Making row ${targetRowIndex} editable for data entry`);
+        
+        // Make all cells in the target row editable for easy data entry
+        this.displayedColumns.forEach(column => {
+          const cellKey = `${targetRowIndex}_${column}`;
+          this.editingCells.add(cellKey);
+          
+          // Initialize with current values from the database
+          this.cellValues[cellKey] = this.tableData.data[targetRowIndex][column] || '';
+        });
+        
+        // Scroll to the row if it's not on the first page
+        if (this.paginator && targetRowIndex >= this.paginator.pageSize) {
+          const targetPage = Math.floor(targetRowIndex / this.paginator.pageSize);
+          this.paginator.pageIndex = targetPage;
+        }
+        
+        console.log(`Made row ${targetRowIndex} editable for data entry`);
+      } else {
+        console.log(`Row ${targetRowIndex} has no placeholder values, data was properly refreshed from database`);
+      }
+      
+      // Reset the tracked index
+      this.newlyAddedRowIndex = -1;
+    } else {
+      console.log('No suitable row found to make editable');
+    }
+  }
+
+  // New method to reorder table data to position new row correctly
+  private reorderTableDataToPositionNewRow(): void {
+    if (this.newlyAddedRowIndex < 0 || this.newlyAddedRowIndex >= this.tableData.data.length) {
+      return;
+    }
+
+    // Get the current data
+    const currentData = [...this.tableData.data];
+    
+    // Find the newly added row (the one with the most default values)
+    let newRowIndex = -1;
+    let maxDefaultCount = 0;
+    
+    for (let i = 0; i < currentData.length; i++) {
+      const row = currentData[i];
+      let defaultCount = 0;
+      
+      this.displayedColumns.forEach(column => {
+        const value = row[column];
+        if (value === '' || 
+            value === 'New Entry' || 
+            value === 'example@email.com' || 
+            value === 0 || 
+            value === 0.0 ||
+            value === null ||
+            (typeof value === 'string' && value.includes('New Entry'))) {
+          defaultCount++;
+        }
+      });
+      
+      if (defaultCount > maxDefaultCount) {
+        maxDefaultCount = defaultCount;
+        newRowIndex = i;
+      }
+    }
+    
+    if (newRowIndex >= 0 && newRowIndex !== this.newlyAddedRowIndex) {
+      // Move the new row to the desired position
+      const newRow = currentData.splice(newRowIndex, 1)[0];
+      currentData.splice(this.newlyAddedRowIndex, 0, newRow);
+      
+      // Update the table data
+      this.tableData.data = currentData;
+      
+      console.log(`Moved new row from position ${newRowIndex} to position ${this.newlyAddedRowIndex}`);
+    }
+  }
+
+  // Alternative approach: Use a temporary table with proper ordering
+  private createTemporaryTableWithOrderedData(): void {
+    if (this.newlyAddedRowIndex < 0) return;
+    
+    // This is a more complex approach that would require creating a temporary table
+    // with the new row in the correct position, then replacing the original table
+    // For now, we'll stick with the frontend reordering approach
+    console.log('Temporary table approach not implemented yet');
+  }
+
+  private executeCellUpdate(rowIndex: number, columnName: string, newValue: any): void {
+    if (!this.selectedTable) return;
+
+    const rowData = this.tableData.data[rowIndex];
+    const whereConditions: string[] = [];
+
+    // Build WHERE clause from all other columns, including NULL values
+    Object.keys(rowData).forEach(key => {
+      if (key !== columnName) {
+        const value = rowData[key];
+        if (value === null || value === undefined) {
+          whereConditions.push(`${key} IS NULL`);
+        } else if (value === '') {
+          whereConditions.push(`${key} = ''`);
+        } else if (typeof value === 'string') {
+          whereConditions.push(`${key} = '${value.replace(/'/g, "''")}'`);
+        } else {
+          whereConditions.push(`${key} = ${value}`);
+        }
+      }
+    });
+
+    if (whereConditions.length === 0) {
+      alert('Cannot update cell: no unique identifiers found in row.');
+      return;
+    }
+
+    const sql = `UPDATE ${this.selectedTable} SET ${columnName} = '${String(newValue).replace(/'/g, "''")}' WHERE ${whereConditions.join(' AND ')}`;
+    
+    console.log('Executing cell update:', sql);
+    console.log('Row data:', rowData);
+    console.log('Where conditions:', whereConditions);
+    
+    this.apiService.executeSQL(sql).subscribe({
+      next: (result) => {
+        if (result.success) {
+          console.log('Cell update successful');
+        } else {
+          alert(`Failed to update cell: ${result.error}`);
+          // Revert the change
+          this.loadCompleteTable(this.selectedTable);
+        }
+      },
+      error: (error) => {
+        console.error('Cell update error:', error);
+        alert(`Error updating cell: ${error.message || 'Unknown error'}`);
+        // Revert the change
+        this.loadCompleteTable(this.selectedTable);
+      }
+    });
+  }
+
+  private generateStructuralSQL(operationType: string, params: any): string {
+    const { table, column, columnType, whereCondition, values, targetRowData, targetRowIndex } = params;
+
+    switch (operationType) {
+      case 'ADD_COLUMN':
+        return `ALTER TABLE ${table} ADD COLUMN ${column} ${columnType || 'TEXT'}`;
+      case 'REMOVE_COLUMN':
+        return `ALTER TABLE ${table} DROP COLUMN ${column}`;
+      case 'ADD_ROW':
+        // Generate INSERT statement with proper default values based on column types
+        const columnList = this.displayedColumns.join(', ');
+        const defaultValues = this.displayedColumns.map(col => {
+          const columnType = this.getColumnType(col).toUpperCase();
+          const columnName = col.toLowerCase();
+          
+          if (columnName.includes('id') && (columnType.includes('INTEGER') || columnType.includes('INT'))) {
+            return 'NULL'; // Let database auto-generate
+          } else if (columnType.includes('INTEGER') || columnType.includes('INT')) {
+            return 'NULL'; // Let database use default
+          } else if (columnType.includes('REAL') || columnType.includes('FLOAT') || columnType.includes('DOUBLE')) {
+            return 'NULL'; // Let database use default
+          } else if (columnType.includes('BLOB')) {
+            return 'NULL';
+          } else {
+            return 'NULL'; // Let database use default for text columns
+          }
+        }).join(', ');
+        return `INSERT INTO ${table} (${columnList}) VALUES (${defaultValues})`;
+      case 'REMOVE_ROW':
+        return `DELETE FROM ${table} WHERE ${whereCondition}`;
+      default:
+        console.error('Unknown operation type:', operationType);
+        return '';
+    }
   }
 } 

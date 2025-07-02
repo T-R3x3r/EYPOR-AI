@@ -1,4 +1,4 @@
-<div class="sql-database-container">
+<div class="sql-database-container" (click)="hideContextMenu()">
   <!-- Header -->
   <div class="section-header">
     <h3>SQL Database</h3>
@@ -171,21 +171,53 @@
           
           <!-- Dynamic columns -->
           <ng-container *ngFor="let column of displayedColumns" [matColumnDef]="column">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header class="table-header">
+            <th mat-header-cell 
+                *matHeaderCellDef 
+                mat-sort-header 
+                class="table-header"
+                (contextmenu)="onColumnRightClick($event, column)">
               <div class="header-content">
                 <span class="column-name">{{ column }}</span>
                 <span class="column-type">{{ getColumnType(column) }}</span>
               </div>
             </th>
-            <td mat-cell *matCellDef="let row" class="table-cell">
-              <div class="cell-content" [title]="formatCellValue(row[column])">
+            <td mat-cell 
+                *matCellDef="let row; let rowIndex = index" 
+                class="table-cell"
+                (contextmenu)="onCellRightClick($event, row, column, rowIndex)"
+                (dblclick)="startCellEdit(rowIndex, column)">
+              
+              <!-- Edit mode -->
+              <div *ngIf="isCellEditing(rowIndex, column)" class="cell-edit-mode">
+                <input type="text" 
+                       [ngModel]="getCellValue(rowIndex, column)"
+                       (ngModelChange)="cellValues[getGlobalRowIndex(rowIndex) + '_' + column] = $event"
+                       (keyup.enter)="saveCellEdit(rowIndex, column)"
+                       (keyup.escape)="cancelCellEdit(rowIndex, column)"
+                       (blur)="saveCellEdit(rowIndex, column)"
+                       class="cell-input"
+                       #cellInput>
+                <div class="cell-edit-actions">
+                  <button (click)="saveCellEdit(rowIndex, column)" class="save-btn" title="Save">✓</button>
+                  <button (click)="cancelCellEdit(rowIndex, column)" class="cancel-btn" title="Cancel">✗</button>
+                </div>
+              </div>
+              
+              <!-- View mode -->
+              <div *ngIf="!isCellEditing(rowIndex, column)" 
+                   class="cell-content" 
+                   [title]="formatCellValue(row[column])">
                 {{ formatCellValue(row[column]) }}
               </div>
             </td>
           </ng-container>
 
           <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="data-row"></tr>
+          <tr mat-row 
+              *matRowDef="let row; columns: displayedColumns; let rowIndex = index" 
+              class="data-row"
+              [class.newly-added-row]="isNewlyAddedRow(rowIndex)"
+              (contextmenu)="onRowRightClick($event, row, rowIndex)"></tr>
         </table>
       </div>
 
@@ -196,6 +228,50 @@
         showFirstLastButtons
         class="table-paginator">
       </mat-paginator>
+    </div>
+
+    <!-- Context Menu -->
+    <div *ngIf="showContextMenu" 
+         class="context-menu"
+         [style.left.px]="contextMenuX"
+         [style.top.px]="contextMenuY"
+         (click)="$event.stopPropagation()">
+      
+      <!-- Column context menu -->
+      <div *ngIf="contextMenuType === 'column'" class="context-menu-content">
+        <div class="context-menu-header">Column: {{ selectedColumnName }}</div>
+        <button class="context-menu-item" (click)="addColumn()">
+          <i class="fas fa-plus"></i> Add Column
+        </button>
+        <button class="context-menu-item delete" (click)="deleteColumn()">
+          <i class="fas fa-trash"></i> Delete Column
+        </button>
+      </div>
+
+      <!-- Row context menu -->
+      <div *ngIf="contextMenuType === 'row'" class="context-menu-content">
+        <div class="context-menu-header">Row {{ selectedRowIndex + 1 }}</div>
+        <button class="context-menu-item" (click)="addRow()">
+          <i class="fas fa-plus"></i> Add Row
+        </button>
+        <button class="context-menu-item delete" (click)="deleteRow()">
+          <i class="fas fa-trash"></i> Delete Row
+        </button>
+      </div>
+
+      <!-- Cell context menu -->
+      <div *ngIf="contextMenuType === 'cell'" class="context-menu-content">
+        <div class="context-menu-header">{{ selectedColumnName }}</div>
+        <button class="context-menu-item" (click)="startCellEdit(selectedRowIndex, selectedColumnName)">
+          <i class="fas fa-edit"></i> Edit Cell
+        </button>
+        <button class="context-menu-item" (click)="addRow()">
+          <i class="fas fa-plus"></i> Add Row
+        </button>
+        <button class="context-menu-item" (click)="addColumn()">
+          <i class="fas fa-plus"></i> Add Column
+        </button>
+      </div>
     </div>
 
     <!-- No Data in Selected Table -->

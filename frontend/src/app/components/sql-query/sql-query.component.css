@@ -5,6 +5,7 @@
   flex-direction: column;
   background: white;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --table-hover-color: rgba(255, 230, 0, 0.1);
 }
 
 /* Section Header */
@@ -742,7 +743,7 @@ body.dark-mode .data-row:nth-child(even) {
 }
 
 body.dark-mode .data-row:hover {
-  background: rgba(255, 230, 0, 0.1) !important;
+  background: rgba(100, 150, 255, 0.2) !important;
 }
 
 body.dark-mode .table-paginator {
@@ -1093,4 +1094,218 @@ body:not(.dark-mode) .btn:hover {
 /* Light mode checkbox hover */
 body:not(.dark-mode) .checkbox-container:hover .checkmark {
   border-color: #FFE600;
+}
+
+body:not(.dark-mode) .checkbox-container:hover .checkmark {
+  background-color: #e6e6e6;
+}
+
+/* Context Menu Styles */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.context-menu-content {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  min-width: 160px;
+  pointer-events: auto;
+}
+
+.context-menu-header {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+  border-bottom: 1px solid #eee;
+  background: #f8f9fa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  gap: 8px;
+}
+
+.context-menu-item:hover {
+  background: #f8f9fa;
+}
+
+.context-menu-item.delete {
+  color: #dc3545;
+}
+
+.context-menu-item.delete:hover {
+  background: #f8d7da;
+}
+
+.context-menu-item i {
+  width: 14px;
+  font-size: 12px;
+}
+
+/* Cell Editing Styles */
+.cell-edit-mode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.cell-input {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #FFE600;
+  border-radius: 3px;
+  font-size: 12px;
+  font-family: inherit;
+  background: white;
+  color: #333;
+  min-width: 60px;
+}
+
+.cell-input:focus {
+  outline: none;
+  border-color: #FFE600;
+  box-shadow: 0 0 0 2px rgba(255, 230, 0, 0.2);
+}
+
+.cell-edit-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.save-btn, .cancel-btn {
+  padding: 2px 4px;
+  border: none;
+  border-radius: 2px;
+  font-size: 10px;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-btn {
+  background: #28a745;
+  color: white;
+}
+
+.save-btn:hover {
+  background: #218838;
+}
+
+.cancel-btn {
+  background: #dc3545;
+  color: white;
+}
+
+.cancel-btn:hover {
+  background: #c82333;
+}
+
+/* Enhanced table cell styles for editing */
+.table-cell {
+  position: relative;
+  cursor: pointer;
+}
+
+.table-cell:hover {
+  background: var(--table-hover-color) !important;
+}
+
+/* Override for dark mode with higher specificity */
+body.dark-mode .sql-database-container .table-cell:hover {
+  background: rgba(100, 150, 255, 0.2) !important;
+}
+
+.cell-content {
+  padding: 8px 12px;
+  min-height: 20px;
+  word-break: break-word;
+}
+
+/* Dark mode context menu */
+body.dark-mode .context-menu-content {
+  background: #2e2e38 !important;
+  border-color: #474755 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.dark-mode .context-menu-header {
+  background: #1a1a24 !important;
+  border-bottom-color: #474755 !important;
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .context-menu-item {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .context-menu-item:hover {
+  background: #1a1a24 !important;
+}
+
+body.dark-mode .context-menu-item.delete {
+  color: #ff6b6b !important;
+}
+
+body.dark-mode .context-menu-item.delete:hover {
+  background: rgba(255, 107, 107, 0.1) !important;
+}
+
+/* Dark mode cell editing */
+body.dark-mode .cell-input {
+  background: #1a1a24 !important;
+  border-color: #FFE600 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .cell-input:focus {
+  border-color: #FFE600 !important;
+  box-shadow: 0 0 0 2px rgba(255, 230, 0, 0.2) !important;
+}
+
+body.dark-mode .sql-database-container .table-cell:hover,
+body.dark-mode .sql-database-container .data-table .table-cell:hover,
+body.dark-mode .sql-database-container .table-container .table-cell:hover {
+  background: rgba(100, 150, 255, 0.2) !important;
+}
+
+/* Newly added row styling */
+.newly-added-row {
+  background: rgba(40, 167, 69, 0.1) !important;
+  border-left: 3px solid #28a745 !important;
+}
+
+.newly-added-row:hover {
+  background: rgba(40, 167, 69, 0.2) !important;
+}
+
+/* Dark mode newly added row */
+body.dark-mode .newly-added-row {
+  background: rgba(40, 167, 69, 0.15) !important;
+  border-left: 3px solid #28a745 !important;
+}
+
+body.dark-mode .newly-added-row:hover {
+  background: rgba(40, 167, 69, 0.25) !important;
 } 
