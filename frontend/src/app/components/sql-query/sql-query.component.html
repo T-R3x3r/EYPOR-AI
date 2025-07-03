@@ -185,26 +185,26 @@
                 *matCellDef="let row; let rowIndex = index" 
                 class="table-cell"
                 (contextmenu)="onCellRightClick($event, row, column, rowIndex)"
-                (dblclick)="startCellEdit(rowIndex, column)">
+                (dblclick)="startCellEditWithRow(row, rowIndex, column)">
               
               <!-- Edit mode -->
-              <div *ngIf="isCellEditing(rowIndex, column)" class="cell-edit-mode">
+              <div *ngIf="isCellEditingWithRow(row, column)" class="cell-edit-mode">
                 <input type="text" 
-                       [ngModel]="getCellValue(rowIndex, column)"
-                       (ngModelChange)="cellValues[getGlobalRowIndex(rowIndex) + '_' + column] = $event"
-                       (keyup.enter)="saveCellEdit(rowIndex, column)"
-                       (keyup.escape)="cancelCellEdit(rowIndex, column)"
-                       (blur)="saveCellEdit(rowIndex, column)"
+                       [ngModel]="getCellValueWithRow(row, column)"
+                       (ngModelChange)="updateCellValueWithRow(row, column, $event)"
+                       (keyup.enter)="saveCellEditWithRow(row, rowIndex, column)"
+                       (keyup.escape)="cancelCellEditWithRow(row, column)"
+                       (blur)="saveCellEditWithRow(row, rowIndex, column)"
                        class="cell-input"
                        #cellInput>
                 <div class="cell-edit-actions">
-                  <button (click)="saveCellEdit(rowIndex, column)" class="save-btn" title="Save">✓</button>
-                  <button (click)="cancelCellEdit(rowIndex, column)" class="cancel-btn" title="Cancel">✗</button>
+                  <button (click)="saveCellEditWithRow(row, rowIndex, column)" class="save-btn" title="Save">✓</button>
+                  <button (click)="cancelCellEditWithRow(row, column)" class="cancel-btn" title="Cancel">✗</button>
                 </div>
               </div>
               
               <!-- View mode -->
-              <div *ngIf="!isCellEditing(rowIndex, column)" 
+              <div *ngIf="!isCellEditingWithRow(row, column)" 
                    class="cell-content" 
                    [title]="formatCellValue(row[column])">
                 {{ formatCellValue(row[column]) }}
@@ -221,13 +221,7 @@
         </table>
       </div>
 
-      <!-- Pagination -->
-      <mat-paginator 
-        [pageSizeOptions]="[25, 50, 100, 250, 500]" 
-        [pageSize]="50"
-        showFirstLastButtons
-        class="table-paginator">
-      </mat-paginator>
+
     </div>
 
     <!-- Context Menu -->
@@ -262,7 +256,7 @@
       <!-- Cell context menu -->
       <div *ngIf="contextMenuType === 'cell'" class="context-menu-content">
         <div class="context-menu-header">{{ selectedColumnName }}</div>
-        <button class="context-menu-item" (click)="startCellEdit(selectedRowIndex, selectedColumnName)">
+        <button class="context-menu-item" (click)="startCellEditFromContext()">
           <i class="fas fa-edit"></i> Edit Cell
         </button>
         <button class="context-menu-item" (click)="addRow()">
@@ -305,6 +299,22 @@
 
       <button class="btn btn-secondary debug-toggle" (click)="toggleDebug()">
         {{ showDebug ? 'Hide' : 'Show' }} Debug Info
+      </button>
+      
+      <button class="btn btn-secondary" (click)="logTableState()" style="font-size: 11px; padding: 3px 6px;">
+        Log Table State
+      </button>
+      
+      <button class="btn btn-secondary" (click)="forceSort()" style="font-size: 11px; padding: 3px 6px;">
+        Force Sort
+      </button>
+      
+      <button class="btn btn-secondary" (click)="testDataAtIndex(0)" style="font-size: 11px; padding: 3px 6px;">
+        Test Index 0
+      </button>
+      
+      <button class="btn btn-secondary" (click)="testDataAtIndex(1)" style="font-size: 11px; padding: 3px 6px;">
+        Test Index 1
       </button>
     </div>
 

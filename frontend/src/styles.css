@@ -1173,11 +1173,6 @@ body.dark-mode .sql-database-container .data-row:nth-child(even) {
 body.dark-mode .sql-database-container .data-row:hover {
   background: rgba(100, 150, 255, 0.2) !important;
 }
-body.dark-mode .sql-database-container .table-paginator {
-  background: #1a1a24 !important;
-  border-top-color: #474755 !important;
-  color: #eaeaf2 !important;
-}
 body.dark-mode .sql-database-container .btn:not(.btn-toggle) {
   background: #FFE600 !important;
   color: #333 !important;

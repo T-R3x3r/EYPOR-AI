@@ -364,11 +364,6 @@
   margin-bottom: 10px; /* Add space between table and pagination */
 }
 
-/* Ensure pagination has enough space */
-.table-paginator {
-  margin-bottom: 20px; /* Add space below pagination */
-}
-
 .btn {
   background: #FFE600;
   color: black;
@@ -391,12 +386,6 @@
 
 .btn-secondary:hover {
   background: #2e2e38;
-}
-
-/* Pagination */
-.table-paginator {
-  background: #f8f9fa;
-  border-top: 1px solid #e0e0e0;
 }
 
 /* Responsive Design */

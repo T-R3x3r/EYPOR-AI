@@ -1,7 +1,6 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild } from '@angular/core';
 import { FormControl } from '@angular/forms';
 import { MatTableDataSource } from '@angular/material/table';
-import { MatPaginator } from '@angular/material/paginator';
 import { MatSort } from '@angular/material/sort';
 import { ApiService, WhitelistResponse, WhitelistUpdateResponse } from '../../services/api.service';
 import { DatabaseTrackingService } from '../../services/database-tracking.service';
@@ -26,7 +25,6 @@ interface TableColumn {
   styleUrls: ['./sql-query.component.css']
 })
 export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
   // Database info
@@ -132,8 +130,7 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Setup paginator and sort after view init
-    this.tableData.paginator = this.paginator;
+    // Setup sort after view init
     this.tableData.sort = this.sort;
   }
 
@@ -290,30 +287,29 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
             }
           });
           
-          // Set up the Material table data source
+          // Set up the Material table data source with proper sorting configuration
           this.tableData = new MatTableDataSource(data);
           
-          // Reconnect paginator and sort after data change
-          setTimeout(() => {
-            if (this.paginator) {
-              this.tableData.paginator = this.paginator;
-              this.paginator.pageSize = 50; // Default page size
-              this.paginator.pageSizeOptions = [25, 50, 100, 250, 500];
-              console.log('Paginator connected');
+          // Configure sorting data accessor immediately
+          this.tableData.sortingDataAccessor = (item: any, property: string) => {
+            const value = item[property];
+            // Handle null/undefined values for proper sorting
+            if (value === null || value === undefined) return '';
+            // Detect column type
+            const colType = this.getColumnType(property).toUpperCase();
+            if (colType.includes('INT') || colType.includes('REAL') || colType.includes('FLOAT') || colType.includes('DOUBLE') || typeof value === 'number') {
+              return Number(value);
             }
+            // Otherwise, sort as string
+            return String(value).toLowerCase();
+          };
+          
+          // Reconnect sort after data change
+          setTimeout(() => {
             if (this.sort) {
               this.tableData.sort = this.sort;
               console.log('Sort connected');
             }
-            
-            // Ensure sorting is properly configured
-            this.tableData.sortingDataAccessor = (item: any, property: string) => {
-              const value = item[property];
-              // Handle null/undefined values for proper sorting
-              if (value === null || value === undefined) return '';
-              // Convert to string for consistent sorting
-              return String(value).toLowerCase();
-            };
           });
           
           console.log('Table data setup complete. Total rows:', this.totalRows);
@@ -386,10 +382,7 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     this.tableData.filter = filterValue.trim().toLowerCase();
     this.filteredRows = this.tableData.filteredData.length;
     
-    // Reset to first page when filtering
-    if (this.paginator) {
-      this.paginator.firstPage();
-    }
+
   }
 
   // Utility methods
@@ -583,7 +576,7 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     this.contextMenuX = event.clientX;
     this.contextMenuY = event.clientY;
     this.contextMenuType = 'row';
-    this.selectedRowIndex = this.getGlobalRowIndex(rowIndex);
+    this.selectedRowIndex = rowIndex;
     this.contextMenuTarget = { rowData, rowIndex };
   }
 
@@ -593,7 +586,7 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     this.contextMenuX = event.clientX;
     this.contextMenuY = event.clientY;
     this.contextMenuType = 'cell';
-    this.selectedRowIndex = this.getGlobalRowIndex(rowIndex);
+    this.selectedRowIndex = rowIndex;
     this.selectedColumnName = columnName;
     this.contextMenuTarget = { rowData, columnName, rowIndex };
   }
@@ -717,62 +710,267 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     this.hideContextMenu();
   }
 
-  // Helper method to get global row index from page-local index
-  getGlobalRowIndex(pageLocalIndex: number): number {
-    if (!this.paginator) {
-      return pageLocalIndex;
-    }
-    return this.paginator.pageIndex * this.paginator.pageSize + pageLocalIndex;
+  // Helper method to get the actual row data from the current view
+  getActualRowData(rowIndex: number): any {
+    // Get the actual row from the current data source (which may be sorted/filtered)
+    const actualData = this.tableData.filteredData || this.tableData.data;
+    return actualData[rowIndex];
   }
 
-  // Cell editing methods
-  startCellEdit(rowIndex: number, columnName: string): void {
-    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
-    const cellKey = `${globalRowIndex}_${columnName}`;
+  // NEW METHODS THAT WORK WITH ROW DATA DIRECTLY
+  startCellEditWithRow(rowData: any, rowIndex: number, columnName: string): void {
+    if (!rowData) {
+      console.error('Row data is null or undefined');
+      return;
+    }
+
+    // Create a unique key based on the row data content
+    const rowKey = this.createRowKey(rowData);
+    const cellKey = `${rowKey}_${columnName}`;
+    
     this.editingCells.add(cellKey);
     
-    // Initialize with current value
-    const currentValue = this.tableData.data[globalRowIndex][columnName];
-    this.cellValues[cellKey] = currentValue;
+    // Initialize with current value from the row data
+    this.cellValues[cellKey] = rowData[columnName];
   }
 
-  saveCellEdit(rowIndex: number, columnName: string): void {
-    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
-    const cellKey = `${globalRowIndex}_${columnName}`;
+  saveCellEditWithRow(rowData: any, rowIndex: number, columnName: string): void {
+    if (!rowData) {
+      console.error('Row data is null or undefined');
+      return;
+    }
+
+    // Create a unique key based on the row data content
+    const rowKey = this.createRowKey(rowData);
+    const cellKey = `${rowKey}_${columnName}`;
     const newValue = this.cellValues[cellKey];
     
     if (newValue !== undefined) {
-      // Update the data
-      this.tableData.data[globalRowIndex][columnName] = newValue;
+      // Update the row data directly
+      rowData[columnName] = newValue;
       
-      // Execute UPDATE query
-      this.executeCellUpdate(globalRowIndex, columnName, newValue);
+      // Execute UPDATE query using the row data for identification
+      this.executeCellUpdateWithRowData(rowData, columnName, newValue);
     }
     
     this.editingCells.delete(cellKey);
     delete this.cellValues[cellKey];
   }
 
-  cancelCellEdit(rowIndex: number, columnName: string): void {
-    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
-    const cellKey = `${globalRowIndex}_${columnName}`;
+  cancelCellEditWithRow(rowData: any, columnName: string): void {
+    if (!rowData) {
+      console.error('Row data is null or undefined');
+      return;
+    }
+
+    // Create a unique key based on the row data content
+    const rowKey = this.createRowKey(rowData);
+    const cellKey = `${rowKey}_${columnName}`;
+    
     this.editingCells.delete(cellKey);
     delete this.cellValues[cellKey];
   }
 
-  isCellEditing(rowIndex: number, columnName: string): boolean {
-    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
-    const cellKey = `${globalRowIndex}_${columnName}`;
+  isCellEditingWithRow(rowData: any, columnName: string): boolean {
+    if (!rowData) {
+      return false;
+    }
+
+    // Create a unique key based on the row data content
+    const rowKey = this.createRowKey(rowData);
+    const cellKey = `${rowKey}_${columnName}`;
+    
     return this.editingCells.has(cellKey);
   }
 
-  getCellValue(rowIndex: number, columnName: string): any {
-    const globalRowIndex = this.getGlobalRowIndex(rowIndex);
-    const cellKey = `${globalRowIndex}_${columnName}`;
-    if (this.isCellEditing(rowIndex, columnName)) {
+  getCellValueWithRow(rowData: any, columnName: string): any {
+    if (!rowData) {
+      return '';
+    }
+
+    // Create a unique key based on the row data content
+    const rowKey = this.createRowKey(rowData);
+    const cellKey = `${rowKey}_${columnName}`;
+    
+    if (this.isCellEditingWithRow(rowData, columnName)) {
       return this.cellValues[cellKey];
     }
-    return this.tableData.data[globalRowIndex][columnName];
+    return rowData[columnName];
+  }
+
+  updateCellValueWithRow(rowData: any, columnName: string, value: any): void {
+    if (!rowData) {
+      console.error('Row data is null or undefined');
+      return;
+    }
+
+    // Create a unique key based on the row data content
+    const rowKey = this.createRowKey(rowData);
+    const cellKey = `${rowKey}_${columnName}`;
+    
+    this.cellValues[cellKey] = value;
+  }
+
+  // Method to handle cell editing from context menu
+  startCellEditFromContext(): void {
+    if (this.contextMenuType === 'cell' && this.contextMenuTarget) {
+      const rowData = this.contextMenuTarget.rowData;
+      const columnName = this.contextMenuTarget.columnName;
+      const rowIndex = this.contextMenuTarget.rowIndex;
+      
+      this.startCellEditWithRow(rowData, rowIndex, columnName);
+      this.hideContextMenu();
+    }
+  }
+
+  // New method to execute cell update using row data instead of index
+  private executeCellUpdateWithRowData(rowData: any, columnName: string, newValue: any): void {
+    if (!this.selectedTable) return;
+
+    const whereConditions: string[] = [];
+
+    // Build WHERE clause from all other columns, including NULL values
+    Object.keys(rowData).forEach(key => {
+      if (key !== columnName) {
+        const value = rowData[key];
+        if (value === null || value === undefined) {
+          whereConditions.push(`${key} IS NULL`);
+        } else if (value === '') {
+          whereConditions.push(`${key} = ''`);
+        } else if (typeof value === 'string') {
+          whereConditions.push(`${key} = '${value.replace(/'/g, "''")}'`);
+        } else {
+          whereConditions.push(`${key} = ${value}`);
+        }
+      }
+    });
+
+    if (whereConditions.length === 0) {
+      alert('Cannot update cell: no unique identifiers found in row.');
+      return;
+    }
+
+    const sql = `UPDATE ${this.selectedTable} SET ${columnName} = '${String(newValue).replace(/'/g, "''")}' WHERE ${whereConditions.join(' AND ')}`;
+    
+    console.log('Executing cell update:', sql);
+    console.log('Row data:', rowData);
+    console.log('Where conditions:', whereConditions);
+    
+    this.apiService.executeSQL(sql).subscribe({
+      next: (result) => {
+        if (result.success) {
+          console.log('Cell update successful');
+        } else {
+          alert(`Failed to update cell: ${result.error}`);
+          // Revert the change
+          this.loadCompleteTable(this.selectedTable);
+        }
+      },
+      error: (error) => {
+        console.error('Cell update error:', error);
+        alert(`Error updating cell: ${error.message || 'Unknown error'}`);
+        // Revert the change
+        this.loadCompleteTable(this.selectedTable);
+      }
+    });
+  }
+
+  // Helper method to create a unique key for a row based on its content
+  private createRowKey(rowData: any): string {
+    // Create a hash of the row data to use as a unique identifier
+    const rowString = this.displayedColumns
+      .map(col => `${col}:${rowData[col]}`)
+      .join('|');
+    
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < rowString.length; i++) {
+      const char = rowString.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString();
+  }
+
+  // Debug method to log current table state
+  logTableState(): void {
+    console.log('=== Table State Debug ===');
+    console.log('Total rows:', this.totalRows);
+    console.log('Filtered rows:', this.filteredRows);
+    console.log('Original data length:', this.tableData.data.length);
+    console.log('Filtered data length:', this.tableData.filteredData?.length || 'undefined');
+    console.log('Current sort state:', this.tableData.sort?.direction || 'none');
+    console.log('Current sort active:', this.tableData.sort?.active || 'none');
+    console.log('First few rows of original data:', this.tableData.data.slice(0, 3));
+    console.log('First few rows of filtered data:', this.tableData.filteredData?.slice(0, 3) || 'undefined');
+    
+    // Test sorting manually
+    if (this.tableData.sort?.active) {
+      console.log('=== Manual Sort Test ===');
+      const testData = [...this.tableData.data];
+      const sortColumn = this.tableData.sort.active;
+      const sortDirection = this.tableData.sort.direction;
+      
+      testData.sort((a, b) => {
+        const aVal = a[sortColumn] || '';
+        const bVal = b[sortColumn] || '';
+        const aStr = String(aVal).toLowerCase();
+        const bStr = String(bVal).toLowerCase();
+        
+        if (sortDirection === 'asc') {
+          return aStr.localeCompare(bStr);
+        } else {
+          return bStr.localeCompare(aStr);
+        }
+      });
+      
+      console.log('Manually sorted first 5 rows:', testData.slice(0, 5).map(row => row[sortColumn]));
+      console.log('Current filtered data first 5 rows:', this.tableData.filteredData?.slice(0, 5).map(row => row[sortColumn]) || 'undefined');
+    }
+    
+    console.log('=== End Table State Debug ===');
+  }
+
+  // Test method to check data at specific indices
+  testDataAtIndex(index: number): void {
+    console.log('=== Test Data at Index ===');
+    console.log('Testing index:', index);
+    console.log('Original data at index:', this.tableData.data[index]);
+    console.log('Filtered data at index:', this.tableData.filteredData?.[index]);
+    console.log('getActualRowData result:', this.getActualRowData(index));
+    console.log('=== End Test ===');
+  }
+
+  // Method to force a proper sort
+  forceSort(): void {
+    if (!this.tableData.sort?.active) {
+      console.log('No active sort to force');
+      return;
+    }
+
+    console.log('Forcing sort on column:', this.tableData.sort.active);
+    
+    // Manually sort the data
+    const sortColumn = this.tableData.sort.active;
+    const sortDirection = this.tableData.sort.direction;
+    
+    this.tableData.data.sort((a, b) => {
+      const aVal = a[sortColumn] || '';
+      const bVal = b[sortColumn] || '';
+      const aStr = String(aVal).toLowerCase();
+      const bStr = String(bVal).toLowerCase();
+      
+      if (sortDirection === 'asc') {
+        return aStr.localeCompare(bStr);
+      } else {
+        return bStr.localeCompare(aStr);
+      }
+    });
+    
+    // Trigger change detection
+    this.tableData._updateChangeSubscription();
+    
+    console.log('Sort forced. First 5 rows:', this.tableData.data.slice(0, 5).map(row => row[sortColumn]));
   }
 
   isNewlyAddedRow(rowIndex: number): boolean {
@@ -985,11 +1183,7 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
           this.cellValues[cellKey] = this.tableData.data[targetRowIndex][column] || '';
         });
         
-        // Scroll to the row if it's not on the first page
-        if (this.paginator && targetRowIndex >= this.paginator.pageSize) {
-          const targetPage = Math.floor(targetRowIndex / this.paginator.pageSize);
-          this.paginator.pageIndex = targetPage;
-        }
+
         
         console.log(`Made row ${targetRowIndex} editable for data entry`);
       } else {
@@ -1061,58 +1255,6 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     console.log('Temporary table approach not implemented yet');
   }
 
-  private executeCellUpdate(rowIndex: number, columnName: string, newValue: any): void {
-    if (!this.selectedTable) return;
-
-    const rowData = this.tableData.data[rowIndex];
-    const whereConditions: string[] = [];
-
-    // Build WHERE clause from all other columns, including NULL values
-    Object.keys(rowData).forEach(key => {
-      if (key !== columnName) {
-        const value = rowData[key];
-        if (value === null || value === undefined) {
-          whereConditions.push(`${key} IS NULL`);
-        } else if (value === '') {
-          whereConditions.push(`${key} = ''`);
-        } else if (typeof value === 'string') {
-          whereConditions.push(`${key} = '${value.replace(/'/g, "''")}'`);
-        } else {
-          whereConditions.push(`${key} = ${value}`);
-        }
-      }
-    });
-
-    if (whereConditions.length === 0) {
-      alert('Cannot update cell: no unique identifiers found in row.');
-      return;
-    }
-
-    const sql = `UPDATE ${this.selectedTable} SET ${columnName} = '${String(newValue).replace(/'/g, "''")}' WHERE ${whereConditions.join(' AND ')}`;
-    
-    console.log('Executing cell update:', sql);
-    console.log('Row data:', rowData);
-    console.log('Where conditions:', whereConditions);
-    
-    this.apiService.executeSQL(sql).subscribe({
-      next: (result) => {
-        if (result.success) {
-          console.log('Cell update successful');
-        } else {
-          alert(`Failed to update cell: ${result.error}`);
-          // Revert the change
-          this.loadCompleteTable(this.selectedTable);
-        }
-      },
-      error: (error) => {
-        console.error('Cell update error:', error);
-        alert(`Error updating cell: ${error.message || 'Unknown error'}`);
-        // Revert the change
-        this.loadCompleteTable(this.selectedTable);
-      }
-    });
-  }
-
   private generateStructuralSQL(operationType: string, params: any): string {
     const { table, column, columnType, whereCondition, values, targetRowData, targetRowIndex } = params;
 
@@ -1148,4 +1290,4 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
         return '';
     }
   }
-} 
+}
