@@ -154,6 +154,7 @@ class CodeExecutorAgent:
         
         # Cache for database schema (set externally)
         self.cached_database_schema = None
+        self.cached_full_schema = None  # Store original unfiltered schema
     
     def _initialize_memory(self):
         """Initialize memory system for conversation persistence"""
@@ -615,12 +616,65 @@ The query completed successfully. Here are the raw results from your database.""
         return "\n".join(context_lines)
 
     def set_cached_schema(self, schema: Dict[str, any]):
-        """Set the cached database schema"""
-        self.cached_database_schema = schema
-        print(f"DEBUG: Cached database schema set with {schema.get('total_tables', 0)} tables")
+        """Set the cached database schema and apply whitelist filtering"""
+        self.cached_full_schema = schema  # Store original schema
+        self.cached_database_schema = self._filter_schema_by_whitelist(schema)
+        print(f"DEBUG: Cached database schema set with {schema.get('total_tables', 0)} total tables, {self.cached_database_schema.get('total_tables', 0)} whitelisted")
+
+    def _filter_schema_by_whitelist(self, schema: Dict[str, any]) -> Dict[str, any]:
+        """Filter database schema to only include whitelisted tables"""
+        if not schema or not schema.get("tables"):
+            return schema
+        
+        # Get current whitelist
+        try:
+            import main
+            current_whitelist = main.get_table_whitelist()
+        except Exception as e:
+            print(f"DEBUG: Could not get whitelist for schema filtering: {e}")
+            # If we can't get whitelist, return original schema to avoid breaking functionality
+            return schema
+        
+        if not current_whitelist:
+            print(f"DEBUG: No whitelist found, returning empty schema to prevent unauthorized modifications")
+            return {
+                "database_path": schema.get("database_path", ""),
+                "total_tables": 0,
+                "tables": []
+            }
+        
+        # Filter tables to only include whitelisted ones
+        original_tables = schema["tables"]
+        filtered_tables = []
+        
+        for table_info in original_tables:
+            table_name = table_info.get("name", "")
+            if table_name in current_whitelist:
+                filtered_tables.append(table_info)
+                print(f"DEBUG: Including whitelisted table: {table_name}")
+            else:
+                print(f"DEBUG: Excluding non-whitelisted table: {table_name}")
+        
+        # Create filtered schema
+        filtered_schema = {
+            "database_path": schema.get("database_path", ""),
+            "total_tables": len(filtered_tables),
+            "tables": filtered_tables
+        }
+        
+        print(f"DEBUG: Schema filtered: {len(original_tables)} -> {len(filtered_tables)} tables")
+        return filtered_schema
+
+    def refresh_schema_whitelist(self):
+        """Refresh the cached schema with updated whitelist filtering"""
+        if hasattr(self, 'cached_full_schema') and self.cached_full_schema:
+            self.cached_database_schema = self._filter_schema_by_whitelist(self.cached_full_schema)
+            print(f"DEBUG: Schema whitelist refreshed: {self.cached_database_schema.get('total_tables', 0)} tables available")
+        else:
+            print(f"DEBUG: No full schema available for refresh")
 
     def _get_cached_database_schema(self) -> Dict[str, any]:
-        """Get cached database schema"""
+        """Get cached database schema (filtered by whitelist)"""
         return self.cached_database_schema
 
 
@@ -2410,8 +2464,13 @@ finally:
             schema_context = self._build_schema_context(self.cached_database_schema)
         
         try:
-            # Extract numeric value from the request
+            # Enhanced extraction for both absolute values and percentage patterns
             import re
+            
+            # First, check for percentage patterns
+            percentage_info = self._extract_percentage_patterns(last_message)
+            
+            # Extract numeric value from the request (for non-percentage cases)
             value_patterns = [
                 r'to\s+(\d+(?:\.\d+)?)',  # matches "to 2000" or "to 2000.5"
                 r'=\s*(\d+(?:\.\d+)?)',    # matches "= 2000" or "=2000.5"
@@ -2446,6 +2505,7 @@ finally:
             
             print(f"DEBUG: Extracted value: {extracted_value}")
             print(f"DEBUG: Extracted table: {extracted_table}")
+            print(f"DEBUG: Percentage info: {percentage_info}")
             
             # Check if table exists in schema
             table_exists = False
@@ -2503,7 +2563,8 @@ finally:
                     'table': 'inputs_destinations',
                     'column': 'Demand',
                     'new_value': extracted_value,
-                    'description': 'Update demand in inputs_destinations table'
+                    'description': 'Update demand in inputs_destinations table',
+                    'percentage_info': percentage_info  # Add percentage info
                 }
                 return {
                     **state,
@@ -2515,11 +2576,51 @@ finally:
                     "messages": state["messages"] + [AIMessage(content=f"Identified modification: {modification_data}")]
                 }
             
-            # For other cases, use the LLM to analyze the request
+            # For other cases, use the enhanced LLM to analyze the request
+            # Get current whitelist to include in prompt
+            current_whitelist = set()
+            try:
+                import main
+                current_whitelist = main.get_table_whitelist()
+            except Exception as e:
+                print(f"DEBUG: Could not get whitelist for prompt: {e}")
+            
+            # Build whitelist information and table descriptions
+            whitelist_info = ""
+            table_descriptions = {}
+            
+            if current_whitelist:
+                whitelist_info = f"""
+**WHITELISTED TABLES FOR MODIFICATIONS:**
+The following tables are currently enabled for modifications:
+{', '.join(sorted(current_whitelist))}
+
+⚠️ **CRITICAL: You MUST choose a table from this whitelist. Tables not in this list cannot be modified.**
+"""
+                
+                # Get schema info to provide better descriptions of whitelisted tables
+                if state.get("database_schema") or self.cached_database_schema:
+                    schema_data = state.get("database_schema") or self.cached_database_schema
+                    if "tables" in schema_data:
+                        for table_info in schema_data["tables"]:
+                            table_name = table_info.get("name", "")
+                            if table_name in current_whitelist:
+                                columns = [col.get("name", "") for col in table_info.get("columns", [])]
+                                table_descriptions[table_name] = f"- {table_name}: Columns include {', '.join(columns[:5])}{'...' if len(columns) > 5 else ''}"
+                
+                if table_descriptions:
+                    whitelist_info += f"""
+
+**WHITELISTED TABLE DETAILS:**
+{chr(10).join(table_descriptions.values())}
+"""
+            
             system_prompt = f"""Analyze the database modification request and identify exactly what needs to be changed.
 
 Database Schema:
 {schema_context}
+
+{whitelist_info}
 
 You are analyzing an operations research model with hub location optimization. Common parameters that might be modified include:
 - Hub capacity/demand limits
@@ -2527,16 +2628,48 @@ You are analyzing an operations research model with hub location optimization. C
 - Distance/route parameters
 - Supply/demand values
 
-IMPORTANT: Pay attention to table-specific requests. Examples:
-- "Change x in table_name" → Use the specified table_name
-- "Update maximum hub demand in params table" → Use params or inputs_params table
-- "Set cost to 500 in routes table" → Use routes table
-- "Modify capacity in hubs_data" → Use hubs_data table
+PERCENTAGE MODIFICATIONS SUPPORT:
+The system now supports percentage-based modifications with the following patterns:
+1. **Absolute Percentage Changes:**
+   - "increase by 10%" → Increase current value by 10%
+   - "decrease by 15%" → Decrease current value by 15%
+   - "reduce by 5%" → Decrease current value by 5%
+   - "decrease by half" → Decrease current value by 50%
+   - "double the capacity" → Increase current value by 100%
 
-For general requests without table specification, look for:
-- Tables with "hub" in the name or description
-- Columns related to capacity, demand, max_capacity, limit, etc.
-- Parameters tables that might contain model settings
+2. **Relative Percentage Changes:**
+   - "increase by 10% of capacity" → Add (10% of capacity_value) to current value
+   - "set to 20% of maximum" → Set to (20% of maximum_value)
+   - "reduce by 5% of demand" → Subtract (5% of demand_value) from current value
+   - "set to 2000% of Minimum Hub Demand" → Set to (2000% of Minimum Hub Demand value)
+   - "set demand to twice that of oxford" → Set to (200% of Oxford's demand value)
+
+3. **Natural Language Fractions:**
+   - "half" = 50%, "quarter" = 25%, "third" = 33.33%
+   - "double" = 200%, "triple" = 300%, "quadruple" = 400%
+   - "decrease by half" = decrease by 50%
+   - "increase by a quarter" = increase by 25%
+   - "twice that of X" = 200% of X's value
+
+4. **Percentage Detection Patterns:**
+   - Look for keywords: increase, decrease, reduce, set, change
+   - Followed by: by, to
+   - Then percentage: X%, X percent, or natural language (half, quarter, etc.)
+   - For relative calculations: "of [reference_column]" where reference_column can be multi-word
+   - For relative calculations: "that of [reference_location]" where reference_location is a location name
+
+IMPORTANT: Pay attention to table-specific requests. Examples:
+- "Change x in table_name" → Use the specified table_name (if whitelisted)
+- "Update maximum hub demand in params table" → Look for whitelisted table containing "params"
+- "Set cost to 500 in routes table" → Look for whitelisted table containing "routes"
+- "Modify capacity in hubs_data" → Look for whitelisted table containing "hubs" or "capacity"
+- "Increase demand for birmingham" → Look for whitelisted table containing demand/destination data
+
+For general requests without table specification:
+- Look through the WHITELISTED TABLES ONLY
+- Match column names and data types to the user's request
+- Consider table names that suggest the relevant data type (destinations, hubs, routes, params, etc.)
+- Use the table descriptions provided above to find the best match
 
 IMPORTANT: Extract the exact numeric value AND parameter name from the user's request. For example:
 - "Change maximum hub demand to 20000" → NEW_VALUE: 20000, Parameter: 'Maximum Hub Demand'
@@ -2545,28 +2678,49 @@ IMPORTANT: Extract the exact numeric value AND parameter name from the user's re
 - "Change Operating Cost per Unit to 25.5" → NEW_VALUE: 25.5, Parameter: 'Operating Cost per Unit'
 - "Update Opening Cost to 500000" → NEW_VALUE: 500000, Parameter: 'Opening Cost'
 - "Change Closing Cost to 150000" → NEW_VALUE: 150000, Parameter: 'Closing Cost'
+- "Increase demand by 10%" → PERCENTAGE_TYPE: absolute, PERCENTAGE_VALUE: 10, OPERATION: increase
+- "Decrease demand by half" → PERCENTAGE_TYPE: absolute, PERCENTAGE_VALUE: 50, OPERATION: decrease
+- "Set capacity to 20% of maximum" → PERCENTAGE_TYPE: relative, PERCENTAGE_VALUE: 20, REFERENCE_COLUMN: maximum, OPERATION: set
+- "Set to 2000% of Minimum Hub Demand" → PERCENTAGE_TYPE: relative, PERCENTAGE_VALUE: 2000, REFERENCE_COLUMN: Minimum Hub Demand, OPERATION: set
+- "Set demand to twice that of oxford" → PERCENTAGE_TYPE: relative, PERCENTAGE_VALUE: 200, REFERENCE_COLUMN: Demand, OPERATION: set, WHERE_CONDITION: Location = 'Oxford'
 
 For parameter tables (like inputs_params), you may need to identify:
 - The WHERE condition to target the specific parameter row
 - The exact parameter name that needs to be updated
 
 TABLE DETECTION RULES:
-1. If user specifies "in [table_name]" → Use that exact table name
-2. If user mentions specific table → Use that table
-3. Otherwise, search for appropriate table based on column/parameter type
+1. If user specifies "in [table_name]" → Use that exact table name (if whitelisted)
+2. If user mentions specific table → Use that table (if whitelisted)
+3. **For any modification**: ONLY use tables from the whitelist above
+4. Match the modification request to whitelisted tables by:
+   - Table name keywords (destinations, hubs, routes, params, etc.)
+   - Column names that match the requested parameter
+   - Data types that fit the modification (demand, capacity, cost, etc.)
+5. **NEVER** suggest tables not in the whitelist, regardless of naming patterns
+
+CRITICAL PERCENTAGE HANDLING:
+- For relative percentage operations (e.g., "twice that of oxford"), DO NOT generate SQL expressions
+- Instead, set the percentage fields correctly and let the system handle the calculation
+- For "twice that of oxford" → PERCENTAGE_TYPE: relative, PERCENTAGE_VALUE: 200, REFERENCE_COLUMN: Demand, WHERE_CONDITION: Location = 'Oxford'
+- The system will automatically calculate the new value based on these fields
 
 Analyze the request and identify:
-1. Which table(s) contain the parameter to be modified (prioritize user-specified tables)
+1. Which WHITELISTED table contains the parameter to be modified
 2. Which column(s) need to be updated  
 3. What the exact new value should be (extract from user request)
-4. Any WHERE conditions needed to target the right row
+4. Any WHERE conditions needed to target the right row (e.g., Location = 'Birmingham')
+5. **NEW:** Percentage information if applicable
 
 Respond in this exact format:
-TABLE: [table_name]
+TABLE: [table_name_from_whitelist]
 COLUMN: [column_name] 
-NEW_VALUE: [exact_numeric_value_from_request]
-WHERE_CONDITION: [if needed, e.g., Parameter = 'Maximum Hub Demand']
-DESCRIPTION: [brief description of the change]"""
+NEW_VALUE: [exact_numeric_value_from_request OR "PERCENTAGE_CALCULATION"]
+WHERE_CONDITION: [if needed, e.g., Location = 'Birmingham']
+DESCRIPTION: [brief description of the change]
+PERCENTAGE_TYPE: [absolute/relative/none]
+PERCENTAGE_VALUE: [numeric percentage value if applicable]
+PERCENTAGE_OPERATION: [increase/decrease/set if applicable]
+REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
 
             response = self.llm.invoke([HumanMessage(content=f"{system_prompt}\n\nModification Request: {last_message}")])
             content = response.content.strip()
@@ -2584,6 +2738,23 @@ DESCRIPTION: [brief description of the change]"""
                     modification_data['where_condition'] = line.replace('WHERE_CONDITION:', '').strip('`').strip()
                 elif line.startswith('DESCRIPTION:'):
                     modification_data['description'] = line.replace('DESCRIPTION:', '').strip()
+                elif line.startswith('PERCENTAGE_TYPE:'):
+                    modification_data['percentage_type'] = line.replace('PERCENTAGE_TYPE:', '').strip().lower()
+                elif line.startswith('PERCENTAGE_VALUE:'):
+                    modification_data['percentage_value'] = line.replace('PERCENTAGE_VALUE:', '').strip()
+                elif line.startswith('PERCENTAGE_OPERATION:'):
+                    modification_data['percentage_operation'] = line.replace('PERCENTAGE_OPERATION:', '').strip().lower()
+                elif line.startswith('REFERENCE_COLUMN:'):
+                    modification_data['reference_column'] = line.replace('REFERENCE_COLUMN:', '').strip()
+            
+            # Merge extracted percentage info with LLM response
+            if percentage_info:
+                modification_data.update(percentage_info)
+                # If we have a reference_location, add it to the prompt context
+                if 'reference_location' in percentage_info:
+                    print(f"DEBUG: Found reference location: {percentage_info['reference_location']}")
+                    # Add reference location info to the prompt
+                    system_prompt += f"\n\nREFERENCE LOCATION INFO:\nThe percentage operation references location: '{percentage_info['reference_location']}'\nThis means you need to set REFERENCE_COLUMN to the actual column name (e.g., 'Demand') and use the reference location in the WHERE condition for the reference query."
             
             # Debug: Log the raw response and parsed data
             print(f"DEBUG: LLM raw response for modification: {content}")
@@ -2628,8 +2799,179 @@ DESCRIPTION: [brief description of the change]"""
         except Exception as e:
             return {
                 **state,
-                "messages": state["messages"] + [AIMessage(content=f"Error analyzing modification request: {str(e)}")]
+                "db_modification_result": {
+                    "success": False,
+                    "error": f"Error preparing modification: {str(e)}"
+                },
+                "messages": state["messages"] + [AIMessage(content=f"❌ Error analyzing modification request: {str(e)}")]
             }
+
+    def _extract_percentage_patterns(self, message: str) -> dict:
+        """Extract percentage patterns from user message with natural language support"""
+        import re
+        
+        percentage_info = {}
+        message_lower = message.lower()
+        
+        # Natural language fraction mappings
+        fraction_mappings = {
+            'half': 50.0,
+            'halves': 50.0,
+            'quarter': 25.0,
+            'quarters': 25.0,
+            'third': 33.33,
+            'thirds': 33.33,
+            'fourth': 25.0,
+            'fourths': 25.0,
+            'fifth': 20.0,
+            'fifths': 20.0,
+            'sixth': 16.67,
+            'sixths': 16.67,
+            'seventh': 14.29,
+            'sevenths': 14.29,
+            'eighth': 12.5,
+            'eighths': 12.5,
+            'ninth': 11.11,
+            'ninths': 11.11,
+            'tenth': 10.0,
+            'tenths': 10.0,
+            'double': 200.0,
+            'triple': 300.0,
+            'quadruple': 400.0
+        }
+        
+        # Helper function to convert natural language to percentage
+        def convert_natural_to_percentage(text):
+            for fraction, percentage in fraction_mappings.items():
+                if fraction in text:
+                    return percentage
+            return None
+        
+        # Check for natural language fractions first (but skip if it's a relative pattern)
+        # Skip natural language detection if it's a relative pattern like "twice that of X"
+        if not any(pattern in message_lower for pattern in ['that of', 'of ']):
+            natural_percentage = convert_natural_to_percentage(message_lower)
+            if natural_percentage:
+                # Determine operation from context
+                if any(word in message_lower for word in ['decrease', 'reduce', 'lower', 'drop', 'cut']):
+                    percentage_info['percentage_operation'] = 'decrease'
+                elif any(word in message_lower for word in ['increase', 'raise', 'boost', 'double', 'triple', 'quadruple']):
+                    percentage_info['percentage_operation'] = 'increase'
+                else:
+                    percentage_info['percentage_operation'] = 'set'
+                
+                percentage_info['percentage_type'] = 'absolute'
+                percentage_info['percentage_value'] = natural_percentage
+                return percentage_info
+        
+        # Pattern 1: Absolute percentage changes (increase/decrease by X%)
+        absolute_patterns = [
+            r'(increase|raise|boost).*?(?:by\s+)?(\d+(?:\.\d+)?)\s*%',
+            r'(decrease|reduce|lower|drop).*?(?:by\s+)?(\d+(?:\.\d+)?)\s*%',
+            r'(change|modify).*?(?:by\s+)?([+-]?\d+(?:\.\d+)?)\s*%'
+        ]
+        
+        for pattern in absolute_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                operation = match.group(1)
+                percentage_value = float(match.group(2))
+                
+                # Map operations to standard terms
+                if operation in ['increase', 'raise', 'boost']:
+                    percentage_info['percentage_operation'] = 'increase'
+                elif operation in ['decrease', 'reduce', 'lower', 'drop']:
+                    percentage_info['percentage_operation'] = 'decrease'
+                else:
+                    # For change/modify, check if there's a sign or context clues
+                    if 'increase' in message_lower or 'raise' in message_lower or 'boost' in message_lower:
+                        percentage_info['percentage_operation'] = 'increase'
+                    elif 'decrease' in message_lower or 'reduce' in message_lower or 'lower' in message_lower or 'drop' in message_lower:
+                        percentage_info['percentage_operation'] = 'decrease'
+                    elif percentage_value < 0:
+                        percentage_info['percentage_operation'] = 'decrease'
+                        percentage_info['percentage_value'] = abs(percentage_value)
+                    else:
+                        percentage_info['percentage_operation'] = 'set'
+                
+                percentage_info['percentage_type'] = 'absolute'
+                percentage_info['percentage_value'] = abs(percentage_value)
+                break
+        
+        # Pattern 2: Relative percentage changes (X% of Y) - FIXED to capture multi-word references
+        relative_patterns = [
+            # Patterns with explicit "of" keyword
+            r'(increase|raise|boost).*?(?:by\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+([^,\s]+(?:\s+[^,\s]+)*)',
+            r'(decrease|reduce|lower|drop).*?(?:by\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+([^,\s]+(?:\s+[^,\s]+)*)',
+            r'(set|change|modify).*?(?:to\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+([^,\s]+(?:\s+[^,\s]+)*)',
+            r'(\d+(?:\.\d+)?)\s*%\s+of\s+([^,\s]+(?:\s+[^,\s]+)*)',  # Generic pattern
+            # Patterns with quoted references (avoid capturing "the" before quotes)
+            r'(increase|raise|boost).*?(?:by\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?"([^"]+)"',
+            r'(decrease|reduce|lower|drop).*?(?:by\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?"([^"]+)"',
+            r'(set|change|modify).*?(?:to\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?"([^"]+)"',
+            r'(\d+(?:\.\d+)?)\s*%\s+of\s+(?:the\s+)?"([^"]+)"',  # Generic pattern with quotes
+            # Patterns for "twice that of X" format (location-based references)
+            r'(set|change|modify).*?(?:to\s+)?(twice|double)\s+that\s+of\s+([^,\s]+(?:\s+[^,\s]+)*)',
+            r'(twice|double)\s+that\s+of\s+([^,\s]+(?:\s+[^,\s]+)*)',  # Generic pattern for "twice that of X"
+            r'(set|change|modify).*?(?:to\s+)?(twice|double)\s+that\s+of\s+(?:the\s+)?"([^"]+)"',
+            r'(twice|double)\s+that\s+of\s+(?:the\s+)?"([^"]+)"'  # Generic pattern with quotes
+        ]
+        
+        for pattern in relative_patterns:
+            match = re.search(pattern, message_lower)
+            if match:
+                if len(match.groups()) == 3:
+                    operation, percentage_value, reference = match.groups()
+                    if operation in ['increase', 'raise', 'boost']:
+                        percentage_info['percentage_operation'] = 'increase'
+                    elif operation in ['decrease', 'reduce', 'lower', 'drop']:
+                        percentage_info['percentage_operation'] = 'decrease'
+                    else:
+                        percentage_info['percentage_operation'] = 'set'
+                    
+                    # Handle "twice that of X" format
+                    if percentage_value in ['twice', 'double']:
+                        percentage_info['percentage_value'] = 200.0
+                    else:
+                        percentage_info['percentage_value'] = float(percentage_value)
+                        
+                elif len(match.groups()) == 2:
+                    percentage_value, reference = match.groups()
+                    percentage_info['percentage_operation'] = 'set'
+                    
+                    # Handle "twice that of X" format
+                    if percentage_value in ['twice', 'double']:
+                        percentage_info['percentage_value'] = 200.0
+                    else:
+                        percentage_info['percentage_value'] = float(percentage_value)
+                
+                percentage_info['percentage_type'] = 'relative'
+                # Clean up reference name (remove quotes, extra spaces)
+                reference_clean = reference.strip().strip('"').strip("'")
+                
+                # For "twice that of X" patterns, the reference is a location, not a column
+                # We'll let the LLM determine the correct column name
+                if percentage_value in ['twice', 'double']:
+                    percentage_info['reference_location'] = reference_clean
+                    # Don't set reference_column here - let the LLM set it
+                else:
+                    percentage_info['reference_column'] = reference_clean
+                break
+        
+        # Pattern 3: Set to percentage (set to X%)
+        set_patterns = [
+            r'(set|change)\s+(?:to\s+)?(\d+(?:\.\d+)?)\s*%',
+        ]
+        
+        for pattern in set_patterns:
+            match = re.search(pattern, message_lower)
+            if match and 'percentage_type' not in percentage_info:  # Only if not already found
+                percentage_info['percentage_type'] = 'absolute'
+                percentage_info['percentage_operation'] = 'set'
+                percentage_info['percentage_value'] = float(match.group(2))
+                break
+        
+        return percentage_info
     
     def _execute_db_modification_node(self, state: AgentState) -> AgentState:
         """Execute the database modification with detailed change tracking and parameter validation"""
@@ -2788,6 +3130,181 @@ DESCRIPTION: [brief description of the change]"""
                 print(f"DEBUG: Error retrieving old values: {e}")
                 old_values = [f"Could not retrieve: {e}"]
             
+            # Handle percentage calculations if applicable
+            percentage_calculation_performed = False
+            original_new_value = new_value
+            
+            # Check if this is a percentage modification
+            percentage_type = modification_data.get('percentage_type', '').lower()
+            percentage_operation = modification_data.get('percentage_operation', '').lower()
+            percentage_value = modification_data.get('percentage_value')
+            reference_column = modification_data.get('reference_column', '')
+            
+            # Only process percentage calculations if we have valid percentage data
+            # Exclude 'none' values which indicate non-percentage operations
+            if (percentage_type and percentage_type not in ['none', '', 'n/a'] and 
+                percentage_value is not None and str(percentage_value).lower() not in ['none', '', 'n/a']):
+                try:
+                    percentage_value = float(percentage_value)
+                    calculated_value = None
+                    calculation_description = ""
+                    
+                    # Validate percentage value
+                    if percentage_value < 0:
+                        print(f"DEBUG: Warning - negative percentage value: {percentage_value}%")
+                    if percentage_value > 1000:
+                        print(f"DEBUG: Warning - very large percentage value: {percentage_value}%")
+                        # Still allow it as user requested no limits on percentage changes
+                    
+                    if percentage_type == 'absolute':
+                        # Absolute percentage changes (increase/decrease by X%)
+                        if old_values and old_values[0] not in ["Could not retrieve:", "unknown"]:
+                            try:
+                                current_value = float(old_values[0])
+                                percentage_change = (percentage_value / 100.0) * current_value
+                                
+                                if percentage_operation == 'increase':
+                                    calculated_value = current_value + percentage_change
+                                    calculation_description = f"Increased {current_value} by {percentage_value}% ({percentage_change:.2f})"
+                                elif percentage_operation == 'decrease':
+                                    calculated_value = current_value - percentage_change
+                                    calculation_description = f"Decreased {current_value} by {percentage_value}% ({percentage_change:.2f})"
+                                elif percentage_operation == 'set':
+                                    calculated_value = (percentage_value / 100.0) * current_value
+                                    calculation_description = f"Set to {percentage_value}% of current value ({current_value})"
+                                
+                                # Round to 2 decimal places
+                                calculated_value = round(calculated_value, 2)
+                                
+                            except (ValueError, TypeError) as e:
+                                print(f"DEBUG: Error in absolute percentage calculation: {e}")
+                    
+                    elif percentage_type == 'relative':
+                        # Relative percentage changes (X% of Y)
+                        # First, get the reference value
+                        reference_value = None
+                        try:
+                            # Check if we have a reference location (for "twice that of X" patterns)
+                            reference_location = modification_data.get('reference_location')
+                            if reference_location:
+                                # For location-based references, query the same column but for the reference location
+                                quoted_ref_column = quote_identifier(column)  # Use the same column being modified
+                                ref_sql = f"SELECT {quoted_ref_column} FROM {quoted_table} WHERE Location = '{reference_location}'"
+                                print(f"DEBUG: Reference query (location-based): {ref_sql}")
+                            else:
+                                # For column-based references, use the reference column
+                                quoted_ref_column = quote_identifier(reference_column)
+                                
+                                if where_condition and 'formatted_where' in locals():
+                                    ref_sql = f"SELECT {quoted_ref_column} FROM {quoted_table} WHERE {formatted_where}"
+                                elif where_condition:
+                                    where_parts = where_condition.split('=', 1)
+                                    if len(where_parts) == 2:
+                                        left_part = where_parts[0].strip()
+                                        right_part = where_parts[1].strip()
+                                        quoted_left = quote_identifier(left_part)
+                                        ref_sql = f"SELECT {quoted_ref_column} FROM {quoted_table} WHERE {quoted_left} = {right_part}"
+                                    else:
+                                        ref_sql = f"SELECT {quoted_ref_column} FROM {quoted_table} WHERE {where_condition}"
+                                else:
+                                    ref_sql = f"SELECT {quoted_ref_column} FROM {quoted_table}"
+                                
+                                print(f"DEBUG: Reference query (column-based): {ref_sql}")
+                            
+                            cursor.execute(ref_sql)
+                            ref_results = cursor.fetchall()
+                            
+                            if ref_results:
+                                reference_value = float(ref_results[0][0])
+                            
+                        except Exception as e:
+                            print(f"DEBUG: Error getting reference value for {reference_column}: {e}")
+                            # Try to find reference in same row if it's a different column
+                            try:
+                                if where_condition and 'formatted_where' in locals():
+                                    ref_sql = f"SELECT {quoted_ref_column} FROM {quoted_table} WHERE {formatted_where}"
+                                    cursor.execute(ref_sql)
+                                    ref_results = cursor.fetchall()
+                                    if ref_results:
+                                        reference_value = float(ref_results[0][0])
+                            except:
+                                pass
+                        
+                        if reference_value is not None:
+                            percentage_amount = (percentage_value / 100.0) * reference_value
+                            
+                            # Handle location-based vs column-based references in description
+                            reference_location = modification_data.get('reference_location')
+                            if reference_location:
+                                reference_desc = f"{column} of {reference_location}"
+                            else:
+                                reference_desc = reference_column
+                            
+                            if percentage_operation == 'set':
+                                calculated_value = percentage_amount
+                                calculation_description = f"Set to {percentage_value}% of {reference_desc} ({reference_value}) = {percentage_amount:.2f}"
+                            elif percentage_operation == 'increase':
+                                if old_values and old_values[0] not in ["Could not retrieve:", "unknown"]:
+                                    current_value = float(old_values[0])
+                                    calculated_value = current_value + percentage_amount
+                                    calculation_description = f"Increased {current_value} by {percentage_value}% of {reference_desc} ({reference_value}) = +{percentage_amount:.2f}"
+                            elif percentage_operation == 'decrease':
+                                if old_values and old_values[0] not in ["Could not retrieve:", "unknown"]:
+                                    current_value = float(old_values[0])
+                                    calculated_value = current_value - percentage_amount
+                                    calculation_description = f"Decreased {current_value} by {percentage_value}% of {reference_desc} ({reference_value}) = -{percentage_amount:.2f}"
+                            
+                            # Round to 2 decimal places
+                            if calculated_value is not None:
+                                calculated_value = round(calculated_value, 2)
+                    
+                    # Update new_value if calculation was successful
+                    if calculated_value is not None:
+                        # Additional validation for the calculated result
+                        if calculated_value < 0 and percentage_operation == 'decrease':
+                            print(f"DEBUG: Warning - percentage decrease resulted in negative value: {calculated_value}")
+                        
+                        new_value = str(calculated_value)
+                        percentage_calculation_performed = True
+                        print(f"DEBUG: Percentage calculation: {calculation_description} → {calculated_value}")
+                    else:
+                        error_msg = f"❌ **Percentage calculation failed** - "
+                        if percentage_type == 'absolute' and (not old_values or old_values[0] in ["Could not retrieve:", "unknown"]):
+                            error_msg += "Could not retrieve current value for percentage calculation."
+                        elif percentage_type == 'relative' and not reference_column:
+                            error_msg += "Reference column not specified for relative percentage calculation."
+                        else:
+                            error_msg += "Could not determine required values for percentage calculation."
+                        
+                        print(f"DEBUG: Percentage calculation failed - could not determine values")
+                        # Return early with error message for percentage calculation failures
+                        return {
+                            **state,
+                            "db_modification_result": {
+                                "success": False,
+                                "error": "Percentage calculation failed"
+                            },
+                            "messages": state["messages"] + [AIMessage(content=error_msg)]
+                        }
+                        
+                except Exception as e:
+                    error_msg = f"❌ **Percentage calculation error:** {str(e)}\n\n"
+                    error_msg += "Please check that:\n"
+                    error_msg += "• The current value can be retrieved from the database\n"
+                    error_msg += "• For relative percentages, the reference column exists\n"
+                    error_msg += "• The percentage value is valid\n"
+                    print(f"DEBUG: Error in percentage calculation: {e}")
+                    return {
+                        **state,
+                        "db_modification_result": {
+                            "success": False,
+                            "error": f"Percentage calculation error: {str(e)}"
+                        },
+                        "messages": state["messages"] + [AIMessage(content=error_msg)]
+                    }
+            
+            print(f"DEBUG: Final new_value after percentage calculation: {new_value} (was: {original_new_value})")
+            
             # Generate SQL UPDATE statement with proper quoting
             try:
                 # Clean and validate the new value
@@ -2874,11 +3391,33 @@ DESCRIPTION: [brief description of the change]"""
             change_summary = "🔧 **DATABASE MODIFICATION COMPLETED**\n\n"
             change_summary += f"📊 **Table:** `{table}`\n"
             change_summary += f"📝 **Column:** `{column}`\n"
+            
+            # Add percentage calculation details if applicable
+            if percentage_calculation_performed:
+                change_summary += f"🧮 **Calculation Type:** Percentage-based modification\n"
+                if percentage_type == 'absolute':
+                    operation_desc = f"{percentage_operation.title()} by {percentage_value}%"
+                elif percentage_type == 'relative':
+                    operation_desc = f"{percentage_operation.title()} by {percentage_value}% of {reference_column}"
+                change_summary += f"📈 **Operation:** {operation_desc}\n"
+                change_summary += f"💡 **Calculation:** {calculation_description}\n"
+            
             change_summary += f"🔄 **Change:**\n"
             
             if len(old_values) == 1 and len(new_values) == 1:
                 change_summary += f"   - **Before:** {old_values[0]}\n"
                 change_summary += f"   - **After:** {new_values[0]}\n"
+                
+                # Add percentage change summary if it was a percentage calculation
+                if percentage_calculation_performed and len(old_values) == 1:
+                    try:
+                        old_val = float(old_values[0])
+                        new_val = float(new_values[0])
+                        actual_change = new_val - old_val
+                        actual_percentage = (actual_change / old_val) * 100 if old_val != 0 else 0
+                        change_summary += f"   - **Net Change:** {actual_change:+.2f} ({actual_percentage:+.2f}%)\n"
+                    except (ValueError, TypeError):
+                        pass
             else:
                 change_summary += f"   - **Rows affected:** {rows_affected}\n"
                 change_summary += f"   - **Old values:** {', '.join(old_values[:5])}{'...' if len(old_values) > 5 else ''}\n"
@@ -2918,6 +3457,10 @@ DESCRIPTION: [brief description of the change]"""
             print(f"Column: {column}")
             print(f"Old value(s): {old_values}")
             print(f"New value: {new_value}")
+            if percentage_calculation_performed:
+                print(f"Percentage calculation: {calculation_description}")
+                print(f"Original requested value: {original_new_value}")
+                print(f"Calculated value: {new_value}")
             print(f"Rows affected: {rows_affected}")
             print(f"SQL: {sql}")
             if parameter_validation:
@@ -2936,7 +3479,13 @@ DESCRIPTION: [brief description of the change]"""
                     "column": column,
                     "old_values": old_values,
                     "new_value": new_value,
-                    "parameter_validation": parameter_validation
+                    "parameter_validation": parameter_validation,
+                    "percentage_calculation_performed": percentage_calculation_performed,
+                    "percentage_type": percentage_type if percentage_calculation_performed else None,
+                    "percentage_operation": percentage_operation if percentage_calculation_performed else None,
+                    "percentage_value": percentage_value if percentage_calculation_performed else None,
+                    "calculation_description": calculation_description if percentage_calculation_performed else None,
+                    "original_requested_value": original_new_value if percentage_calculation_performed else None
                 },
                 "messages": state["messages"] + [AIMessage(content=change_summary)]
             }

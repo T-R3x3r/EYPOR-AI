@@ -1439,6 +1439,18 @@ async def update_database_whitelist(request: WhitelistRequest):
         
         print(f"DEBUG: Updated table whitelist: {table_whitelist}")
         
+        # Refresh the agent's schema to apply the new whitelist
+        try:
+            agent = get_or_create_agent()
+            if hasattr(agent, 'refresh_schema_whitelist'):
+                agent.refresh_schema_whitelist()
+                print(f"DEBUG: Agent schema refreshed with new whitelist")
+            else:
+                print(f"DEBUG: Agent does not support schema refresh")
+        except Exception as e:
+            print(f"DEBUG: Error refreshing agent schema: {e}")
+            # Don't fail the whitelist update if schema refresh fails
+        
         return {
             "message": "Table whitelist updated successfully",
             "whitelist": list(table_whitelist),
