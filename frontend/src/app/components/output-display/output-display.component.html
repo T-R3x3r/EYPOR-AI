@@ -46,6 +46,13 @@
                     {{ file.isVisible ? 'Hide' : 'View' }}
                   </button>
                   
+                  <!-- View button for plotly charts -->
+                  <button *ngIf="file.type === 'plotly-html'" 
+                          class="action-btn view-btn chart-btn" 
+                          (click)="togglePlotlyVisibility(file)">
+                    {{ file.isVisible ? 'Hide Chart' : 'View Chart' }}
+                  </button>
+                  
                   <!-- Download link -->
                   <a [href]="getFileDownloadUrl(file)" 
                      target="_blank" 
@@ -77,7 +84,26 @@
                 </div>
               </div>
               
-              <!-- Display HTML files -->
+              <!-- Display Plotly charts -->
+              <div *ngIf="file.type === 'plotly-html' && file.isVisible" class="plotly-preview">
+                <div *ngIf="!file.plotlyContent && !file.error" class="chart-loading">
+                  <p><i class="fas fa-spinner fa-spin"></i> Loading interactive chart...</p>
+                </div>
+                
+                <app-plotly-chart 
+                  *ngIf="file.plotlyContent"
+                  [htmlContent]="file.plotlyContent"
+                  [fileName]="file.filename"
+                  width="100%"
+                  height="500px">
+                </app-plotly-chart>
+                
+                <div *ngIf="file.error" class="chart-error">
+                  <p>{{ file.error }}</p>
+                </div>
+              </div>
+              
+              <!-- Display regular HTML files -->
               <div *ngIf="file.type === 'html'" class="html-preview">
                 <iframe [src]="getFileDownloadUrl(file) | safe" 
                         [title]="file.filename" 

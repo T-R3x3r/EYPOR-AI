@@ -181,6 +181,7 @@ class CodeExecutorAgent:
         if self.agent_type == "data_analyst":
             # Core workflow nodes
             workflow.add_node("analyze_request", self._analyze_data_request)
+            workflow.add_node("create_visualization", self._create_visualization_node)
             workflow.add_node("execute_sql_query", self._execute_sql_query_node)
             workflow.add_node("prepare_db_modification", self._prepare_db_modification_node)
             workflow.add_node("execute_db_modification", self._execute_db_modification_node)
@@ -197,7 +198,7 @@ class CodeExecutorAgent:
                 self._route_data_request,
                 {
                     "sql_query": "execute_sql_query",
-                    "visualization": "execute_file",
+                    "visualization": "create_visualization",
                     "db_modification": "prepare_db_modification",
                     "respond": "respond"
                 }
@@ -205,6 +206,9 @@ class CodeExecutorAgent:
             
             # SQL query path - now creates and executes a Python file
             workflow.add_edge("execute_sql_query", "execute_file")
+            
+            # Visualization path - creates visualization file then executes it
+            workflow.add_edge("create_visualization", "execute_file")
             
             # Database modification path - direct execution without approval
             workflow.add_edge("prepare_db_modification", "execute_db_modification")
@@ -676,11 +680,23 @@ The query completed successfully. Here are the raw results from your database.""
     def _get_cached_database_schema(self) -> Dict[str, any]:
         """Get cached database schema (filtered by whitelist)"""
         return self.cached_database_schema
+    
+    def _get_full_database_schema(self) -> Dict[str, any]:
+        """Get full database schema (unfiltered) for queries and visualizations"""
+        return self.cached_full_schema if hasattr(self, 'cached_full_schema') else self.cached_database_schema
 
 
 
     def _code_fixer_node(self, state: AgentState) -> AgentState:
         """Intelligent code fixer agent - analyzes and fixes execution errors"""
+        # Check retry count - stop if max retries reached
+        retry_count = state.get("retry_count", 0)
+        if retry_count >= 1:  # Max retries reached
+            return {
+                **state, 
+                "messages": state["messages"] + [AIMessage(content=f"❌ Max retries ({retry_count}) reached. Giving up on fixing this code.")]
+            }
+        
         # Get the current file that had errors
         current_file = state.get("current_file", "")
         if not current_file or current_file not in state["files"]:
@@ -689,8 +705,17 @@ The query completed successfully. Here are the raw results from your database.""
         # Read the current file content
         file_path = state["files"][current_file]
         try:
-            with open(file_path, 'r') as f:
-                file_content = f.read()
+            # Try UTF-8 first, then fallback to other encodings
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
+            except UnicodeDecodeError:
+                try:
+                    with open(file_path, 'r', encoding='latin-1') as f:
+                        file_content = f.read()
+                except UnicodeDecodeError:
+                    with open(file_path, 'r', encoding='cp1252') as f:
+                        file_content = f.read()
         except Exception as e:
             return {**state, "messages": state["messages"] + [AIMessage(content=f"❌ Could not read file: {str(e)}")]}
         
@@ -717,10 +742,14 @@ The query completed successfully. Here are the raw results from your database.""
         
         COMMON FIXES NEEDED:
         1. **NameError: name 'python' is not defined** → Remove any standalone "python" lines (markdown artifacts)
-        2. **DatabaseError: no such column** → Check database schema and use correct column names
-        3. **SyntaxError** → Fix Python syntax issues
-        4. **ImportError** → Add missing imports
-        5. **FileNotFoundError** → Fix file path issues
+        2. **NameError: name 'query' is not defined** → Remove references to undefined 'query' variable, use hardcoded table name
+        3. **NameError: name 'col' is not defined** → Fix variable scope issues in loops
+        4. **NameError: name 'e' is not defined** → Remove orphaned exception print statements outside try/except blocks
+        5. **DatabaseError: no such column** → Check database schema and use correct column names
+        6. **SyntaxError** → Fix Python syntax issues
+        7. **ImportError** → Add missing imports
+        8. **FileNotFoundError** → Fix file path issues
+        9. **ensure_numeric_columns not defined** → Add the function definition or remove the call
         
         DATABASE SCHEMA CONTEXT:
         {self._build_schema_context(self.cached_database_schema) if self.cached_database_schema else "No schema available"}
@@ -731,6 +760,9 @@ The query completed successfully. Here are the raw results from your database.""
         - If there are missing imports, add them
         - If there are database column errors, check the schema and use correct column names
         - If you see standalone "python" lines, remove them (they're markdown artifacts)
+        - For visualization errors: ensure ensure_numeric_columns function is defined if called
+        - For NameError with 'query': replace with hardcoded table name like 'inputs_destinations'
+        - For NameError with 'col' or 'e': fix variable scope issues or remove orphaned statements
         - Provide the complete fixed code, not just explanations
         
         Respond with either FIX_AND_EXECUTE: or MAJOR_FIX_NEEDED: followed by the filename and complete fixed code.
@@ -811,15 +843,8 @@ The query completed successfully. Here are the raw results from your database.""
                 # Increment retry count
                 new_retry_count = state.get("retry_count", 0) + 1
                 
-                # Create appropriate message based on fix type
-                if fix_type == "simple":
-                    success_message = f"🔧 Quick fix applied to {filename} (attempt {new_retry_count})"
-                elif fix_type == "major":
-                    success_message = f"🛠️ Major fix applied to {filename} (attempt {new_retry_count}) - please review output"
-                else:
-                    success_message = f"🔧 Fixed {filename} (attempt {new_retry_count})"
-                
-                new_messages = state["messages"] + [AIMessage(content=success_message)]
+                # Add the AI response to messages so the router can see the fix keywords
+                new_messages = state["messages"] + [response]
                 
                 print(f"DEBUG: Code fixer completed successfully: {filename}, fix type: {fix_type}")
                 
@@ -830,8 +855,9 @@ The query completed successfully. Here are the raw results from your database.""
                     "messages": new_messages,
                     "current_file": filename,
                     "retry_count": new_retry_count,
-                    "has_execution_error": False,  # Reset error flag
-                    "last_error_type": ""  # Clear error type
+                    # Keep error flags so execution continues to test the fix
+                    "has_execution_error": True,
+                    "last_error_type": "CodeFixApplied"
                 }
                 
             except Exception as e:
@@ -992,18 +1018,15 @@ The query completed successfully. Here are the raw results from your database.""
             print(f"DEBUG: Execution router - Special error type '{last_error_type}', routing to success")
             return "success"
         
-        # Check for specific error types that should trigger code fixing
+        # Handle code fix applied - continue to execute the fixed code
+        if last_error_type == "CodeFixApplied":
+            print(f"DEBUG: Execution router - Code fix applied, continuing to execute")
+            return "execute"
+        
+        # Always route to code fixer for any execution error (except special cases)
         execution_error = state.get("execution_error", "")
-        if any(error_type in execution_error for error_type in [
-            "NameError: name 'python' is not defined",
-            "no such column",
-            "DatabaseError",
-            "SyntaxError",
-            "ImportError",
-            "ModuleNotFoundError",
-            "FigureCanvasAgg is non-interactive"  # Add common visualization errors
-        ]):
-            print(f"DEBUG: Execution router - Code fixable error detected, routing to retry")
+        if execution_error.strip():  # If there's any error content
+            print(f"DEBUG: Execution router - Error detected, routing to code fixer")
             return "retry"
         
         # Check retry count
@@ -1012,7 +1035,7 @@ The query completed successfully. Here are the raw results from your database.""
             print("DEBUG: Execution router - Max retries reached, routing to error")
             return "error"
         else:
-            print("DEBUG: Execution router - Retry count < 3, routing to retry")
+            print("DEBUG: Execution router - Retry count < 5, routing to retry")
             return "retry"
 
     def _code_fixer_router(self, state: AgentState) -> str:
@@ -1020,8 +1043,13 @@ The query completed successfully. Here are the raw results from your database.""
         # Get the last message content
         last_message = state["messages"][-1].content if state["messages"] else ""
         
+        print(f"DEBUG: Code fixer router - Last message: {last_message[:200]}...")
+        print(f"DEBUG: Code fixer router - Contains FIX_AND_EXECUTE: {'FIX_AND_EXECUTE:' in last_message}")
+        print(f"DEBUG: Code fixer router - Contains MAJOR_FIX_NEEDED: {'MAJOR_FIX_NEEDED:' in last_message}")
+        print(f"DEBUG: Code fixer router - Contains CREATE_FILE: {'CREATE_FILE:' in last_message}")
+        
         # Check for fix commands in the message
-        if "FIX_AND_EXECUTE:" in last_message or "CREATE_FILE:" in last_message:
+        if "FIX_AND_EXECUTE:" in last_message or "MAJOR_FIX_NEEDED:" in last_message or "CREATE_FILE:" in last_message:
             print("DEBUG: Code fixer routing to execute")
             return "execute"
         
@@ -1074,7 +1102,8 @@ The query completed successfully. Here are the raw results from your database.""
         # For data_analyst, if response contains code or data analysis terms, force file creation
         if (self.agent_type == "data_analyst" and 
             ("import " in last_response or "pandas" in last_response or "matplotlib" in last_response or 
-             "plt." in last_response or "DataFrame" in last_response or "```" in last_response)):
+             "plotly" in last_response or "plt." in last_response or "px." in last_response or "go." in last_response or
+             "DataFrame" in last_response or "```" in last_response)):
             print("DEBUG: Data analyst detected code - forcing file creation")
             return "create"
         elif "CREATE_FILE:" in last_response:
@@ -1126,7 +1155,7 @@ The query completed successfully. Here are the raw results from your database.""
         
         # Method 3: If still no code but contains imports, extract raw text
         elif (self.agent_type == "data_analyst" and 
-              ("import " in last_response or "pandas" in last_response)):
+              ("import " in last_response or "pandas" in last_response or "plotly" in last_response)):
             print("DEBUG: Data analyst - extracting raw code from response")
             # Try to extract Python code from the response
             lines = last_response.split('\n')
@@ -1200,15 +1229,17 @@ The query completed successfully. Here are the raw results from your database.""
     
     def _execute_file(self, state: AgentState) -> AgentState:
         """Execute a Python file and determine next action"""
+        print(f"DEBUG: _execute_file called")
+        print(f"DEBUG: Received state keys: {list(state.keys())}")
+        print(f"DEBUG: current_file: {state.get('current_file')}")
+        print(f"DEBUG: created_files: {state.get('created_files')}")
+        print(f"DEBUG: files dict keys: {list(state.get('files', {}).keys())}")
+        
         # Get the current file to execute
         filename = state.get("current_file")
         if not filename:
             filename = state["created_files"][-1] if state["created_files"] else None
         
-        print(f"DEBUG: _execute_file called")
-        print(f"DEBUG: current_file: {state.get('current_file')}")
-        print(f"DEBUG: created_files: {state.get('created_files')}")
-        print(f"DEBUG: files dict keys: {list(state.get('files', {}).keys())}")
         print(f"DEBUG: filename to execute: {filename}")
         
         if not filename or filename not in state["files"]:
@@ -1305,6 +1336,11 @@ The query completed successfully. Here are the raw results from your database.""
             execution_summary = f"✅ Executed: {filename}"
             if output_files:
                 execution_summary += f" → Generated {len(output_files)} file(s)"
+            
+            # Add success message for code fixes
+            if state.get("last_error_type") == "CodeFixApplied":
+                retry_count = state.get("retry_count", 0)
+                execution_summary = f"🔧 Fix successful! {filename} now executes correctly (attempt {retry_count})"
         else:
             retry_count = state.get("retry_count", 0)
             execution_summary = f"❌ Execution failed ({error_type}) - Attempt #{retry_count + 1}"
@@ -1531,7 +1567,31 @@ The query completed successfully. Here are the raw results from your database.""
         
         # Clean up multiple empty lines
         code_content = re.sub(r'\n\s*\n\s*\n', '\n\n', code_content)
-        
+
+         # Inject comprehensive DataFrame cleaning after 'df = pd.read_sql' lines
+        import re
+        lines = code_content.split('\n')
+        new_lines = []
+        for i, line in enumerate(lines):
+            new_lines.append(line)
+            if re.match(r"\s*df\s*=\s*pd\.read_sql", line):
+                new_lines.append("")
+                new_lines.append("# Clean and convert data types for visualization using database schema")
+                new_lines.append("df.columns = df.columns.str.strip()")
+                new_lines.append("")
+                new_lines.append("# Ensure numeric columns are properly converted using database schema")
+                new_lines.append("df = ensure_numeric_columns(df)")
+                new_lines.append("")
+                new_lines.append("# Display data info for debugging")
+                new_lines.append("print('DataFrame info:')")
+                new_lines.append("print(df.info())")
+                new_lines.append("print('\\nData types:')")
+                new_lines.append("print(df.dtypes)")
+                new_lines.append("print('\\nFirst few rows:')")
+                new_lines.append("print(df.head())")
+                new_lines.append("")
+        code_content = '\n'.join(new_lines)        
+
         # Final strip
         return code_content.strip()
 
@@ -2068,62 +2128,404 @@ Analyze the request and respond with exactly one word: SQL_QUERY, VISUALIZATION,
             print(f"Error analyzing request: {e}")
             request_type = "SQL_QUERY"  # Default fallback
 
-        # If this is a visualization request, generate the visualization code directly
+        # If this is a visualization request, just set the request type and continue
         if request_type == "VISUALIZATION":
-            try:
-                # Get the visualization code from the agent
-                response = self.llm.invoke([
-                    HumanMessage(content=f"""You are a data visualization expert. Your task is to analyze the user's request and create Python code to visualize data from the database.
+            return {
+                **state,
+                "request_type": request_type,
+                "messages": state["messages"] + [AIMessage(content="🎨 Request classified as visualization")]
+            }
+        
+        # For non-visualization requests or if visualization creation failed
+        return {
+            **state,
+            "request_type": request_type,
+            "messages": state["messages"] + [AIMessage(content=f"Request classified as: {request_type}")]
+        }
+    
+    def _create_visualization_node(self, state: AgentState) -> AgentState:
+        """Create visualization Python file"""
+        # Get the original user message (not the last message which might be AI classification)
+        user_message = ""
+        for message in reversed(state["messages"]):
+            if isinstance(message, HumanMessage):
+                user_message = message.content
+                break
+        
+        if not user_message:
+            user_message = state["messages"][-1].content if state["messages"] else ""
+        
+        print(f"DEBUG: _create_visualization_node called with original message: {user_message}")
+        
+        # Get database schema context - use FULL schema for visualizations (all tables)
+        schema_context = ""
+        if state.get("database_schema"):
+            schema_context = self._build_schema_context(state["database_schema"])
+        elif self.cached_database_schema:
+            schema_context = self._build_schema_context(self._get_full_database_schema())
+        
+        try:
+            print(f"DEBUG: About to invoke LLM for visualization code generation")
+            
+            # Create a simpler, safer template that avoids complex variable scope issues
+            simple_template = f"""import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
+import sqlite3
+import time
+import numpy as np
+
+# Connect to database
+conn = sqlite3.connect('project_data.db')
+print("Connected to database")
+
+# Get data for top 10 locations by demand
+query = '''
+SELECT Location, Demand 
+FROM inputs_destinations 
+ORDER BY Demand DESC 
+LIMIT 10
+'''
+
+df = pd.read_sql(query, conn)
+conn.close()
+
+# Simple data type conversion without complex loops
+print("Converting data types...")
+try:
+    df['Demand'] = pd.to_numeric(df['Demand'], errors='coerce')
+    print(f"Demand column type: {{df['Demand'].dtype}}")
+except Exception as e:
+    print(f"Error converting Demand column: {{e}}")
+
+print(f"Data shape: {{df.shape}}")
+print(f"Columns: {{df.columns.tolist()}}")
+print("First few rows:")
+print(df.head())
+
+# Create bar chart
+fig = px.bar(df, x='Location', y='Demand', title='Top 10 Locations by Demand')
+
+# Configure appearance
+fig.update_layout(
+    template='plotly_white',
+    font=dict(size=12),
+    margin=dict(l=50, r=50, t=50, b=50),
+    showlegend=True,
+    hovermode='x unified'
+)
+
+# Save as interactive HTML
+filename = 'interactive_chart_' + str(int(time.time())) + '.html'
+fig.write_html(filename, include_plotlyjs=True, config=dict(
+    displayModeBar=True,
+    displaylogo=False,
+    modeBarButtonsToAdd=['downloadImage'],
+    modeBarButtonsToRemove=['sendDataToCloud', 'editInChartStudio'],
+    toImageButtonOptions=dict(
+        format='png',
+        filename='chart',
+        height=800,
+        width=1200,
+        scale=2
+    )
+))
+print('Interactive chart saved as ' + filename)"""
+
+            # Get the visualization code from the agent
+            response = self.llm.invoke([
+                HumanMessage(content=f"""You are a data visualization expert. Your task is to analyze the user's request and create Python code to visualize data from the database using Plotly for interactive charts.
 
 Database Schema:
 {schema_context}
 
-User Request: {last_message}
+User Request: {user_message}
 
 Create Python code that:
 1. Connects to the SQLite database
 2. Retrieves the necessary data using SQL
-3. Creates an appropriate visualization
-4. Saves the output to a file
+3. **IMPORTANT**: Ensures numeric columns are properly converted to numeric types (not strings)
+4. Creates an appropriate interactive visualization using Plotly
+5. Saves the output as an interactive HTML file
+
+**CRITICAL DATA TYPE HANDLING:**
+- Only convert columns that are CLEARLY numeric to numeric types after reading from SQL
+- NEVER convert text/categorical columns like Location, City, Name, Address, etc. - these MUST remain as strings
+- This prevents the issue where bar charts show 0,1,2,3 instead of actual location names
+- Only convert columns with names like: Demand, Cost, Capacity, Supply, Value, Amount, Quantity, Price, etc.
+- Use database schema information when available to determine column types
+- Always preserve text columns to ensure proper visualization
+
+**SELECTIVE NUMERIC CONVERSION FUNCTION:**
+```python
+def ensure_numeric_columns(df):
+    \"\"\"Convert only clearly numeric columns to proper types, preserve text columns\"\"\"
+    print(f"Original DataFrame dtypes: {{df.dtypes.to_dict()}}")
+    print(f"Original DataFrame shape: {{df.shape}}")
+    print(f"Original DataFrame index: {{df.index.tolist()[:5]}}...")  # Show first 5 index values
+    
+    # List of column patterns that should be converted to numeric
+    numeric_patterns = ['DEMAND', 'COST', 'CAPACITY', 'SUPPLY', 'VALUE', 'AMOUNT', 
+                       'QUANTITY', 'NUMBER', 'COUNT', 'TOTAL', 'SUM', 'PRICE', 
+                       'RATE', 'FACTOR', 'WEIGHT', 'DISTANCE', 'SCORE', 'PERCENT']
+    
+    for col in df.columns:
+        print(f"Processing column '{{col}}': current dtype = {{df[col].dtype}}")
+        
+        # Only convert if column name suggests it's numeric
+        if any(pattern in col.upper() for pattern in numeric_patterns):
+            try:
+                original_dtype = df[col].dtype
+                # Check if already numeric
+                if df[col].dtype in ['int64', 'float64', 'int32', 'float32']:
+                    print(f"[OK] Column '{{col}}' already numeric: {{df[col].dtype}}")
+                    print(f"  Sample values: {{df[col].head().tolist()}}")
+                else:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+                    if df[col].dtype != original_dtype:
+                        print(f"[OK] Converted '{{col}}' to numeric: {{df[col].dtype}}")
+                        print(f"  Sample values: {{df[col].head().tolist()}}")
+                    else:
+                        print(f"[OK] '{{col}}' remains as: {{df[col].dtype}}")
+            except Exception as e:
+                print(f"[WARNING] Could not convert '{{col}}': {{e}}")
+        else:
+            print(f"[OK] Preserving text column '{{col}}' as: {{df[col].dtype}}")
+            if df[col].dtype == 'object':
+                print(f"  Sample values: {{df[col].head().tolist()}}")
+    
+    print(f"Final DataFrame dtypes: {{df.dtypes.to_dict()}}")
+    print(f"Final DataFrame shape: {{df.shape}}")
+    
+    # Final validation
+    print("\\nFinal column validation:")
+    for col in df.columns:
+        if df[col].dtype in ['int64', 'float64', 'int32', 'float32']:
+            print(f"[OK] Numeric column '{{col}}': {{df[col].dtype}} - min={{df[col].min()}}, max={{df[col].max()}}")
+        else:
+            print(f"[OK] Text column '{{col}}': {{df[col].dtype}} - {{len(df[col].unique())}} unique values")
+    
+    return df
+```
 
 Basic template to follow:
 ```python
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import sqlite3
 import time
+import numpy as np
 
 # Get data
 conn = sqlite3.connect('project_data.db')
 df = pd.read_sql('YOUR_SQL_QUERY', conn)
 conn.close()
 
-# Create visualization
-plt.figure()
-# Your visualization code here
-plt.savefig(f'output_{int(time.time())}.png')
-plt.close()
+# CRITICAL: Ensure numeric columns are properly converted for visualization using database schema
+# This prevents the issue where bars show 0,1,2,3 instead of actual values
+print("Converting data types for visualization...")
+df = ensure_numeric_columns(df)
+
+# CRITICAL FIX: Reset DataFrame index to prevent Plotly from using row indices as values
+df = df.reset_index(drop=True)
+
+# Display data info for debugging
+print('\\nDataFrame info:')
+print(df.info())
+print('\\nData types:')
+print(df.dtypes)
+print('\\nFirst few rows:')
+print(df.head())
+print('\\nNumeric columns for visualization:')
+numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+print(numeric_cols)
+
+# CRITICAL: Data integrity check before visualization
+print('\\nData integrity check before plotting:')
+for col in df.columns:
+    if df[col].dtype in ['int64', 'float64', 'int32', 'float32']:
+        print(f"Numeric column '{{col}}': min={{df[col].min()}}, max={{df[col].max()}}, dtype={{df[col].dtype}}")
+        print(f"Sample values: {{df[col].head().tolist()}}")
+    else:
+        print(f"Text column '{{col}}': dtype={{df[col].dtype}}")
+        print(f"Sample values: {{df[col].head().tolist()}}")
+
+# Additional data validation for plotting
+print('\\nValidating data before Plotly visualization:')
+print(f"DataFrame shape: {{df.shape}}")
+print(f"DataFrame index: {{df.index.tolist()}}")
+print(f"All columns: {{df.columns.tolist()}}")
+
+# Check for potential visualization issues
+print('\\nChecking for visualization issues:')
+columns_to_check = list(df.columns)
+for col in columns_to_check:
+    if col in ['Demand', 'Cost', 'Capacity', 'Supply', 'Value', 'Amount', 'Quantity', 'Number']:
+        if df[col].dtype == 'object':
+                    print(f"WARNING: Column '{{col}}' is object type (string) - this will cause bar charts to show 0,1,2,3 instead of actual values!")
+        else:
+            print(f"[OK] Column '{{col}}' is properly numeric: {{df[col].dtype}} with values {{df[col].head().tolist()}}")
+    else:
+        print(f"Column '{{col}}' is {{df[col].dtype}} type")
+
+# Create plotly visualization with explicit data validation
+print('\\nCreating Plotly visualization...')
+
+# SAFETY: Create a clean copy of the data for plotting to avoid any reference issues
+plot_df = df.copy()
+print(f"Plot DataFrame shape: {{plot_df.shape}}")
+print(f"Plot DataFrame columns: {{plot_df.columns.tolist()}}")
+
+# Use go.Figure() and go.Bar(), go.Scatter(), go.Pie(), etc. for explicit control
+# Always use .tolist() on DataFrame columns to ensure explicit data extraction
+# Example template:
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    x=plot_df['x_column'].tolist(),
+    y=plot_df['y_column'].tolist(),
+    text=plot_df['y_column'].tolist(),
+    textposition='outside',
+    hovertemplate='<b>%{{x}}</b><br>Value: %{{y:,.0f}}<br><extra></extra>'
+))
+
+print(f"[OK] Chart created successfully with data shape: {{plot_df.shape}}")
+
+# Configure for professional appearance with explicit layout control
+fig.update_layout(
+    template='plotly_white',
+    font=dict(size=12),
+    margin=dict(l=50, r=50, t=50, b=50),
+    showlegend=True,
+    hovermode='closest',  # Changed from 'x unified' for better individual hovering
+    yaxis=dict(range=[0, plot_df['y_column'].max() * 1.1])  # Explicit y-axis range
+)
+
+# Save as interactive HTML with comprehensive export options
+filename = 'interactive_chart_' + str(int(time.time())) + '.html'
+fig.write_html(filename, include_plotlyjs=True, config=dict(
+    displayModeBar=True,
+    displaylogo=False,
+    modeBarButtonsToAdd=[
+        'downloadImage',
+        'pan2d',
+        'select2d',
+        'lasso2d',
+        'resetScale2d',
+        'autoScale2d',
+        'hoverClosestCartesian',
+        'hoverCompareCartesian',
+        'toggleSpikelines'
+    ],
+    modeBarButtonsToRemove=[
+        'sendDataToCloud',
+        'editInChartStudio'
+    ],
+    toImageButtonOptions=dict(
+        format='png',
+        filename='chart',
+        height=800,
+        width=1200,
+        scale=2
+    )
+))
+print('Interactive chart saved as ' + filename)
 ```
+
+CHART TYPE SELECTION:
+- Bar charts: go.Bar() for categorical data (ensure y-axis column is numeric)
+- Line charts: go.Scatter(mode='lines') for time series or trends
+- Scatter plots: go.Scatter(mode='markers') for relationships
+- Pie charts: go.Pie() for parts of whole
+- Histograms: go.Histogram() for distributions
+- Box plots: go.Box() for statistical summaries
+- Heatmaps: go.Heatmap() for correlation matrices
+
+**CRITICAL IMPLEMENTATION RULES:**
+1. Always use .tolist() conversion on DataFrame columns to ensure explicit data extraction
+2. Add hover template: hovertemplate='<b>%{{x}}</b><br>MetricName: %{{y:,.0f}}<br><extra></extra>'
+3. Include text parameter with y-values to display values on bars
+4. Set explicit y-axis range: yaxis=dict(range=[0, df['Column'].max() * 1.1])
+5. Use hovermode='closest' for better individual element hovering
+
+**EXAMPLE TEMPLATES:**
+```python
+# Bar Chart
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    x=df['Category'].tolist(),
+    y=df['Value'].tolist(),
+    text=df['Value'].tolist(),
+    textposition='outside',
+    hovertemplate='<b>%{{x}}</b><br>Value: %{{y:,.0f}}<br><extra></extra>'
+))
+
+# Line Chart
+fig = go.Figure()
+fig.add_trace(go.Scatter(
+    x=df['Time'].tolist(),
+    y=df['Value'].tolist(),
+    mode='lines+markers',
+    hovertemplate='<b>%{{x}}</b><br>Value: %{{y:,.0f}}<br><extra></extra>'
+))
+```
+
+**IMPORTANT**: Always ensure that columns used for y-axis values (like 'Demand', 'Cost', etc.) are converted to numeric types before creating the visualization. The ensure_numeric_columns(df) function is automatically available and should be used after reading data from SQL.
 
 Respond with:
 CREATE_FILE: [filename]
-[complete Python visualization code]""")
-                ])
-                
-                # Generate timestamp for unique filename
-                timestamp = int(time.time())
-                filename = f"visualization_data_{timestamp}.py"
-                
+[complete Python visualization code using Plotly]""")
+            ])
+            
+            # Generate timestamp for unique filename
+            timestamp = int(time.time())
+            filename = f"visualization_data_{timestamp}.py"
+            
+            # Debug: Print the raw response to see what the AI generated
+            print(f"DEBUG: Raw AI response for visualization:")
+            print(response.content[:1000])  # First 1000 chars
+            print("...")
+            
+            # Check if the response contains valid code
+            if "CREATE_FILE:" not in response.content and "```python" not in response.content:
+                print(f"DEBUG: AI response doesn't contain valid code, using fallback template")
+                code_content = simple_template
+            else:
+                print(f"DEBUG: About to clean visualization code")
                 # Clean and enhance the code
-                code_content = self._clean_visualization_code(response.content)
-                
-                # Create the file
-                if state.get("temp_dir") and os.path.exists(state["temp_dir"]):
+                try:
+                    code_content = self._clean_visualization_code(response.content)
+                    print(f"DEBUG: Successfully cleaned visualization code")
+                except Exception as e:
+                    print(f"DEBUG: Error in _clean_visualization_code: {e}")
+                    # Fallback to basic cleaning
+                    code_content = response.content
+                    # Remove markdown artifacts
+                    if "```python" in code_content:
+                        start_idx = code_content.find("```python") + len("```python")
+                        end_idx = code_content.find("```", start_idx)
+                        if end_idx != -1:
+                            code_content = code_content[start_idx:end_idx].strip()
+                    elif "```" in code_content:
+                        start_idx = code_content.find("```") + 3
+                        end_idx = code_content.find("```", start_idx)
+                        if end_idx != -1:
+                            code_content = code_content[start_idx:end_idx].strip()
+            
+            # Debug: Print the cleaned code to see what we're writing
+            print(f"DEBUG: Cleaned visualization code:")
+            print(code_content[:1000])  # First 1000 chars
+            print("...")
+            
+            # Create the file
+            print(f"DEBUG: About to create visualization file: {filename}")
+            if state.get("temp_dir") and os.path.exists(state["temp_dir"]):
+                try:
                     file_path = os.path.join(state["temp_dir"], filename)
+                    print(f"DEBUG: Writing file to: {file_path}")
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(code_content)
+                    print(f"DEBUG: Successfully wrote visualization file")
                     
                     # Add file to the files dictionary for execution
                     files_dict = state.get("files", {})
@@ -2134,19 +2536,35 @@ CREATE_FILE: [filename]
                         "current_file": filename,
                         "created_files": state.get("created_files", []) + [filename],
                         "files": files_dict,
-                        "request_type": request_type,
                         "messages": state["messages"] + [AIMessage(content="🎨 Creating visualization...")]
                     }
-            except Exception as e:
-                print(f"Error creating visualization: {e}")
-                # Fall back to normal request type handling
-        
-        # For non-visualization requests or if visualization creation failed
-        return {
-            **state,
-            "request_type": request_type,
-            "messages": state["messages"] + [AIMessage(content=f"Request classified as: {request_type}")]
-        }
+                except Exception as e:
+                    print(f"DEBUG: Error writing visualization file: {e}")
+                    return {
+                        **state,
+                        "has_execution_error": True,
+                        "last_error_type": "FileWriteError",
+                        "messages": state["messages"] + [AIMessage(content=f"❌ Error writing visualization file: {str(e)}")]
+                    }
+            else:
+                print(f"DEBUG: temp_dir not available or doesn't exist: {state.get('temp_dir')}")
+                return {
+                    **state,
+                    "has_execution_error": True,
+                    "last_error_type": "NoTempDir",
+                    "messages": state["messages"] + [AIMessage(content="❌ No temporary directory available for visualization")]
+                }
+        except Exception as e:
+            print(f"Error creating visualization: {e}")
+            import traceback
+            print(f"DEBUG: Full traceback:")
+            traceback.print_exc()
+            return {
+                **state,
+                "has_execution_error": True,
+                "last_error_type": "VisualizationCreationError",
+                "messages": state["messages"] + [AIMessage(content=f"❌ Error creating visualization: {str(e)}")]
+            }
     
     def _route_data_request(self, state: AgentState) -> str:
         """Route the request based on the analyzed type"""
@@ -2222,12 +2640,12 @@ CREATE_FILE: [filename]
                 "messages": state["messages"] + [AIMessage(content="🔄 SQL query already generated. No new execution needed.")]
             }
         
-        # Get database schema context
+        # Get database schema context - use FULL schema for SQL queries (all tables)
         schema_context = ""
         if state.get("database_schema"):
             schema_context = self._build_schema_context(state["database_schema"])
         elif self.cached_database_schema:
-            schema_context = self._build_schema_context(self.cached_database_schema)
+            schema_context = self._build_schema_context(self._get_full_database_schema())
         
         system_prompt = f"""You are an expert SQL analyst. Generate a SQL query to answer the user's request.
 
@@ -2278,14 +2696,18 @@ EXAMPLES:
 Respond with just the SQL query, no explanations."""
 
         try:
+            print(f"DEBUG: About to invoke LLM for SQL generation")
             response = self.llm.invoke([HumanMessage(content=f"{system_prompt}\n\nUser Question: {user_message}")])
             sql_query = response.content.strip()
+            print(f"DEBUG: Raw SQL response: {sql_query}")
             
             # Clean up the SQL query
             if sql_query.startswith("```sql"):
                 sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
             elif sql_query.startswith("```"):
                 sql_query = sql_query.replace("```", "").strip()
+            
+            print(f"DEBUG: Cleaned SQL query: {sql_query}")
             
             # Create a Python script to execute the SQL query
             import time
@@ -2302,16 +2724,17 @@ Respond with just the SQL query, no explanations."""
             if os.path.exists(file_path):
                 print(f"DEBUG: WARNING - File already exists: {file_path}")
             
-            # Generate Python code to execute the SQL query
+            print(f"DEBUG: About to generate Python code")
+            
+            # Simple Python code template to avoid complex string formatting issues
             python_code = f'''import os
 import time
 import random
 import sqlite3
 import pandas as pd
 import glob
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import plotly.io as pio
 import numpy as np
 
 # Find database file
@@ -2343,44 +2766,69 @@ try:
     else:
         print(f"Query returned {{len(df)}} rows:")
         
-        # Create a matplotlib table
-        fig, ax = plt.subplots(figsize=(min(20, len(df.columns) * 2), min(1 + 0.5 * len(df), 20)))
-        ax.axis('off')
-
-        # Create table
-        table = ax.table(
-            cellText=df.values,
-            colLabels=df.columns,
-            loc='center',
-            cellLoc='left'
+        # Create a plotly table
+        pio.templates.default = "plotly_white"
+        
+        # Create interactive plotly table
+        fig = go.Figure(data=[go.Table(
+            columnwidth=[200] * len(df.columns),
+            header=dict(
+                values=list(df.columns),
+                fill_color='#f2f2f2',
+                align='left',
+                font=dict(color='#000000', size=12, family='Arial'),
+                line_color='#d3d3d3',
+                height=30
+            ),
+            cells=dict(
+                values=[df[col].tolist() for col in df.columns],
+                fill_color='#ffffff',
+                align='left',
+                font=dict(color='#000000', size=11, family='Arial'),
+                line_color='#d3d3d3',
+                height=25
+            )
+        )])
+        
+        # Update layout
+        fig.update_layout(
+            title=dict(
+                text='SQL Query Results',
+                x=0.5,
+                xanchor='center',
+                font=dict(size=16, family='Arial, sans-serif')
+            ),
+            template='plotly_white',
+            font=dict(size=12, family='Arial'),
+            margin=dict(l=20, r=20, t=60, b=20),
+            height=min(800, 100 + len(df) * 30)
         )
 
-        table.auto_set_font_size(False)
-        table.set_fontsize(10)
-        table.auto_set_column_width(col=list(range(len(df.columns))))
-
-        # Set table style
-        for (row, col), cell in table.get_celld().items():
-            if row == 0:
-                cell.set_fontsize(11)
-                cell.set_text_props(weight='bold')
-                cell.set_facecolor('#f2f2f2')
-            cell.set_edgecolor('gray')
-
-        # Save the table as an image
+        # Save as interactive HTML
         timestamp = int(time.time())
         random_id = random.randint(1000, 9999)
-        table_filename = f"sql_results_{{timestamp}}_{{random_id}}.png"
-        plt.tight_layout()
-        plt.savefig(table_filename, dpi=150, bbox_inches='tight', facecolor='white')
-        plt.close()
+        table_filename = f"sql_results_{{timestamp}}_{{random_id}}.html"
+        
+        fig.write_html(table_filename, include_plotlyjs=True, config=dict(
+            displayModeBar=True,
+            displaylogo=False,
+            modeBarButtonsToAdd=['downloadImage'],
+            modeBarButtonsToRemove=['sendDataToCloud', 'editInChartStudio'],
+            toImageButtonOptions=dict(
+                format='png',
+                filename='sql_results_table',
+                height=800,
+                width=1200,
+                scale=2
+            )
+        ))
 
-        print(f"\\nResults table saved as: {{table_filename}}")
+        print(f"\\nInteractive results table saved as: {{table_filename}}")
         print(f"\\nQuery Summary:")
         print(f"- Total rows: {{len(df)}}")
         print(f"- Columns: {{', '.join(df.columns)}}")
         
-        # Show first few rows as text for immediate feedback
+        # Show first few rows
         if len(df) <= 10:
             print(f"\\nAll results:")
             print(df.to_string(index=False))
@@ -2389,10 +2837,10 @@ try:
             print(df.head().to_string(index=False))
             print(f"\\n... and {{len(df) - 5}} more rows")
         
-        # Also save as CSV for data export
-        # csv_filename = f"sql_results_{{timestamp}}_{{random_id}}.csv"
-        # df.to_csv(csv_filename, index=False)
-        # print(f"\\nData also saved as CSV: {{csv_filename}}")
+        # Save as CSV
+        csv_filename = f"sql_results_{{timestamp}}_{{random_id}}.csv"
+        df.to_csv(csv_filename, index=False)
+        print(f"\\nData also saved as CSV: {{csv_filename}}")
     
 except Exception as e:
     print(f"Error executing query: {{str(e)}}")
@@ -2402,9 +2850,13 @@ finally:
     print("\\nDatabase connection closed.")
 '''
             
+            print(f"DEBUG: Python code generated successfully")
+            
             # Write the Python file
+            print(f"DEBUG: About to write file: {file_path}")
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(python_code)
+            print(f"DEBUG: File written successfully")
             
             # Add file to state
             files_dict = state.get("files", {})
@@ -2414,7 +2866,7 @@ finally:
             print(f"DEBUG: Final created_files will be: [filename]")
             print(f"DEBUG: Final files dict will have keys: {list(files_dict.keys())}")
             
-            return {
+            updated_state = {
                 **state,
                 "current_file": filename,
                 "created_files": [filename],  # Only this file, not appended
@@ -2422,6 +2874,12 @@ finally:
                 "sql_query_result": sql_query,
                 "messages": state["messages"] + [AIMessage(content=f"📊Created SQL query script: {filename}")]
             }
+            
+            print(f"DEBUG: Returning state with current_file: {updated_state.get('current_file')}")
+            print(f"DEBUG: Returning state with created_files: {updated_state.get('created_files')}")
+            print(f"DEBUG: Returning state with files keys: {list(updated_state.get('files', {}).keys())}")
+            
+            return updated_state
                 
         except Exception as e:
             error_message = f"Error generating SQL query: {str(e)}"
@@ -3849,7 +4307,7 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
 
 
     def _clean_visualization_code(self, code_content: str) -> str:
-        """Enhanced cleaning for visualization code to remove all markdown artifacts and fix indentation"""
+        """Enhanced cleaning for plotly visualization code to remove all markdown artifacts and fix indentation"""
         import re
         
         # First, extract only the actual Python code if there's markdown text
@@ -3928,22 +4386,24 @@ import time
 import datetime
 import random
 import sqlite3
-import matplotlib
-matplotlib.use('Agg')  # Use non-GUI backend
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
 import numpy as np'''
         
         # Remove any existing imports
         code_lines = code_content.split('\n')
-        non_import_lines = [line for line in code_lines if not line.strip().startswith('import') and not line.strip().startswith('matplotlib.use')]
+        non_import_lines = [line for line in code_lines if not line.strip().startswith('import') and not line.strip().startswith('matplotlib.use') and not line.strip().startswith('pio.')]
         
         # Combine required imports with cleaned code
         code_content = required_imports + '\n\n' + '\n'.join(non_import_lines)
         
-        # Add standard database connection if not present
+        # Add standard database connection and plotly configuration if not present
         db_connection = '''
+# Set plotly configuration for interactive charts
+pio.templates.default = "plotly_white"
+
 # Connect to the database
 conn = sqlite3.connect('project_data.db')
 print("Connected to database: project_data.db")
@@ -3952,28 +4412,234 @@ print("Connected to database: project_data.db")
 cursor = conn.cursor()
 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
 tables = [row[0] for row in cursor.fetchall()]
-print(f"Available tables: {tables}")'''
+print(f"Available tables: {tables}")
+
+# IMPORTANT: After reading data with pd.read_sql, ensure numeric columns are properly converted
+# This prevents the issue where bars show 0,1,2,3 instead of actual values
+def ensure_numeric_columns(df, table_name=None):
+    """Convert numeric columns to proper numeric types for visualization using database schema"""
+    try:
+        if df is None or not hasattr(df, 'columns'):
+            return df
         
-        if 'sqlite3.connect' not in code_content:
-            # Find the first non-import, non-empty line
-            lines = code_content.split('\n')
-            insert_idx = 0
-            for i, line in enumerate(lines):
-                if line.strip() and not line.strip().startswith(('import', 'matplotlib.use', '#')):
-                    insert_idx = i
-                    break
+                 print(f"Starting column type conversion for table: {table_name}")
+         print(f"Original DataFrame columns: {list(df.columns)}")
+         print(f"Original DataFrame dtypes: {df.dtypes.to_dict()}")
+         
+         # Get column types from database schema - always try to get schema info
+         column_types = {}
+         tables_to_check = []
+         
+         # If table_name is provided, use it; otherwise try to infer from DataFrame columns
+         if table_name:
+             tables_to_check.append(table_name)
+         else:
+             # Try to infer table name from common patterns in the DataFrame
+             # This is useful when the system automatically chooses a table
+             try:
+                 conn = sqlite3.connect('project_data.db')
+                 cursor = conn.cursor()
+                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                 all_tables = [row[0] for row in cursor.fetchall()]
+                 conn.close()
+                 
+                 # Look for tables that might contain our columns
+                 for table in all_tables:
+                     try:
+                         conn = sqlite3.connect('project_data.db')
+                         cursor = conn.cursor()
+                         cursor.execute(f"PRAGMA table_info({table})")
+                         table_info = cursor.fetchall()
+                         conn.close()
+                         
+                         table_columns = [col[1] for col in table_info]
+                         # Check if this table contains our DataFrame columns
+                         if all(col in table_columns for col in df.columns):
+                             tables_to_check.append(table)
+                             print(f"Found matching table '{table}' for columns: {list(df.columns)}")
+                             break
+                     except Exception:
+                         continue
+             except Exception as e:
+                 print(f"Warning: Could not get table list: {e}")
+         
+         # Get schema info for the identified table(s)
+         for table in tables_to_check:
+             try:
+                 conn = sqlite3.connect('project_data.db')
+                 cursor = conn.cursor()
+                 cursor.execute(f"PRAGMA table_info({table})")
+                 table_info = cursor.fetchall()
+                 conn.close()
+                 
+                 # Extract column names and types
+                 for col_info in table_info:
+                     col_name = col_info[1]  # Column name
+                     col_type = col_info[2].upper()  # Column type
+                     column_types[col_name] = col_type
+                 print(f"Database schema for {table}: {column_types}")
+                 break  # Use the first matching table
+             except Exception as e:
+                 print(f"Warning: Could not get schema info for table {table}: {e}")
+         
+         if not column_types:
+             print("No database schema found - will use fallback logic for column types")
+         
+         # Only convert columns that are CLEARLY numeric based on database schema or name patterns
+         for col in df.columns:
+             should_convert = False
+             
+             # Check database schema first (most reliable)
+             if col in column_types:
+                 col_type = column_types[col]
+                 # Only convert if explicitly marked as numeric in database
+                 if col_type in ['INTEGER', 'REAL', 'NUMERIC', 'DECIMAL', 'DOUBLE', 'FLOAT']:
+                     should_convert = True
+                     print(f"Converting column '{col}' based on database schema: {col_type}")
+                 else:
+                     print(f"Preserving text column '{col}' (database type: {col_type})")
+             else:
+                 # Fallback: Only convert columns with clearly numeric names
+                 numeric_indicators = ['DEMAND', 'COST', 'CAPACITY', 'SUPPLY', 'VALUE', 'AMOUNT', 'QUANTITY', 'NUMBER', 'COUNT', 'TOTAL', 'SUM', 'AVERAGE', 'AVG', 'MIN', 'MAX', 'PRICE', 'RATE', 'FACTOR', 'WEIGHT', 'DISTANCE', 'TIME', 'DURATION', 'SCORE', 'PERCENT', 'RATIO', 'SIZE', 'LENGTH', 'WIDTH', 'HEIGHT', 'AREA', 'VOLUME']
+                 if any(indicator in col.upper() for indicator in numeric_indicators):
+                     should_convert = True
+                     print(f"Converting column '{col}' based on name pattern (likely numeric)")
+                 else:
+                     print(f"Preserving column '{col}' as text (no clear numeric indicators)")
+             
+             # Only convert if we determined it should be numeric
+             if should_convert:
+                 try:
+                     # Try to convert to numeric, keep as string if it fails
+                     original_dtype = df[col].dtype
+                     df[col] = pd.to_numeric(df[col], errors='coerce')
+                     
+                     # Check if conversion was successful
+                     if df[col].dtype != original_dtype:
+                         # If successful and all values are integers, convert to int
+                         if df[col].notna().all() and all(float(x).is_integer() for x in df[col].dropna()):
+                             df[col] = df[col].astype('Int64')
+                         print(f"Successfully converted column '{col}' to numeric type: {df[col].dtype}")
+                     else:
+                         print(f"Column '{col}' conversion failed or not needed, keeping as: {df[col].dtype}")
+                 except Exception as e:
+                     print(f'Could not convert column {col} to numeric: {e}')
+                     # Keep original data type if conversion fails
+                     pass
+         
+         print(f"Final DataFrame dtypes: {df.dtypes.to_dict()}")
+         return df
+          except Exception as e:
+         print(f'Error in ensure_numeric_columns: {e}')
+         return df
+'''
+        # Insert after imports
+        lines = code_content.split('\n')
+        import_end = 0
+        for i, line in enumerate(lines):
+            if line.strip().startswith(('import ', 'from ', '#')):
+                import_end = i + 1
+            elif line.strip() and not line.strip().startswith(('import ', 'from ', '#')):
+                break
+        lines.insert(import_end, ensure_numeric_columns_def)
+        code_content = '\n'.join(lines)
+
+        # Remove duplicate manual conversion blocks if both exist
+        if 'ensure_numeric_columns(df)' in code_content:
+            # Remove any manual conversion loop after pd.read_sql or in the script
+            import re
+            # Remove the block: for col in columns_to_convert: ... (the manual loop)
+            code_content = re.sub(
+                r'columns_to_convert\s*=\s*list\(df\.columns\)\nfor col in columns_to_convert:[\s\S]+?except Exception as e:[\s\S]+?pass',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
             
-            # Insert the database connection code
-            lines.insert(insert_idx, db_connection)
-            code_content = '\n'.join(lines)
+            # Remove redundant conversion blocks that convert all columns
+            code_content = re.sub(
+                r'# Convert numeric columns to proper numeric types\ncolumns_to_convert\s*=\s*list\(df\.columns\)\nfor col in columns_to_convert:[\s\S]+?pass\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
+            
+            # Remove the initial conversion that converts ALL columns (this is the main culprit)
+            code_content = re.sub(
+                r'# Clean and convert data types for visualization\ndf\.columns\s*=\s*df\.columns\.str\.strip\(\)\n\n# Convert numeric columns to proper numeric types\ncolumns_to_convert\s*=\s*list\(df\.columns\)\nfor col in columns_to_convert:[\s\S]+?pass\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
+            
+            # Remove the SAFETY block that does redundant conversion
+            code_content = re.sub(
+                r'# SAFETY: Ensure all variables are properly defined for data conversion\ntry:\s*# Convert numeric columns safely[\s\S]+?except Exception as e:\s*print\(f\'Error during data type conversion: \{e\}\'\)\s*# Continue with original data types\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
+            
+            # Remove duplicate "Converting data types for visualization" blocks
+            code_content = re.sub(
+                r'# CRITICAL: Ensure numeric columns are properly converted for visualization\nprint\("Converting data types for visualization\.\.\."\)\ncolumns_to_convert\s*=\s*\[\'Demand\'\]\nfor col in columns_to_convert:[\s\S]+?print\(f"Column \'{col}\' converted to: \{df\[col\]\.dtype\}"\)\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
+            
+            # Remove redundant data display blocks
+            code_content = re.sub(
+                r'# Display data info for debugging\nprint\(\'DataFrame info:\'\)\nprint\(df\.info\(\)\)\nprint\(\'\\nData types:\'\)\nprint\(df\.dtypes\)\nprint\(\'\\nFirst few rows:\'\)\nprint\(df\.head\(\)\)\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
+            
+            # Remove the data file search block that's not needed
+            code_content = re.sub(
+                r'# Find data files recursively in all directories\n[\s\S]+?print\(f"Found data files: \{data_files\}"\)\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
+            
+            # Remove the simple ensure_numeric_columns function that doesn't use schema
+            code_content = re.sub(
+                r'def ensure_numeric_columns\(df, table_name\):\s*# Assuming the schema is known[\s\S]+?return df\n',
+                '',
+                code_content,
+                flags=re.MULTILINE
+            )
         
-        # Ensure proper cleanup at the end
-        if 'conn.close()' not in code_content:
-            code_content += '\n\n# Close database connection\nconn.close()'
+        # Remove orphaned print statements that reference undefined variables
+        # Remove lines like: print(f'Could not convert column {col} to numeric: {e}')
+        # when they appear outside of exception handlers
+        lines = code_content.split('\n')
+        cleaned_lines = []
+        in_exception_handler = False
         
-        # Clean up multiple empty lines
-        code_content = re.sub(r'\n\s*\n\s*\n', '\n\n', code_content)
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('try:'):
+                in_exception_handler = True
+            elif stripped.startswith('except') and ':' in stripped:
+                in_exception_handler = True
+            elif stripped.startswith('finally:') or (stripped and not stripped.startswith((' ', '\t', '#')) and not in_exception_handler):
+                in_exception_handler = False
+            
+            # Skip orphaned print statements that reference undefined variables
+            if (not in_exception_handler and 
+                stripped.startswith('print(') and 
+                ('{col}' in stripped or '{e}' in stripped) and
+                'Could not convert column' in stripped):
+                continue
+            
+            cleaned_lines.append(line)
         
+        code_content = '\n'.join(cleaned_lines)
+        # --- END PATCH ---
+
         # Final strip
         return code_content.strip()
 

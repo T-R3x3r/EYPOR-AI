@@ -33,6 +33,7 @@ import { FileUploadComponent } from './components/file-upload/file-upload.compon
 import { OutputDisplayComponent } from './components/output-display/output-display.component';
 import { SqlQueryComponent } from './components/sql-query/sql-query.component';
 import { ModelRerunDialogComponent } from './components/model-rerun-dialog/model-rerun-dialog.component';
+import { PlotlyChartComponent } from './components/plotly-chart/plotly-chart.component';
 import { SafePipe } from './pipes/safe.pipe';
 
 @NgModule({
@@ -45,6 +46,7 @@ import { SafePipe } from './pipes/safe.pipe';
     OutputDisplayComponent,
     SqlQueryComponent,
     ModelRerunDialogComponent,
+    PlotlyChartComponent,
     SafePipe
   ],
   imports: [

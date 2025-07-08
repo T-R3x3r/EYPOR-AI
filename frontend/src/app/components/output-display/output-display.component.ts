@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
 import { ExecutionService, ExecutionResult } from '../../services/execution.service';
 import { Subscription } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 
 interface OutputFile {
   filename: string;
@@ -10,6 +11,7 @@ interface OutputFile {
   isVisible?: boolean;
   timestamp: number;
   error?: string;
+  plotlyContent?: string; // Add field for plotly HTML content
 }
 
 interface LocalExecutionResult {
@@ -40,7 +42,10 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
   private lastScrollHeight = 0;
   private resizing: { index: number; startY: number; startHeight: number } | null = null;
 
-  constructor(private executionService: ExecutionService) {}
+  constructor(
+    private executionService: ExecutionService,
+    private http: HttpClient
+  ) {}
 
   ngOnInit() {
     this.subscription.add(
@@ -172,7 +177,6 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
   }
 
   private processOutputFiles(files: any[]): OutputFile[] {
-    console.log('DEBUG: Processing output files:', files);
     
     // Process all files first to ensure they have timestamps
     const processedFiles = files.map(file => {
@@ -219,7 +223,11 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
       }, group[0]); // Provide initial value to ensure type safety
     });
 
-    console.log('DEBUG: Latest files selected:', latestFiles);
+    // Auto-load plotly content for plotly-html files
+    latestFiles.forEach(file => {
+      this.autoLoadPlotlyContent(file);
+    });
+
     return latestFiles;
   }
 
@@ -237,17 +245,47 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     return filename.replace(/_\d{10}_\d+/, '');
   }
 
+  private fileTypeCache = new Map<string, string>();
+
   private getFileType(filename: string): string {
-    console.log('DEBUG: Getting file type for:', filename);
+    // Check cache first to avoid repeated calculations
+    if (this.fileTypeCache.has(filename)) {
+      return this.fileTypeCache.get(filename)!;
+    }
+
     const extension = filename.toLowerCase().split('.').pop() || '';
-    const type = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg'].includes(extension) ? 'image' :
-                ['html', 'htm'].includes(extension) ? 'html' : 'file';
-    console.log('DEBUG: File type determined:', type);
+    let type: string;
+    
+    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg'].includes(extension)) {
+      type = 'image';
+    } else if (['html', 'htm'].includes(extension)) {
+      // Check if it's a plotly chart based on filename patterns
+      if (filename.toLowerCase().includes('chart') || 
+          filename.toLowerCase().includes('plot') || 
+          filename.toLowerCase().includes('interactive') ||
+          filename.toLowerCase().includes('sql_results') ||
+          filename.toLowerCase().includes('visualization')) {
+        type = 'plotly-html';
+      } else {
+        type = 'html';
+      }
+    } else {
+      type = 'file';
+    }
+    
+    // Cache the result
+    this.fileTypeCache.set(filename, type);
     return type;
   }
 
   getFileIcon(filename: string): string {
     const extension = filename.toLowerCase().split('.').pop() || '';
+    const fileType = this.getFileType(filename);
+    
+    if (fileType === 'plotly-html') {
+      return 'fa-chart-line';
+    }
+    
     switch (extension) {
       case 'png':
       case 'jpg':
@@ -300,14 +338,50 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     this.executionResults = [];
     this.currentResult = null;
     this.urlCache.clear();
+    this.fileTypeCache.clear(); // Clear file type cache as well
   }
 
   toggleImageVisibility(file: OutputFile) {
     file.isVisible = !file.isVisible;
   }
 
+  togglePlotlyVisibility(file: OutputFile) {
+    file.isVisible = !file.isVisible;
+    if (file.isVisible && !file.plotlyContent) {
+      this.loadPlotlyContent(file);
+    }
+  }
+
+  // Auto-load plotly content when plotly-html files are first detected
+  private autoLoadPlotlyContent(file: OutputFile) {
+    if (file.type === 'plotly-html' && !file.plotlyContent && !file.error) {
+      console.log('Auto-loading plotly content for:', file.filename);
+      // Add a small delay to ensure the component is ready
+      setTimeout(() => {
+        this.loadPlotlyContent(file);
+      }, 100);
+    }
+  }
+
+  private loadPlotlyContent(file: OutputFile) {
+    console.log('Loading plotly content for file:', file.filename);
+    console.log('File URL:', this.getFileDownloadUrl(file));
+    
+    this.http.get(this.getFileDownloadUrl(file), { responseType: 'text' })
+      .subscribe({
+        next: (content) => {
+          console.log('Successfully loaded plotly content, length:', content.length);
+          console.log('Content preview:', content.substring(0, 500));
+          file.plotlyContent = content;
+        },
+        error: (error) => {
+          console.error('Error loading plotly content:', error);
+          file.error = 'Failed to load interactive chart content';
+        }
+      });
+  }
+
   onImageLoad(file: OutputFile) {
-    console.log('DEBUG: Image loaded successfully:', file.filename);
     const statusElement = document.getElementById(`status-${file.filename}`);
     if (statusElement) {
       statusElement.textContent = 'Loaded successfully';
