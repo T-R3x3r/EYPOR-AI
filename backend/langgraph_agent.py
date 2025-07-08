@@ -691,7 +691,7 @@ The query completed successfully. Here are the raw results from your database.""
         """Intelligent code fixer agent - analyzes and fixes execution errors"""
         # Check retry count - stop if max retries reached
         retry_count = state.get("retry_count", 0)
-        if retry_count >= 1:  # Max retries reached
+        if retry_count >= 3:  # Max retries reached
             return {
                 **state, 
                 "messages": state["messages"] + [AIMessage(content=f"❌ Max retries ({retry_count}) reached. Giving up on fixing this code.")]
@@ -2167,7 +2167,7 @@ Analyze the request and respond with exactly one word: SQL_QUERY, VISUALIZATION,
         try:
             print(f"DEBUG: About to invoke LLM for visualization code generation")
             
-            # Create a simpler, safer template that avoids complex variable scope issues
+            # Create a template that follows Plotly best practices for bar charts
             simple_template = f"""import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -2190,38 +2190,130 @@ LIMIT 10
 df = pd.read_sql(query, conn)
 conn.close()
 
-# Simple data type conversion without complex loops
-print("Converting data types...")
+# CRITICAL: Convert pandas Series to Python lists for Plotly
+print("Converting data types and extracting as Python lists...")
 try:
     df['Demand'] = pd.to_numeric(df['Demand'], errors='coerce')
     print(f"Demand column type: {{df['Demand'].dtype}}")
+    
+    # CRITICAL: Extract data as Python lists (NOT pandas Series)
+    locations = df['Location'].tolist()
+    demands = df['Demand'].tolist()
+    
+    print(f"Locations (Python list): {{locations}}")
+    print(f"Demands (Python list): {{demands}}")
+    
 except Exception as e:
-    print(f"Error converting Demand column: {{e}}")
+    print(f"Error converting data: {{e}}")
 
 print(f"Data shape: {{df.shape}}")
 print(f"Columns: {{df.columns.tolist()}}")
 print("First few rows:")
 print(df.head())
 
-# Create bar chart
-fig = px.bar(df, x='Location', y='Demand', title='Top 10 Locations by Demand')
+# CRITICAL: Choose appropriate chart type based on data characteristics
+# For this example (categorical comparison), a bar chart is appropriate
+# But consider other chart types based on the actual data and user request
 
-# Configure appearance
+# **BAR CHART (for categorical comparisons):**
+fig = go.Figure()
+fig.add_trace(go.Bar(
+    x=locations,  # Category labels (Python list)
+    y=demands,  # Numeric values (Python list)
+    text=demands,  # Text labels
+    textposition='outside',
+    hovertemplate='<b>%{{x}}</b><br>Demand: %{{y:,.0f}}<br><extra></extra>'
+))
+
+# Configure layout for bar chart
 fig.update_layout(
+    title='Top 10 Locations by Demand',
     template='plotly_white',
     font=dict(size=12),
-    margin=dict(l=50, r=50, t=50, b=50),
-    showlegend=True,
-    hovermode='x unified'
+    margin=dict(l=80, r=80, t=80, b=100),  # Standard margins
+    showlegend=False,
+    hovermode='closest',
+    xaxis=dict(
+        tickangle=45 if len(locations) > 5 else 0  # Angle labels if many categories
+    ),
+    yaxis=dict(
+        range=[0, max(demands) * 1.15]  # Add padding for text labels
+    ),
+    height=max(500, len(locations) * 30),  # Dynamic height based on number of bars
+    width=800
 )
 
-# Save as interactive HTML
+# **ALTERNATIVE CHART TYPES (consider based on data and user request):**
+# 
+# **LINE CHART (for trends over time/sequence):**
+# fig = go.Figure()
+# fig.add_trace(go.Scatter(
+#     x=locations,  # If locations have a natural order
+#     y=demands,
+#     mode='lines+markers',
+#     hovertemplate='<b>%{{x}}</b><br>Demand: %{{y:,.0f}}<br><extra></extra>'
+# ))
+# 
+# **PIE CHART (for proportions of total):**
+# fig = go.Figure()
+# fig.add_trace(go.Pie(
+#     labels=locations,
+#     values=demands,
+#     hovertemplate='<b>%{{label}}</b><br>Demand: %{{value:,.0f}}<br>Percentage: %{{percent}}<br><extra></extra>'
+# ))
+# 
+# **HORIZONTAL BAR CHART (for many categories or long names):**
+# fig = go.Figure()
+# fig.add_trace(go.Bar(
+#     x=demands,  # Numeric values (Python list)
+#     y=locations,  # Category labels (Python list)
+#     orientation='h',  # CRITICAL: Must specify for horizontal bars
+#     text=[f'{{v:,.0f}}' for v in demands],  # Formatted text labels
+#     textposition='outside',
+#     hovertemplate='<b>%{{y}}</b><br>Demand: %{{x:,.0f}}<br><extra></extra>'
+# ))
+# 
+# # Configure layout for horizontal bars
+# fig.update_layout(
+#     title='Top 10 Locations by Demand',
+#     template='plotly_white',
+#     font=dict(size=12),
+#     margin=dict(l=200, r=120, t=80, b=60),  # Adequate left margin for labels
+#     showlegend=False,
+#     hovermode='closest',
+#     yaxis=dict(
+#         autorange='reversed',  # Keeps highest values at top
+#         tickmode='array',
+#         tickvals=list(range(len(locations))),
+#         ticktext=locations
+#     ),
+#     xaxis=dict(
+#         range=[0, max(demands) * 1.15]  # Add padding for text labels
+#     ),
+#     height=max(600, len(locations) * 40),  # Dynamic height based on number of bars
+#     width=800
+# )
+
+# Save as interactive HTML with comprehensive export options
 filename = 'interactive_chart_' + str(int(time.time())) + '.html'
-fig.write_html(filename, include_plotlyjs=True, config=dict(
+fig.write_html(filename, include_plotlyjs='cdn', config=dict(
     displayModeBar=True,
     displaylogo=False,
-    modeBarButtonsToAdd=['downloadImage'],
-    modeBarButtonsToRemove=['sendDataToCloud', 'editInChartStudio'],
+    modeBarButtonsToAdd=[
+        'downloadImage',
+        'pan2d',
+        'select2d',
+        'lasso2d',
+        'resetScale2d',
+        'autoScale2d',
+        'hoverClosestCartesian',
+        'hoverCompareCartesian',
+        'toggleSpikelines'
+    ],
+    modeBarButtonsToRemove=[
+        'sendDataToCloud',
+        'editInChartStudio'
+    ],
     toImageButtonOptions=dict(
         format='png',
         filename='chart',
@@ -2245,8 +2337,63 @@ Create Python code that:
 1. Connects to the SQLite database
 2. Retrieves the necessary data using SQL
 3. **IMPORTANT**: Ensures numeric columns are properly converted to numeric types (not strings)
-4. Creates an appropriate interactive visualization using Plotly
-5. Saves the output as an interactive HTML file
+4. **CRITICAL**: Converts pandas Series to Python lists before passing to Plotly
+5. **ANALYZE** the data and user request to choose the most appropriate chart type
+6. Creates an appropriate interactive visualization using Plotly
+7. Saves the output as an interactive HTML file
+
+**CHART TYPE ANALYSIS:**
+Before creating a chart, analyze:
+- **Data structure**: How many columns? What types? Any time/sequence data?
+- **User request**: What specific chart type did they ask for?
+- **Data characteristics**: Categorical comparisons? Trends? Relationships? Distributions?
+- **Number of data points**: Few categories (<8) vs many categories (>8)
+
+**DEFAULT CHART SELECTION LOGIC:**
+- **Bar chart**: Categorical comparisons (default for few categories)
+- **Line chart**: Time series, trends, or sequential data
+- **Scatter plot**: Relationships between two numeric variables
+- **Pie chart**: Proportions/percentages (limit to 5-7 categories)
+- **Histogram**: Distribution of a single variable
+- **Heatmap**: Correlation matrices or 2D data
+- **Box plot**: Statistical summaries and outlier detection
+
+**CHART TYPE SELECTION GUIDELINES:**
+Choose the most appropriate chart type based on the data and user request:
+
+**BAR CHARTS**: For categorical data comparisons
+- **Use VERTICAL bars (default)**: When user doesn't specify orientation, few categories (<8), or short category names
+- **Use HORIZONTAL bars**: When user specifically requests "horizontal", many categories (>8), or long category names
+
+**LINE CHARTS**: For time series, trends, or continuous data over a sequence
+- Use when data has a natural order (time, sequence, etc.)
+- Good for showing trends and patterns over time
+
+**SCATTER PLOTS**: For relationships between two numeric variables
+- Use when exploring correlations or relationships
+- Good for identifying patterns, clusters, or outliers
+
+**PIE CHARTS**: For parts of a whole (percentages, proportions)
+- Use when showing composition or distribution
+- Limit to 5-7 categories for readability
+
+**HISTOGRAMS**: For distribution of a single variable
+- Use when showing frequency distribution
+- Good for understanding data spread and shape
+
+**HEATMAPS**: For correlation matrices or 2D data tables
+- Use when showing relationships between multiple variables
+- Good for identifying patterns in large datasets
+
+**BOX PLOTS**: For statistical summaries and outlier detection
+- Use when comparing distributions across categories
+- Good for showing median, quartiles, and outliers
+
+**GENERAL RULES:**
+- **ALWAYS** use `.tolist()` to convert pandas Series to Python lists before passing to Plotly
+- **ALWAYS** set dynamic height based on data size
+- **ALWAYS** use `include_plotlyjs='cdn'` for better compatibility
+- Choose chart type based on data characteristics, not just user keywords
 
 **CRITICAL DATA TYPE HANDLING:**
 - Only convert columns that are CLEARLY numeric to numeric types after reading from SQL
@@ -2379,15 +2526,83 @@ print(f"Plot DataFrame columns: {{plot_df.columns.tolist()}}")
 
 # Use go.Figure() and go.Bar(), go.Scatter(), go.Pie(), etc. for explicit control
 # Always use .tolist() on DataFrame columns to ensure explicit data extraction
-# Example template:
-fig = go.Figure()
-fig.add_trace(go.Bar(
-    x=plot_df['x_column'].tolist(),
-    y=plot_df['y_column'].tolist(),
-    text=plot_df['y_column'].tolist(),
-    textposition='outside',
-    hovertemplate='<b>%{{x}}</b><br>Value: %{{y:,.0f}}<br><extra></extra>'
-))
+
+# **CHART TYPE SELECTION:**
+# Choose the most appropriate chart type based on data characteristics and user request:
+
+# **BAR CHART PATTERNS (for categorical comparisons):**
+# Vertical bars (default for few categories):
+# fig = go.Figure()
+# fig.add_trace(go.Bar(
+#     x=plot_df['category_column'].tolist(),  # Category labels
+#     y=plot_df['numeric_column'].tolist(),  # Numeric values
+#     text=plot_df['numeric_column'].tolist(),
+#     textposition='outside',
+#     hovertemplate='<b>%{{x}}</b><br>Value: %{{y:,.0f}}<br><extra></extra>'
+# ))
+
+# Horizontal bars (for many categories or long names):
+# fig = go.Figure()
+# fig.add_trace(go.Bar(
+#     x=plot_df['numeric_column'].tolist(),  # Numeric values
+#     y=plot_df['category_column'].tolist(),  # Category labels
+#     orientation='h',  # CRITICAL: Must specify for horizontal bars
+#     text=[f'{{v:,.0f}}' for v in plot_df['numeric_column'].tolist()],
+#     textposition='outside',
+#     hovertemplate='<b>%{{y}}</b><br>Value: %{{x:,.0f}}<br><extra></extra>'
+# ))
+
+# **LINE CHART PATTERN (for trends/time series):**
+# fig = go.Figure()
+# fig.add_trace(go.Scatter(
+#     x=plot_df['x_column'].tolist(),  # Time/sequence column
+#     y=plot_df['y_column'].tolist(),  # Value column
+#     mode='lines+markers',
+#     hovertemplate='<b>%{{x}}</b><br>Value: %{{y:,.0f}}<br><extra></extra>'
+# ))
+
+# **SCATTER PLOT PATTERN (for relationships):**
+# fig = go.Figure()
+# fig.add_trace(go.Scatter(
+#     x=plot_df['x_column'].tolist(),  # First numeric variable
+#     y=plot_df['y_column'].tolist(),  # Second numeric variable
+#     mode='markers',
+#     hovertemplate='<b>X: %{{x:,.0f}}</b><br>Y: %{{y:,.0f}}<br><extra></extra>'
+# ))
+
+# **PIE CHART PATTERN (for proportions):**
+# fig = go.Figure()
+# fig.add_trace(go.Pie(
+#     labels=plot_df['category_column'].tolist(),
+#     values=plot_df['numeric_column'].tolist(),
+#     hovertemplate='<b>%{{label}}</b><br>Value: %{{value:,.0f}}<br>Percentage: %{{percent}}<br><extra></extra>'
+# ))
+
+# **HISTOGRAM PATTERN (for distributions):**
+# fig = go.Figure()
+# fig.add_trace(go.Histogram(
+#     x=plot_df['numeric_column'].tolist(),
+#     nbinsx=20,
+#     hovertemplate='<b>Range: %{{x}}</b><br>Count: %{{y}}<br><extra></extra>'
+# ))
+
+# **HEATMAP PATTERN (for correlations/2D data):**
+# fig = go.Figure()
+# fig.add_trace(go.Heatmap(
+#     z=correlation_matrix.tolist(),  # 2D array
+#     x=column_names,
+#     y=column_names,
+#     colorscale='RdBu',
+#     hovertemplate='<b>%{{x}} vs %{{y}}</b><br>Correlation: %{{z:.3f}}<br><extra></extra>'
+# ))
+
+# **BOX PLOT PATTERN (for statistical summaries):**
+# fig = go.Figure()
+# fig.add_trace(go.Box(
+#     y=plot_df['numeric_column'].tolist(),
+#     x=plot_df['category_column'].tolist() if 'category_column' in plot_df.columns else None,
+#     hovertemplate='<b>%{{x}}</b><br>Q1: %{{q1:,.0f}}<br>Median: %{{median:,.0f}}<br>Q3: %{{q3:,.0f}}<br><extra></extra>'
+# ))
 
 print(f"[OK] Chart created successfully with data shape: {{plot_df.shape}}")
 
@@ -2403,7 +2618,7 @@ fig.update_layout(
 
 # Save as interactive HTML with comprehensive export options
 filename = 'interactive_chart_' + str(int(time.time())) + '.html'
-fig.write_html(filename, include_plotlyjs=True, config=dict(
+fig.write_html(filename, include_plotlyjs='cdn', config=dict(
     displayModeBar=True,
     displaylogo=False,
     modeBarButtonsToAdd=[
@@ -2647,21 +2862,42 @@ CREATE_FILE: [filename]
         elif self.cached_database_schema:
             schema_context = self._build_schema_context(self._get_full_database_schema())
         
+        # Also get the full schema for comprehensive table/column information
+        full_schema_context = ""
+        if hasattr(self, 'cached_full_schema') and self.cached_full_schema:
+            full_schema_context = self._build_schema_context(self.cached_full_schema)
+        
+        # Use full schema if available, otherwise use filtered schema
+        final_schema_context = full_schema_context if full_schema_context else schema_context
+        
         system_prompt = f"""You are an expert SQL analyst. Generate a SQL query to answer the user's request.
 
 Database Schema:
-{schema_context}
+{final_schema_context}
 
 Generate a SQL query that answers the user's question. Consider:
 - Use appropriate JOINs for related tables
 - Include proper WHERE clauses for filtering
 - Use aggregations (COUNT, SUM, AVG) when needed
 - Limit results to reasonable sizes (use LIMIT)
-- Focus on the specific request - if user asks about "demand", look for demand-related columns
-- If user asks about "hubs with least demand", find tables with hub information and demand data
+
+**CRITICAL SCHEMA VALIDATION RULES:**
+- **ALWAYS** check the exact column names in the schema before using them
+- **NEVER** assume a column exists - only use columns that are explicitly listed in the schema
+- **ALWAYS** verify table names and column names match exactly (case-sensitive)
+- If you need a column that doesn't exist, find an alternative or use a different approach
+- When joining tables, ensure the join columns exist in both tables
+
+**COLUMN SEARCH STRATEGY:**
+- For demand analysis: Look for columns like 'Demand', 'demand', 'Hub_Demand', 'Total_Demand', etc.
+- For hub analysis: Look for columns like 'HubID', 'Location', 'Hub_Location', 'Hub_Name', etc.
+- For cost analysis: Look for columns like 'CostFactor_Opening', 'Opening_Cost', 'Cost_Opening', etc.
+- **ALWAYS** verify the exact column name exists in the target table before using it
+
+**TABLE SEARCH STRATEGY:**
 - Look for tables with names like 'hubs', 'demand', 'destinations', 'inputs_hubs', 'inputs_destinations'
-- For demand analysis, look for columns like 'Demand', 'demand', 'Hub_Demand', etc.
-- For hub analysis, look for columns like 'HubID', 'Location', 'Hub_Location', etc.
+- Check both 'inputs_' and 'outputs_' prefixed tables
+- Verify table names exist in the schema before using them
 
 CRITICAL RULES FOR UNION ALL OPERATIONS:
 - NEVER use UNION ALL unless you are CERTAIN that all tables have EXACTLY the same column structure
@@ -2708,6 +2944,25 @@ Respond with just the SQL query, no explanations."""
                 sql_query = sql_query.replace("```", "").strip()
             
             print(f"DEBUG: Cleaned SQL query: {sql_query}")
+            
+            # Validate the SQL query against the schema
+            validation_result = self._validate_sql_against_schema(sql_query, final_schema_context)
+            if not validation_result["valid"]:
+                error_msg = f"❌ **SQL Query Validation Failed**\n\n"
+                error_msg += f"**Generated Query:**\n```sql\n{sql_query}\n```\n\n"
+                error_msg += f"**Validation Error:**\n{validation_result['error']}\n\n"
+                error_msg += f"**Available Tables and Columns:**\n{final_schema_context}\n\n"
+                error_msg += "Please try rephrasing your request with more specific details about which tables and columns you want to query."
+                
+                return {
+                    **state,
+                    "has_execution_error": True,
+                    "last_error_type": "SQLValidationError",
+                    "sql_validation_result": validation_result,
+                    "messages": state["messages"] + [AIMessage(content=error_msg)]
+                }
+            
+            print(f"DEBUG: SQL query validation passed")
             
             # Create a Python script to execute the SQL query
             import time
@@ -4704,6 +4959,106 @@ def ensure_numeric_columns(df, table_name=None):
         except Exception as e:
             print(f"Error getting data sample: {e}")
             return {"error": str(e)}
+
+    def _validate_sql_against_schema(self, sql_query: str, schema_context: str) -> Dict[str, any]:
+        """Validate SQL query against database schema to catch column/table errors before execution"""
+        try:
+            # Extract table and column information from schema context
+            schema_info = self._parse_schema_context(schema_context)
+            
+            # Parse the SQL query to extract table and column references
+            sql_info = self._parse_sql_query(sql_query)
+            
+            # Validate tables
+            for table in sql_info["tables"]:
+                if table not in schema_info["tables"]:
+                    return {
+                        "valid": False,
+                        "error": f"Table '{table}' does not exist in the database. Available tables: {list(schema_info['tables'].keys())}"
+                    }
+            
+            # Validate columns
+            for table, columns in sql_info["columns"].items():
+                if table not in schema_info["tables"]:
+                    continue  # Table validation will catch this
+                
+                available_columns = schema_info["tables"][table]
+                for column in columns:
+                    if column not in available_columns:
+                        return {
+                            "valid": False,
+                            "error": f"Column '{column}' does not exist in table '{table}'. Available columns: {available_columns}"
+                        }
+            
+            return {"valid": True, "error": None}
+            
+        except Exception as e:
+            return {
+                "valid": False,
+                "error": f"Schema validation error: {str(e)}"
+            }
+    
+    def _parse_schema_context(self, schema_context: str) -> Dict[str, any]:
+        """Parse the schema context string to extract table and column information"""
+        schema_info = {"tables": {}}
+        current_table = None
+        
+        lines = schema_context.split('\n')
+        for line in lines:
+            line = line.strip()
+            
+            # Extract table name
+            if line.startswith("TABLE: "):
+                current_table = line.replace("TABLE: ", "").strip()
+                schema_info["tables"][current_table] = []
+            
+            # Extract column information
+            elif line.startswith("  * ") and current_table:
+                # Format: "  * column_name (type)"
+                column_info = line.replace("  * ", "").strip()
+                if " (" in column_info:
+                    column_name = column_info.split(" (")[0].strip()
+                    schema_info["tables"][current_table].append(column_name)
+        
+        return schema_info
+    
+    def _parse_sql_query(self, sql_query: str) -> Dict[str, any]:
+        """Parse SQL query to extract table and column references"""
+        import re
+        
+        sql_info = {"tables": set(), "columns": {}}
+        
+        # Extract table names (simplified - looks for FROM and JOIN clauses)
+        from_pattern = r'FROM\s+(\w+)'
+        join_pattern = r'JOIN\s+(\w+)'
+        
+        from_matches = re.findall(from_pattern, sql_query, re.IGNORECASE)
+        join_matches = re.findall(join_pattern, sql_query, re.IGNORECASE)
+        
+        for table in from_matches + join_matches:
+            sql_info["tables"].add(table)
+        
+        # Extract column references (simplified - looks for SELECT clause)
+        select_pattern = r'SELECT\s+(.*?)\s+FROM'
+        select_match = re.search(select_pattern, sql_query, re.IGNORECASE | re.DOTALL)
+        
+        if select_match:
+            select_clause = select_match.group(1)
+            # Look for table.column patterns
+            column_pattern = r'(\w+)\.(\w+)'
+            column_matches = re.findall(column_pattern, select_clause)
+            
+            for table, column in column_matches:
+                if table not in sql_info["columns"]:
+                    sql_info["columns"][table] = set()
+                sql_info["columns"][table].add(column)
+        
+        # Convert sets to lists for easier handling
+        sql_info["tables"] = list(sql_info["tables"])
+        for table in sql_info["columns"]:
+            sql_info["columns"][table] = list(sql_info["columns"][table])
+        
+        return sql_info
 
 
 

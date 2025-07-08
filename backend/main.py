@@ -731,7 +731,26 @@ async def run_file(filename: str):
                     if rel_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
                         file_type = "image"
                     elif rel_path.lower().endswith('.html'):
-                        file_type = "html"
+                        # Check if it's a plotly chart based on filename patterns
+                        filename = os.path.basename(rel_path)
+                        if ('chart' in filename.lower() or 
+                            'plot' in filename.lower() or 
+                            'interactive' in filename.lower() or
+                            'sql_results' in filename.lower() or
+                            'visualization' in filename.lower() or
+                            'map' in filename.lower() or
+                            'hubs' in filename.lower() or
+                            'geo' in filename.lower() or
+                            'scatter' in filename.lower() or
+                            'bar' in filename.lower() or
+                            'line' in filename.lower() or
+                            'pie' in filename.lower() or
+                            'heatmap' in filename.lower() or
+                            'box' in filename.lower() or
+                            'histogram' in filename.lower()):
+                            file_type = "plotly-html"
+                        else:
+                            file_type = "html"
                     elif rel_path.lower().endswith('.csv'):
                         file_type = "csv"
                     elif rel_path.lower().endswith('.pdf'):
@@ -1067,7 +1086,26 @@ async def langgraph_chat(message: ChatMessage):
                     if rel_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
                         file_type = "image"
                     elif rel_path.lower().endswith('.html'):
-                        file_type = "html"  # Special type for HTML files (maps, etc.)
+                        # Check if it's a plotly chart based on filename patterns
+                        filename = os.path.basename(rel_path)
+                        if ('chart' in filename.lower() or 
+                            'plot' in filename.lower() or 
+                            'interactive' in filename.lower() or
+                            'sql_results' in filename.lower() or
+                            'visualization' in filename.lower() or
+                            'map' in filename.lower() or
+                            'hubs' in filename.lower() or
+                            'geo' in filename.lower() or
+                            'scatter' in filename.lower() or
+                            'bar' in filename.lower() or
+                            'line' in filename.lower() or
+                            'pie' in filename.lower() or
+                            'heatmap' in filename.lower() or
+                            'box' in filename.lower() or
+                            'histogram' in filename.lower()):
+                            file_type = "plotly-html"
+                        else:
+                            file_type = "html"
                     elif rel_path.lower().endswith('.csv'):
                         file_type = "csv"
                     elif rel_path.lower().endswith('.pdf'):
@@ -1513,11 +1551,40 @@ async def action_chat(request: ActionRequest):
         for file_path in created_files:
             if any(file_path.lower().endswith(ext) for ext in output_extensions):
                 normalized_path = file_path.replace('\\', '/')
+                # Determine file type for frontend handling
+                file_type = "file"
+                if normalized_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
+                    file_type = "image"
+                elif normalized_path.lower().endswith('.html'):
+                    # Check if it's a plotly chart based on filename patterns
+                    filename = os.path.basename(file_path)
+                    if ('chart' in filename.lower() or 
+                        'plot' in filename.lower() or 
+                        'interactive' in filename.lower() or
+                        'sql_results' in filename.lower() or
+                        'visualization' in filename.lower() or
+                        'map' in filename.lower() or
+                        'hubs' in filename.lower() or
+                        'geo' in filename.lower() or
+                        'scatter' in filename.lower() or
+                        'bar' in filename.lower() or
+                        'line' in filename.lower() or
+                        'pie' in filename.lower() or
+                        'heatmap' in filename.lower() or
+                        'box' in filename.lower() or
+                        'histogram' in filename.lower()):
+                        file_type = "plotly-html"
+                    else:
+                        file_type = "html"
+                elif normalized_path.lower().endswith('.csv'):
+                    file_type = "csv"
+                elif normalized_path.lower().endswith('.pdf'):
+                    file_type = "pdf"
                 output_files.append({
                     "filename": os.path.basename(file_path),
                     "path": normalized_path,
                     "url": f"/files/{normalized_path}/download",
-                    "type": "image" if normalized_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')) else "file"
+                    "type": file_type
                 })
         
         # Check if this was a database modification that requires human-in-the-loop
@@ -1610,11 +1677,40 @@ async def handle_visualization_request(message: str, conversation_history: List[
         for file_path in created_files:
             if any(file_path.lower().endswith(ext) for ext in output_extensions):
                 normalized_path = file_path.replace('\\', '/')
+                # Determine file type for frontend handling
+                file_type = "file"
+                if normalized_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')):
+                    file_type = "image"
+                elif normalized_path.lower().endswith('.html'):
+                    # Check if it's a plotly chart based on filename patterns
+                    filename = os.path.basename(file_path)
+                    if ('chart' in filename.lower() or 
+                        'plot' in filename.lower() or 
+                        'interactive' in filename.lower() or
+                        'sql_results' in filename.lower() or
+                        'visualization' in filename.lower() or
+                        'map' in filename.lower() or
+                        'hubs' in filename.lower() or
+                        'geo' in filename.lower() or
+                        'scatter' in filename.lower() or
+                        'bar' in filename.lower() or
+                        'line' in filename.lower() or
+                        'pie' in filename.lower() or
+                        'heatmap' in filename.lower() or
+                        'box' in filename.lower() or
+                        'histogram' in filename.lower()):
+                        file_type = "plotly-html"
+                    else:
+                        file_type = "html"
+                elif normalized_path.lower().endswith('.csv'):
+                    file_type = "csv"
+                elif normalized_path.lower().endswith('.pdf'):
+                    file_type = "pdf"
                 output_files.append({
                     "filename": os.path.basename(file_path),
                     "path": normalized_path,
                     "url": f"/files/{normalized_path}/download",
-                    "type": "image" if normalized_path.lower().endswith(('.png', '.jpg', '.jpeg', '.svg')) else "file"
+                    "type": file_type
                 })
         
         return {

@@ -248,33 +248,17 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
   private fileTypeCache = new Map<string, string>();
 
   private getFileType(filename: string): string {
-    // Check cache first to avoid repeated calculations
-    if (this.fileTypeCache.has(filename)) {
-      return this.fileTypeCache.get(filename)!;
-    }
-
-    const extension = filename.toLowerCase().split('.').pop() || '';
-    let type: string;
-    
-    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg'].includes(extension)) {
+    const extension = filename.split('.').pop()?.toLowerCase() || '';
+    let type = 'file';
+    if (['png', 'jpg', 'jpeg', 'svg'].includes(extension)) {
       type = 'image';
     } else if (['html', 'htm'].includes(extension)) {
-      // Check if it's a plotly chart based on filename patterns
-      if (filename.toLowerCase().includes('chart') || 
-          filename.toLowerCase().includes('plot') || 
-          filename.toLowerCase().includes('interactive') ||
-          filename.toLowerCase().includes('sql_results') ||
-          filename.toLowerCase().includes('visualization')) {
-        type = 'plotly-html';
-      } else {
-        type = 'html';
-      }
-    } else {
-      type = 'file';
+      type = 'plotly-html'; // All HTML files are treated as interactive content
+    } else if (extension === 'csv') {
+      type = 'csv';
+    } else if (extension === 'pdf') {
+      type = 'pdf';
     }
-    
-    // Cache the result
-    this.fileTypeCache.set(filename, type);
     return type;
   }
 
