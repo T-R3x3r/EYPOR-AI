@@ -14,9 +14,79 @@
   border-bottom: 1px solid #dee2e6;
 }
 
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
 .output-header h4 {
   margin: 0;
   color: #495057;
+}
+
+.scenario-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.scenario-label {
+  font-weight: 500;
+}
+
+.scenario-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.scenario-status {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scenario-status.base {
+  background: #d4edda;
+  color: #155724;
+}
+
+.scenario-status.branch {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.scenario-status.custom {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+.scenario-status.none {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #666;
+}
+
+.loading-indicator i {
+  font-size: 14px;
 }
 
 .output-container {
@@ -668,6 +738,38 @@ body.dark-mode .output-header {
   background: #1a1a24 !important;
   border-bottom-color: #474755 !important;
   color: #eaeaf2 !important;
+}
+
+body.dark-mode .scenario-context {
+  color: #a0a0b0 !important;
+}
+
+body.dark-mode .scenario-name {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .scenario-status.base {
+  background: #1e4d2b !important;
+  color: #4ade80 !important;
+}
+
+body.dark-mode .scenario-status.branch {
+  background: #713f12 !important;
+  color: #fbbf24 !important;
+}
+
+body.dark-mode .scenario-status.custom {
+  background: #164e63 !important;
+  color: #67e8f9 !important;
+}
+
+body.dark-mode .scenario-status.none {
+  background: #7f1d1d !important;
+  color: #fca5a5 !important;
+}
+
+body.dark-mode .loading-indicator {
+  color: #a0a0b0 !important;
 }
 
 body.dark-mode .output-content {

@@ -1,0 +1,63 @@
+<div class="scenario-tabs-container" (click)="onDocumentClick()">
+  <!-- Scenario Tabs -->
+  <div class="scenario-tabs">
+    <div 
+      *ngFor="let scenario of scenarios" 
+      class="scenario-tab"
+      [class.active]="isCurrentScenario(scenario)"
+      [class.base-scenario]="scenario.is_base_scenario"
+      [title]="getScenarioTooltip(scenario)"
+      (click)="switchScenario(scenario)"
+      (contextmenu)="onScenarioRightClick($event, scenario)">
+      
+      <span class="scenario-name">{{ getScenarioDisplayName(scenario) }}</span>
+      
+      <!-- Scenario type indicator -->
+      <span *ngIf="scenario.is_base_scenario" class="scenario-type base">Base</span>
+      <span *ngIf="!scenario.is_base_scenario && scenario.parent_scenario_id" class="scenario-type branch">Branch</span>
+      
+      <!-- Active indicator -->
+      <div *ngIf="isCurrentScenario(scenario)" class="active-indicator"></div>
+    </div>
+    
+    <!-- Create New Scenario Button -->
+    <button 
+      class="create-scenario-btn"
+      (click)="createNewScenario()"
+      title="Create new scenario">
+      <i class="fas fa-plus"></i>
+      <span>New</span>
+    </button>
+  </div>
+
+  <!-- Context Menu -->
+  <div 
+    *ngIf="showContextMenu" 
+    class="context-menu"
+    [style.left.px]="contextMenuX"
+    [style.top.px]="contextMenuY">
+    
+    <div class="context-menu-item" (click)="renameScenario()">
+      <i class="fas fa-edit"></i>
+      <span>Rename</span>
+    </div>
+    
+    <div class="context-menu-item" (click)="duplicateScenario()">
+      <i class="fas fa-copy"></i>
+      <span>Duplicate</span>
+    </div>
+    
+    <div class="context-menu-separator"></div>
+    
+    <div class="context-menu-item danger" (click)="deleteScenario()">
+      <i class="fas fa-trash"></i>
+      <span>Delete</span>
+    </div>
+  </div>
+</div>
+
+<!-- Create Scenario Dialog -->
+<app-create-scenario-dialog 
+  *ngIf="showCreateDialog"
+  (dialogClosed)="onCreateDialogClosed()">
+</app-create-scenario-dialog> 

@@ -1,5 +1,6 @@
 import { Component, Output, EventEmitter } from '@angular/core';
 import { ApiService } from '../../services/api.service';
+import { ScenarioService } from '../../services/scenario.service';
 
 @Component({
   selector: 'app-file-upload',
@@ -16,7 +17,10 @@ export class FileUploadComponent {
 
   @Output() filesUploaded = new EventEmitter<void>();
 
-  constructor(private apiService: ApiService) { }
+  constructor(
+    private apiService: ApiService,
+    private scenarioService: ScenarioService
+  ) { }
 
   onFileSelected(event: any) {
     const file = event.target.files[0];
@@ -74,6 +78,16 @@ export class FileUploadComponent {
         this.uploadSuccess = true;
         this.isUploading = false;
         this.hasUploadedFiles = true;
+        
+        // If a scenario was created during upload, add it to the scenarios list
+        if (response.scenario) {
+          this.scenarioService.addScenarioFromUpload(response.scenario);
+        } else {
+          // Fallback: refresh scenarios list after a short delay
+          setTimeout(() => {
+            this.scenarioService.refreshScenarios();
+          }, 500);
+        }
         
         // Emit event to refresh file tree
         this.filesUploaded.emit();

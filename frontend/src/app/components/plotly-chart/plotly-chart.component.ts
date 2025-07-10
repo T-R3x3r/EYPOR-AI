@@ -104,67 +104,22 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
 
     console.log('Loading plotly from HTML content, length:', this.htmlContent.length);
-    console.log('HTML content preview:', this.htmlContent.substring(0, 500));
 
     try {
-      // Create a temporary container to parse the HTML
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = this.htmlContent;
-
-      // Look for script tags containing Plotly data
-      const scripts = tempDiv.querySelectorAll('script');
-      console.log('Found', scripts.length, 'script tags in HTML');
+      // Enhanced extraction with better parsing
+      const extractedData = this.extractPlotlyDataFromHTML(this.htmlContent);
       
-      let plotlyData: any = null;
-      let plotlyLayout: any = null;
-      let plotlyConfig: any = null;
-
-      scripts.forEach((script, index) => {
-        const content = script.textContent || script.innerHTML;
-        console.log(`Script ${index} content preview:`, content.substring(0, 200));
+      if (extractedData.data && extractedData.layout) {
+        console.log('Successfully extracted Plotly data from HTML');
+        console.log('Data traces:', extractedData.data.length);
+        console.log('Sample data:', extractedData.data[0]);
         
-        // Extract Plotly.newPlot calls
-        const plotlyMatch = content.match(/Plotly\.newPlot\s*\(\s*['"]([^'"]+)['"]\s*,\s*(\[.*?\])\s*,\s*(\{.*?\})\s*(?:,\s*(\{.*?\}))?\s*\)/s);
-        if (plotlyMatch) {
-          console.log('Found Plotly.newPlot call in script', index);
-          try {
-            plotlyData = JSON.parse(plotlyMatch[2]);
-            plotlyLayout = JSON.parse(plotlyMatch[3]);
-            if (plotlyMatch[4]) {
-              plotlyConfig = JSON.parse(plotlyMatch[4]);
-            }
-            console.log('Successfully parsed plotly data:', { data: plotlyData, layout: plotlyLayout, config: plotlyConfig });
-          } catch (e) {
-            console.warn('Failed to parse Plotly data from HTML:', e);
-          }
-        }
-
-        // Also look for data/layout/config variables
-        if (content.includes('var data =') || content.includes('var layout =')) {
-          console.log('Found data/layout variables in script', index);
-          try {
-            // This is a more complex extraction - we'll use eval in a sandboxed way
-            const sandboxedContent = this.extractPlotlyVariables(content);
-            if (sandboxedContent.data) plotlyData = sandboxedContent.data;
-            if (sandboxedContent.layout) plotlyLayout = sandboxedContent.layout;
-            if (sandboxedContent.config) plotlyConfig = sandboxedContent.config;
-            console.log('Successfully extracted plotly variables:', sandboxedContent);
-          } catch (e) {
-            console.warn('Failed to extract Plotly variables:', e);
-          }
-        }
-      });
-
-      // If we found plotly data, create the chart
-      if (plotlyData && plotlyLayout) {
-        console.log('Creating plotly chart with extracted data');
-        this.data = plotlyData;
-        this.layout = plotlyLayout;
-        this.config = plotlyConfig || {};
+        this.data = extractedData.data;
+        this.layout = extractedData.layout;
+        this.config = extractedData.config || {};
         this.createPlotlyChart();
       } else {
-        console.log('No plotly data found, using HTML fallback');
-        // Fallback: render the HTML directly in an iframe
+        console.log('Could not extract Plotly data, using HTML fallback');
         this.renderHTMLFallback();
       }
     } catch (error) {
@@ -173,30 +128,198 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, AfterViewInit, O
     }
   }
 
-  private extractPlotlyVariables(scriptContent: string): any {
+  private extractPlotlyDataFromHTML(htmlContent: string): any {
     try {
-      // Create a safe evaluation context
-      const context = {
-        data: null,
-        layout: null,
-        config: null
+      console.log('Extracting Plotly data from HTML...');
+      
+      // Method 1: Look for Plotly.newPlot direct calls
+      const newPlotRegex = /Plotly\.newPlot\s*\(\s*["']([^"']+)["']\s*,\s*(\[[\s\S]*?\])\s*,\s*(\{[\s\S]*?\})\s*(?:,\s*(\{[\s\S]*?\}))?\s*\)/;
+      const newPlotMatch = htmlContent.match(newPlotRegex);
+      
+      if (newPlotMatch) {
+        console.log('Found Plotly.newPlot call');
+        try {
+          const data = this.safeJSONParse(newPlotMatch[2]);
+          const layout = this.safeJSONParse(newPlotMatch[3]);
+          const config = newPlotMatch[4] ? this.safeJSONParse(newPlotMatch[4]) : {};
+          
+          if (data && layout) {
+            console.log('Successfully parsed from newPlot call');
+            return { data, layout, config };
+          }
+        } catch (e) {
+          console.warn('Failed to parse newPlot call:', e);
+        }
+      }
+      
+      // Method 2: Look for variable assignments (data, layout, config)
+      const dataMatch = htmlContent.match(/(?:var\s+|let\s+|const\s+)?data\s*=\s*(\[[\s\S]*?\]);/);
+      const layoutMatch = htmlContent.match(/(?:var\s+|let\s+|const\s+)?layout\s*=\s*(\{[\s\S]*?\});/);
+      const configMatch = htmlContent.match(/(?:var\s+|let\s+|const\s+)?config\s*=\s*(\{[\s\S]*?\});/);
+      
+      if (dataMatch && layoutMatch) {
+        console.log('Found variable assignments');
+        try {
+          const data = this.safeJSONParse(dataMatch[1]);
+          const layout = this.safeJSONParse(layoutMatch[1]);
+          const config = configMatch ? this.safeJSONParse(configMatch[1]) : {};
+          
+          if (data && layout) {
+            console.log('Successfully parsed from variable assignments');
+            return { data, layout, config };
+          }
+        } catch (e) {
+          console.warn('Failed to parse variable assignments:', e);
+        }
+      }
+      
+      // Method 3: Extract from script tags and try advanced parsing
+      const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+      let scriptMatch;
+      
+      while ((scriptMatch = scriptRegex.exec(htmlContent)) !== null) {
+        const scriptContent = scriptMatch[1];
+        
+        // Skip empty scripts or scripts that don't contain Plotly
+        if (!scriptContent.includes('Plotly') && !scriptContent.includes('data')) {
+          continue;
+        }
+        
+        const extracted = this.extractFromScript(scriptContent);
+        if (extracted.data && extracted.layout) {
+          console.log('Successfully extracted from script tag');
+          return extracted;
+        }
+      }
+      
+      console.warn('Could not extract Plotly data from any method');
+      return { data: null, layout: null, config: null };
+      
+    } catch (error) {
+      console.error('Error in extractPlotlyDataFromHTML:', error);
+      return { data: null, layout: null, config: null };
+    }
+  }
+  
+  private extractFromScript(scriptContent: string): any {
+    try {
+      // Clean the script content for better parsing
+      let cleanScript = scriptContent
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+        .replace(/\/\/.*$/gm, ''); // Remove line comments
+      
+      // Try to find and extract data/layout/config with improved regex
+      const patterns = {
+        data: [
+          /(?:var\s+|let\s+|const\s+)?data\s*=\s*(\[[\s\S]*?\]);/,
+          /["']data["']\s*:\s*(\[[\s\S]*?\])(?:\s*[,}])/,
+          /"data":\s*(\[[\s\S]*?\])(?:\s*[,}])/
+        ],
+        layout: [
+          /(?:var\s+|let\s+|const\s+)?layout\s*=\s*(\{[\s\S]*?\});/,
+          /["']layout["']\s*:\s*(\{[\s\S]*?\})(?:\s*[,}])/,
+          /"layout":\s*(\{[\s\S]*?\})(?:\s*[,}])/
+        ],
+        config: [
+          /(?:var\s+|let\s+|const\s+)?config\s*=\s*(\{[\s\S]*?\});/,
+          /["']config["']\s*:\s*(\{[\s\S]*?\})(?:\s*[,}])/,
+          /"config":\s*(\{[\s\S]*?\})(?:\s*[,}])/
+        ]
       };
-
-      // Remove any dangerous functions and extract only data assignments
-      const safeContent = scriptContent
-        .replace(/document\.|window\.|eval\(|Function\(/g, '')
-        .replace(/var\s+data\s*=\s*(\[.*?\]);/s, 'context.data = $1;')
-        .replace(/var\s+layout\s*=\s*(\{.*?\});/s, 'context.layout = $1;')
-        .replace(/var\s+config\s*=\s*(\{.*?\});/s, 'context.config = $1;');
-
-      // Use Function constructor for safe evaluation
-      const func = new Function('context', safeContent);
-      func(context);
-
-      return context;
-    } catch (e) {
-      console.warn('Failed to extract variables safely:', e);
+      
+      const result: any = {};
+      
+      for (const [key, patternList] of Object.entries(patterns)) {
+        for (const pattern of patternList) {
+          const match = cleanScript.match(pattern);
+          if (match && match[1]) {
+            try {
+              const parsed = this.safeJSONParse(match[1]);
+              if (parsed) {
+                result[key] = parsed;
+                console.log(`Successfully extracted ${key}`);
+                break;
+              }
+            } catch (e) {
+              console.warn(`Failed to parse ${key}:`, e);
+            }
+          }
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error extracting from script:', error);
       return {};
+    }
+  }
+  
+  private safeJSONParse(jsonString: string): any {
+    try {
+      // Clean the JSON string
+      let cleaned = jsonString
+        .trim()
+        .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Quote unquoted keys
+        .replace(/:\s*'([^']*)'/g, ':"$1"') // Convert single quotes to double quotes
+        .replace(/:\s*([^",{\[\s][^,}\]]*[^",}\]\s])/g, (match, value) => {
+          // Handle unquoted string values
+          const trimmed = value.trim();
+          if (trimmed === 'true' || trimmed === 'false' || trimmed === 'null' || 
+              !isNaN(Number(trimmed)) || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            return ':' + trimmed;
+          }
+          return ':"' + trimmed + '"';
+        });
+      
+      return JSON.parse(cleaned);
+    } catch (error) {
+      console.warn('JSON parse failed, attempting alternative parsing:', error);
+      
+      // Alternative: try eval in a controlled environment (safer approach)
+      try {
+        return this.evaluateInSafeContext(jsonString);
+      } catch (evalError) {
+        console.warn('Safe evaluation also failed:', evalError);
+        return null;
+      }
+    }
+  }
+  
+  private evaluateInSafeContext(expression: string): any {
+    try {
+      // Create a controlled evaluation context
+      const context = {
+        Array: Array, 
+        Object: Object, 
+        Number: Number, 
+        String: String, 
+        Boolean: Boolean, 
+        Math: Math, 
+        Date: Date,
+        undefined: undefined, 
+        null: null, 
+        true: true, 
+        false: false,
+        result: null
+      };
+      
+      // Remove potentially dangerous elements
+      const safeExpression = expression
+        .replace(/window\.|document\.|eval\(|Function\(/g, '')
+        .replace(/import\s|require\(|process\.|global\./g, '');
+      
+      // Wrap in assignment
+      const wrappedCode = `context.result = ${safeExpression};`;
+      
+      // Use Function constructor for controlled evaluation
+      const func = new Function('context', wrappedCode);
+      func(context);
+      
+      return context.result;
+    } catch (error) {
+      console.warn('Safe context evaluation failed:', error);
+      return null;
     }
   }
 

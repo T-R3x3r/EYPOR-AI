@@ -36,6 +36,29 @@
   gap: 0.5rem;
 }
 
+.agent-toggle-btn {
+  background: #FFE600;
+  border: 1px solid #FFD700;
+  color: #333;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.agent-toggle-btn:hover {
+  background: #FFD700;
+  transform: translateY(-1px);
+}
+
+.agent-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .action-btn {
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);

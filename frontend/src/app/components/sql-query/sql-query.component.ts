@@ -4,8 +4,10 @@ import { MatTableDataSource } from '@angular/material/table';
 import { MatSort } from '@angular/material/sort';
 import { ApiService, WhitelistResponse, WhitelistUpdateResponse } from '../../services/api.service';
 import { DatabaseTrackingService } from '../../services/database-tracking.service';
+import { ScenarioService } from '../../services/scenario.service';
 import { Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Scenario } from '../../models/scenario.model';
 
 interface DatabaseInfo {
   tables: any[];
@@ -77,11 +79,17 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
   newlyAddedRowIndex: number = -1;
   private isRefreshingAfterAdd: boolean = false;
 
+  // Scenario-aware properties
+  currentScenario: Scenario | null = null;
+  queryHistory: { sql: string; timestamp: Date; scenarioId: number }[] = [];
+  isLoadingScenario = false;
+
   private subscriptions: Subscription[] = [];
 
   constructor(
     private apiService: ApiService,
-    private databaseTracking: DatabaseTrackingService
+    private databaseTracking: DatabaseTrackingService,
+    private scenarioService: ScenarioService
   ) {}
 
   ngOnInit(): void {
@@ -100,6 +108,27 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
       }
     });
     this.subscriptions.push(changesSub);
+
+    // Subscribe to scenario changes to refresh database info and load scenario-specific data
+    const scenarioSub = this.scenarioService.currentScenario$.subscribe(scenario => {
+      this.currentScenario = scenario;
+      if (scenario) {
+        console.log('Scenario changed, refreshing database info...', scenario);
+        this.isLoadingScenario = true;
+        this.loadDatabaseInfo();
+        this.loadScenarioQueryHistory(scenario.id);
+        // Clear current table selection when switching scenarios
+        this.selectedTable = '';
+        this.tableData.data = [];
+        this.tableColumns = [];
+        this.displayedColumns = [];
+        this.isLoadingScenario = false;
+      } else {
+        // Clear all data when no scenario is active
+        this.clearScenarioData();
+      }
+    });
+    this.subscriptions.push(scenarioSub);
 
     // Listen for file uploads by polling database info periodically
     const refreshInterval = setInterval(() => {
@@ -136,6 +165,54 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
+
+  // Load scenario-specific query history
+  private loadScenarioQueryHistory(scenarioId: number): void {
+    // For now, we'll store query history in memory
+    // In a real implementation, this would load from the backend
+    console.log('Loading query history for scenario:', scenarioId);
+    // TODO: Implement backend API for query history
+  }
+
+  // Clear all scenario-specific data
+  private clearScenarioData(): void {
+    this.databaseInfo = null;
+    this.detailedDbInfo = null;
+    this.selectedTable = '';
+    this.tableData.data = [];
+    this.tableColumns = [];
+    this.displayedColumns = [];
+    this.queryHistory = [];
+    this.whitelistData = null;
+  }
+
+  // Add query to history
+  private addToQueryHistory(sql: string): void {
+    if (this.currentScenario) {
+      this.queryHistory.push({
+        sql,
+        timestamp: new Date(),
+        scenarioId: this.currentScenario.id
+      });
+      // Keep only last 50 queries
+      if (this.queryHistory.length > 50) {
+        this.queryHistory = this.queryHistory.slice(-50);
+      }
+    }
+  }
+
+  // Get scenario display name for headers
+  getScenarioDisplayName(): string {
+    return this.currentScenario?.name || 'No Scenario';
+  }
+
+  // Get scenario status for display
+  getScenarioStatus(): string {
+    if (!this.currentScenario) return 'none';
+    if (this.currentScenario.is_base_scenario) return 'base';
+    if (this.currentScenario.parent_scenario_id) return 'branch';
+    return 'custom';
   }
 
   setupSearch(): void {
@@ -240,6 +317,9 @@ export class SqlQueryComponent implements OnInit, OnDestroy, AfterViewInit {
     // Load table data directly and extract columns from the result
     const sqlQuery = `SELECT * FROM ${tableName}`;
     console.log('Executing SQL query:', sqlQuery);
+    
+    // Add to query history
+    this.addToQueryHistory(sqlQuery);
     
     this.apiService.executeSQL(sqlQuery).subscribe({
       next: (queryResult) => {

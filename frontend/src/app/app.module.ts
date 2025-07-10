@@ -34,6 +34,9 @@ import { OutputDisplayComponent } from './components/output-display/output-displ
 import { SqlQueryComponent } from './components/sql-query/sql-query.component';
 import { ModelRerunDialogComponent } from './components/model-rerun-dialog/model-rerun-dialog.component';
 import { PlotlyChartComponent } from './components/plotly-chart/plotly-chart.component';
+import { ScenarioTabsComponent } from './components/scenario-tabs/scenario-tabs.component';
+import { CreateScenarioDialogComponent } from './components/create-scenario-dialog/create-scenario-dialog.component';
+import { ScenarioManagementComponent } from './components/scenario-management/scenario-management.component';
 import { SafePipe } from './pipes/safe.pipe';
 
 @NgModule({
@@ -47,6 +50,9 @@ import { SafePipe } from './pipes/safe.pipe';
     SqlQueryComponent,
     ModelRerunDialogComponent,
     PlotlyChartComponent,
+    ScenarioTabsComponent,
+    CreateScenarioDialogComponent,
+    ScenarioManagementComponent,
     SafePipe
   ],
   imports: [

@@ -1,7 +1,26 @@
 <div class="sql-database-container" (click)="hideContextMenu()">
   <!-- Header -->
   <div class="section-header">
-    <h3>SQL Database</h3>
+    <div class="header-content">
+      <h3>SQL Database</h3>
+      <div *ngIf="currentScenario" class="scenario-context">
+        <span class="scenario-label">Scenario:</span>
+        <span class="scenario-name">{{ getScenarioDisplayName() }}</span>
+        <span class="scenario-status" [class]="getScenarioStatus()">
+          {{ getScenarioStatus() }}
+        </span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div *ngIf="isLoadingScenario" class="loading-indicator">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Loading scenario...</span>
+      </div>
+      <button class="refresh-btn" (click)="refreshDatabaseInfo()" [disabled]="isRefreshing">
+        <i class="fas fa-sync-alt" [class.fa-spin]="isRefreshing"></i>
+        Refresh
+      </button>
+    </div>
   </div>
 
   <!-- Loading State -->

@@ -1,0 +1,31 @@
+graph TD
+    START([START]) --> classify_request[classify_request<br/>Request Classification]
+    
+    classify_request -->|chat| handle_chat[handle_chat<br/>Chat Q&A]
+    classify_request -->|sql_query| handle_sql_query[handle_sql_query<br/>SQL Query]
+    classify_request -->|visualization| handle_visualization[handle_visualization<br/>Visualization]
+    classify_request -->|db_modification| prepare_db_modification[prepare_db_modification<br/>DB Mod Prep]
+    
+    handle_chat --> respond[respond<br/>Response]
+    handle_sql_query --> execute_code[execute_code<br/>Code Execution]
+    handle_visualization --> execute_code
+    execute_code --> respond
+    
+    prepare_db_modification --> execute_db_modification[execute_db_modification<br/>DB Mod Exec]
+    execute_db_modification --> respond
+    
+    respond --> END([END])
+    
+    %% Styling
+    classDef startEnd fill:#90EE90,stroke:#333,stroke-width:2px
+    classDef classification fill:#87CEEB,stroke:#333,stroke-width:2px
+    classDef handler fill:#F0E68C,stroke:#333,stroke-width:2px
+    classDef execution fill:#F08080,stroke:#333,stroke-width:2px
+    classDef response fill:#98FB98,stroke:#333,stroke-width:2px
+    
+    class START,END startEnd
+    class classify_request classification
+    class handle_chat,handle_sql_query,handle_visualization,prepare_db_modification,execute_db_modification handler
+    class execute_code execution
+    class respond response
+    

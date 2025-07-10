@@ -1,7 +1,24 @@
 <div class="output-display">
   <div class="output-header">
-    <h4>Execution Output</h4>
-    <button class="clear-all-btn" (click)="clearOutput()"><i class="fas fa-trash"></i> Clear All</button>
+    <div class="header-content">
+      <h4>Execution Output</h4>
+      <div *ngIf="currentScenario" class="scenario-context">
+        <span class="scenario-label">Scenario:</span>
+        <span class="scenario-name">{{ getScenarioDisplayName() }}</span>
+        <span class="scenario-status" [class]="getScenarioStatus()">
+          {{ getScenarioStatus() }}
+        </span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div *ngIf="isLoadingHistory" class="loading-indicator">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Loading history...</span>
+      </div>
+      <button class="clear-all-btn" (click)="clearOutput()">
+        <i class="fas fa-trash"></i> Clear All
+      </button>
+    </div>
   </div>
   
   <div #outputContainer class="output-container" (scroll)="onScroll($event)">
@@ -29,10 +46,10 @@
           <pre>{{ result.error }}</pre>
         </div>
         
-        <!-- Display generated files -->
-        <div *ngIf="result.outputFiles && result.outputFiles.length > 0" class="output-files">
-          <h5>Generated Files:</h5>
-          <div class="file-list">
+        <!-- Display generated files (only when not running and files exist) -->
+        <div *ngIf="!result.isRunning && result.outputFiles && result.outputFiles.length > 0" class="output-files">
+          <h5>Generated Files ({{ result.outputFiles.length }}):</h5>
+          <div *ngIf="result.outputFiles.length > 0" class="file-list">
             <div *ngFor="let file of result.outputFiles" class="output-file">
               <div class="file-info">
                 <i class="fas" [ngClass]="getFileIcon(file.filename)"></i>
@@ -139,4 +156,5 @@
            (click)="$event.stopPropagation()" />
     </div>
   </div>
+
 </div> 

@@ -55,7 +55,7 @@ echo [2/4] Starting backend server...
 
 :: Activate virtual environment and start backend
 call .venv\Scripts\activate.bat
-start "EY Backend" cmd /k "cd backend && python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload"
+start "EY Backend" cmd /k "cd backend && python -m uvicorn main:app --host 0.0.0.0 --port 8001"
 
 echo Waiting for backend to initialize...
 timeout /t 8 /nobreak >nul

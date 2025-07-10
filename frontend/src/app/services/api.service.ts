@@ -57,6 +57,7 @@ export interface UploadResponse {
   files: string[];
   file_contents: { [key: string]: string };
   table_names_message?: string;
+  scenario?: any; // Scenario created during upload
   sql_conversion?: {
     converted_tables: string[];
     total_tables: number;
@@ -283,10 +284,24 @@ export class ApiService {
     return this.http.post<ChatResponse>(`${this.baseUrl}/chat`, request);
   }
 
-  langGraphChat(message: string): Observable<LangGraphChatResponse> {
+  // Removed v1 langGraphChat method - now using v2 agent only
+
+  // New v2 endpoints
+  langGraphChatV2(message: string, scenarioId?: number): Observable<any> {
     const chatMessage: ChatMessage = { role: 'user', content: message };
-    return this.http.post<LangGraphChatResponse>(`${this.baseUrl}/langgraph-chat`, chatMessage);
+    return this.http.post<any>(`${this.baseUrl}/langgraph-chat-v2`, chatMessage);
   }
+
+  actionChatV2(message: string, actionType?: string, conversationHistory?: any[], threadId: string = 'default'): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/action-chat-v2`, {
+      message,
+      action_type: actionType,
+      conversation_history: conversationHistory || [],
+      thread_id: threadId
+    });
+  }
+
+  // Removed v1 agent version switching methods - now using v2 agent only
 
   clearFiles(): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.baseUrl}/files`);
@@ -309,9 +324,7 @@ export class ApiService {
     return this.http.get<AgentInfo>(`${this.baseUrl}/agents`);
   }
 
-  switchAgent(agentType: string): Observable<any> {
-    return this.http.post(`${this.baseUrl}/switch-agent`, { agent_type: agentType });
-  }
+  // Removed v1 agent switching method - now using v2 agent only
 
   getChatMode(): Observable<ChatModeInfo> {
     return this.http.get<ChatModeInfo>(`${this.baseUrl}/chat-mode`);
@@ -421,5 +434,55 @@ export class ApiService {
 
   deleteFile(filename: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.baseUrl}/files/${filename}`);
+  }
+
+  // === Scenario Management Methods ===
+  createScenario(request: any): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/scenarios/create`, request);
+  }
+
+  getScenarios(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/scenarios/list`);
+  }
+
+  getScenario(scenarioId: number): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/scenarios/${scenarioId}`);
+  }
+
+  updateScenario(scenarioId: number, request: any): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/scenarios/${scenarioId}`, request);
+  }
+
+  deleteScenario(scenarioId: number): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/scenarios/${scenarioId}`);
+  }
+
+  activateScenario(scenarioId: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/scenarios/${scenarioId}/activate`, {});
+  }
+
+  getCurrentScenario(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/scenarios/current`);
+  }
+
+  getExecutionHistory(scenarioId: number): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/scenarios/${scenarioId}/execution-history`);
+  }
+
+  // === Analysis Files Methods ===
+  getAnalysisFiles(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/analysis-files/list`);
+  }
+
+  createAnalysisFile(request: any): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/analysis-files/create`, request);
+  }
+
+  updateAnalysisFile(fileId: number, request: any): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/analysis-files/${fileId}`, request);
+  }
+
+  deleteAnalysisFile(fileId: number): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/analysis-files/${fileId}`);
   }
 } 

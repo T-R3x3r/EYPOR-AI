@@ -1,0 +1,274 @@
+.scenario-tabs-container {
+  position: relative;
+  width: 100%;
+  background: var(--background-color);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 10;
+}
+
+.scenario-tabs {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  height: 48px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+.scenario-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scenario-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scenario-tabs::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+.scenario-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-right: 4px;
+  background: var(--secondary-background);
+  border: 1px solid var(--border-color);
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scenario-tab:hover {
+  background: var(--hover-background);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.scenario-tab.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.scenario-tab.base-scenario {
+  border-left: 3px solid var(--success-color);
+}
+
+.scenario-tab.base-scenario.active {
+  border-left-color: white;
+}
+
+.scenario-name {
+  font-weight: 500;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-type {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scenario-type.base {
+  background: var(--success-color);
+  color: white;
+}
+
+.scenario-type.branch {
+  background: var(--warning-color);
+  color: white;
+}
+
+.active-indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: white;
+  border-radius: 1px;
+}
+
+.create-scenario-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--secondary-background);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
+.create-scenario-btn:hover {
+  background: var(--hover-background);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.create-scenario-btn i {
+  font-size: 12px;
+}
+
+/* Context Menu */
+.context-menu {
+  position: fixed;
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 8px 0;
+  min-width: 160px;
+  z-index: 1000;
+  animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.context-menu-item:hover {
+  background: var(--hover-background);
+}
+
+.context-menu-item.danger {
+  color: var(--danger-color);
+}
+
+.context-menu-item.danger:hover {
+  background: var(--danger-background);
+}
+
+.context-menu-item i {
+  width: 16px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .scenario-tabs {
+    padding: 0 8px;
+    height: 40px;
+  }
+  
+  .scenario-tab {
+    padding: 6px 12px;
+    min-width: 100px;
+    max-width: 150px;
+  }
+  
+  .scenario-name {
+    font-size: 13px;
+  }
+  
+  .scenario-type {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+  
+  .create-scenario-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  
+  .create-scenario-btn span {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .scenario-tab {
+    min-width: 80px;
+    max-width: 120px;
+  }
+  
+  .scenario-name {
+    font-size: 12px;
+  }
+  
+  .scenario-type {
+    display: none;
+  }
+}
+
+/* Dark mode adjustments */
+.dark-mode .scenario-tab {
+  background: var(--dark-secondary-background);
+  border-color: var(--dark-border-color);
+}
+
+.dark-mode .scenario-tab:hover {
+  background: var(--dark-hover-background);
+}
+
+.dark-mode .create-scenario-btn {
+  background: var(--dark-secondary-background);
+  border-color: var(--dark-border-color);
+  color: var(--dark-text-color);
+}
+
+.dark-mode .create-scenario-btn:hover {
+  background: var(--dark-hover-background);
+  border-color: var(--primary-color);
+}
+
+.dark-mode .context-menu {
+  background: var(--dark-background-color);
+  border-color: var(--dark-border-color);
+}
+
+.dark-mode .context-menu-item {
+  color: var(--dark-text-color);
+}
+
+.dark-mode .context-menu-item:hover {
+  background: var(--dark-hover-background);
+} 

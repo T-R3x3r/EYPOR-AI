@@ -1,6 +1,9 @@
 import { Component, OnInit, ViewEncapsulation, ViewChild, ElementRef, AfterViewInit, AfterViewChecked } from '@angular/core';
 import { ApiService } from '../../services/api.service';
 import { ExecutionService } from '../../services/execution.service';
+import { ScenarioService } from '../../services/scenario.service';
+import { Scenario } from '../../models/scenario.model';
+import { QueryFileOrganizerService, QueryFileGroup, OrganizedFiles } from '../../services/query-file-organizer.service';
 
 interface FileNode {
   name: string;
@@ -20,8 +23,9 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
   @ViewChild('fileTreeRoot') fileTreeRoot!: ElementRef;
   
   fileTree: FileNode[] = [];
-  aiCreatedTree: FileNode[] = [];
+  queryGroups: QueryFileGroup[] = [];
   isLoading = false;
+  currentScenario: Scenario | null = null;
   private savedScrollPosition = 0;
   private pendingRestore = false;
   
@@ -38,11 +42,30 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
   constructor(
     private apiService: ApiService,
     private executionService: ExecutionService,
+    private scenarioService: ScenarioService,
+    public queryFileOrganizer: QueryFileOrganizerService,
     private elRef: ElementRef
   ) {}
 
   ngOnInit() {
+    // Clear old query groups on startup
+    this.queryFileOrganizer.clearOldQueryGroups();
+    
+    // Clean up any existing empty query groups
+    this.queryFileOrganizer.cleanupEmptyGroups();
+    
     this.loadFiles();
+    
+    // Subscribe to scenario changes to update file operations context
+    this.scenarioService.currentScenario$.subscribe(scenario => {
+      this.currentScenario = scenario;
+      console.log('File tree: Scenario changed to:', scenario?.name);
+      
+      // Files are global, so we don't need to refresh when switching scenarios
+      // Only update the current scenario reference for context
+      // But refresh query groups to ensure they're visible
+      this.refreshQueryGroups();
+    });
   }
 
   ngAfterViewInit() {
@@ -62,6 +85,13 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
     this.saveScrollPosition();
     // Skip loading spinner during automatic refresh to minimize DOM changes
     this.loadFiles(true);
+  }
+
+  refreshQueryGroups() {
+    // Refresh only the query groups without reloading from API
+    const organizedFiles = this.queryFileOrganizer.getOrganizedFiles();
+    this.queryGroups = organizedFiles.query_groups;
+    console.log('Query groups refreshed:', this.queryGroups.length);
   }
 
   private saveScrollPosition() {
@@ -86,9 +116,22 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
     }
     this.apiService.getFiles().subscribe({
       next: (response) => {
-        // Build separate trees for uploaded and AI-created files
+        // Update uploaded files in organizer
+        this.queryFileOrganizer.setUploadedFiles(response.uploaded_files || []);
+        
+        // Build file tree for uploaded files
         this.fileTree = this.buildFileTree(response.uploaded_files || []);
-        this.aiCreatedTree = this.buildFileTree(response.ai_created_files || []);
+        
+        // Get organized query groups - files should be global and accessible from any scenario
+        const organizedFiles = this.queryFileOrganizer.getOrganizedFiles();
+        this.queryGroups = organizedFiles.query_groups;
+        
+        console.log('File tree loaded:', {
+          uploadedFiles: response.uploaded_files?.length || 0,
+          queryGroups: this.queryGroups.length,
+          currentScenario: this.currentScenario?.name
+        });
+        
         if (!skipLoadingSpinner) {
           this.isLoading = false;
         }
@@ -159,8 +202,17 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
   }
 
   runPythonFile(filePath: string) {
-    console.log('Running Python file:', filePath);
+    console.log('Running Python file:', filePath, 'in scenario:', this.currentScenario?.name);
     this.executionService.setExecuting(true);
+    
+    // Include scenario context in execution
+    const scenarioId = this.currentScenario?.id;
+    if (scenarioId) {
+      console.log('Executing with scenario context:', scenarioId);
+    }
+    
+    // Find the query group this file belongs to (if any)
+    const queryGroup = this.findQueryGroupForFile(filePath);
     
     this.apiService.runFile(filePath).subscribe({
       next: (result: any) => {
@@ -177,6 +229,11 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
           outputFiles: result.output_files || []
         });
         this.executionService.setExecuting(false);
+        
+        // Add new output files to the appropriate query group
+        if (result.output_files && result.output_files.length > 0) {
+          this.addOutputFilesToQueryGroup(filePath, result.output_files, queryGroup);
+        }
         
         // Refresh file tree to show newly created files
         this.refreshFiles();
@@ -231,24 +288,24 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
             if (result.result && result.columns) {
               // Format results as table
               const formattedResult = this.formatSQLResults(sqlQuery, result.result, result.columns);
-                          this.executionService.emitExecutionResult({
-              command: `SQL: ${filePath}`,
-              output: formattedResult,
-              error: '',
-              returnCode: 0
-            });
-          } else {
-            this.executionService.emitExecutionResult({
-              command: `SQL: ${filePath}`,
-              output: JSON.stringify(result, null, 2),
-              error: '',
-              returnCode: 0
-            });
-          }
-          this.executionService.setExecuting(false);
-          
-          // Refresh file tree to show any newly created files
-          this.refreshFiles();
+              this.executionService.emitExecutionResult({
+                command: `SQL: ${filePath}`,
+                output: formattedResult,
+                error: '',
+                returnCode: 0
+              });
+            } else {
+              this.executionService.emitExecutionResult({
+                command: `SQL: ${filePath}`,
+                output: JSON.stringify(result, null, 2),
+                error: '',
+                returnCode: 0
+              });
+            }
+            this.executionService.setExecuting(false);
+            
+            // Refresh file tree to show any newly created files
+            this.refreshFiles();
           },
           error: (error: any) => {
             console.error('Error running SQL file:', error);
@@ -627,9 +684,19 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
       return;
     }
 
+    // Get the filename to remove from query groups
+    const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+
     this.apiService.deleteFile(filePath).subscribe({
       next: (response) => {
         console.log('File deleted:', response);
+        
+        // Remove the file from any query groups that contain it
+        const queryGroup = this.findQueryGroupForFile(filePath);
+        if (queryGroup) {
+          this.queryFileOrganizer.removeFilesFromQueryGroup(queryGroup.queryId, [fileName]);
+        }
+        
         // Refresh file list after deletion
         this.refreshFiles();
       },
@@ -638,5 +705,72 @@ export class FileTreeComponent implements OnInit, AfterViewInit, AfterViewChecke
         alert(`Error deleting file: ${error.error?.detail || error.message || 'Unknown error'}`);
       }
     });
+  }
+
+  // Get scenario display name for context
+  getScenarioDisplayName(): string {
+    return this.currentScenario?.name || 'No Scenario';
+  }
+
+  // Get scenario status for display
+  getScenarioStatus(): string {
+    if (!this.currentScenario) return 'none';
+    if (this.currentScenario.is_base_scenario) return 'base';
+    if (this.currentScenario.parent_scenario_id) return 'branch';
+    return 'custom';
+  }
+
+  removeQueryGroup(queryId: string): void {
+    this.queryFileOrganizer.removeQueryGroup(queryId);
+    // Refresh the query groups and trigger cleanup
+    this.refreshQueryGroups();
+  }
+
+  /**
+   * Find the query group that contains the specified file
+   */
+  private findQueryGroupForFile(filePath: string): QueryFileGroup | null {
+    const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
+    
+    // Use the service method to find the query group
+    return this.queryFileOrganizer.findQueryGroupByFile(fileName);
+  }
+
+  /**
+   * Add new output files to the appropriate query group
+   */
+  private addOutputFilesToQueryGroup(filePath: string, outputFiles: any[], queryGroup: QueryFileGroup | null): void {
+    if (!queryGroup) {
+      console.log('No query group found for file:', filePath);
+      return;
+    }
+
+    // Extract file names from output files
+    const newFileNames = outputFiles.map((file: any) => {
+      if (typeof file === 'string') {
+        return file;
+      } else if (file && typeof file === 'object' && file.filename) {
+        return file.filename;
+      }
+      return null;
+    }).filter((name: string | null) => name !== null);
+
+    if (newFileNames.length > 0) {
+      console.log('Adding new files to existing query group:', newFileNames);
+      
+      // Add the new files to the existing query group using the query ID
+      const success = this.queryFileOrganizer.addFilesToExistingQueryGroup(
+        queryGroup.queryId,
+        newFileNames
+      );
+      
+      if (success) {
+        console.log('Successfully added files to existing query group');
+        // Refresh the query groups display
+        this.refreshQueryGroups();
+      } else {
+        console.log('Failed to add files to existing query group');
+      }
+    }
   }
 } 

@@ -1,0 +1,142 @@
+<div class="dialog-overlay" (click)="cancel()">
+  <div class="dialog-container" (click)="$event.stopPropagation()" (keydown)="onKeyDown($event)">
+    <div class="dialog-header">
+      <h2>Create New Scenario</h2>
+      <button class="close-btn" (click)="cancel()" title="Close dialog">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <form [formGroup]="scenarioForm" class="dialog-content">
+      <!-- Scenario Name -->
+      <div class="form-group">
+        <label for="scenarioName" class="form-label">
+          Scenario Name <span class="required">*</span>
+        </label>
+        <input
+          id="scenarioName"
+          type="text"
+          formControlName="name"
+          class="form-input"
+          [class.invalid]="isNameInvalid"
+          placeholder="Enter scenario name"
+          maxlength="100"
+          autocomplete="off">
+        
+        <div *ngIf="isNameInvalid" class="error-message">
+          <span *ngIf="nameControl?.errors?.['required']">Scenario name is required</span>
+          <span *ngIf="nameControl?.errors?.['minlength']">Scenario name must be at least 1 character</span>
+          <span *ngIf="nameControl?.errors?.['maxlength']">Scenario name cannot exceed 100 characters</span>
+        </div>
+        
+        <div class="char-counter">
+          {{ nameControl?.value?.length || 0 }}/100
+        </div>
+      </div>
+
+      <!-- Scenario Description -->
+      <div class="form-group">
+        <label for="scenarioDescription" class="form-label">
+          Description <span class="optional">(optional)</span>
+        </label>
+        <textarea
+          id="scenarioDescription"
+          formControlName="description"
+          class="form-textarea"
+          [class.invalid]="isDescriptionInvalid"
+          placeholder="Describe what this scenario is for..."
+          maxlength="500"
+          rows="3"></textarea>
+        
+        <div *ngIf="isDescriptionInvalid" class="error-message">
+          <span *ngIf="descriptionControl?.errors?.['maxlength']">Description cannot exceed 500 characters</span>
+        </div>
+        
+        <div class="char-counter">
+          {{ descriptionControl?.value?.length || 0 }}/500
+        </div>
+      </div>
+
+      <!-- Creation Type -->
+      <div class="form-group">
+        <label class="form-label">Creation Type <span class="required">*</span></label>
+        
+        <div class="radio-group">
+          <!-- Start from scratch -->
+          <label class="radio-option">
+            <input
+              type="radio"
+              formControlName="creationType"
+              value="scratch"
+              class="radio-input">
+            <div class="radio-custom"></div>
+            <div class="radio-content">
+              <div class="radio-title">
+                <i class="fas fa-plus-circle"></i>
+                Start from scratch
+              </div>
+              <div class="radio-description">
+                {{ getCreationTypeDescription('scratch') }}
+              </div>
+            </div>
+          </label>
+
+          <!-- Branch from current -->
+          <label class="radio-option" [class.disabled]="!canCreateFromCurrent">
+            <input
+              type="radio"
+              formControlName="creationType"
+              value="branch"
+              class="radio-input"
+              [disabled]="!canCreateFromCurrent">
+            <div class="radio-custom"></div>
+            <div class="radio-content">
+              <div class="radio-title">
+                <i class="fas fa-code-branch"></i>
+                Branch from current scenario
+                <span *ngIf="!canCreateFromCurrent" class="disabled-note">(Not available)</span>
+              </div>
+              <div class="radio-description">
+                {{ getCreationTypeDescription('branch') }}
+              </div>
+              <div *ngIf="currentScenario" class="current-scenario-info">
+                Current: <strong>{{ getCurrentScenarioName() }}</strong>
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Error Message -->
+      <div *ngIf="errorMessage" class="error-banner">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>{{ errorMessage }}</span>
+      </div>
+    </form>
+
+    <div class="dialog-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="cancel()"
+        [disabled]="isLoading">
+        Cancel
+      </button>
+      
+      <button
+        type="button"
+        class="btn btn-primary"
+        (click)="createScenario()"
+        [disabled]="scenarioForm.invalid || isLoading">
+        <i *ngIf="isLoading" class="fas fa-spinner fa-spin"></i>
+        <span>{{ isLoading ? 'Creating...' : 'Create Scenario' }}</span>
+      </button>
+    </div>
+
+    <!-- Keyboard shortcuts hint -->
+    <div class="keyboard-hints">
+      <span class="hint">Press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to create</span>
+      <span class="hint">Press <kbd>Esc</kbd> to cancel</span>
+    </div>
+  </div>
+</div> 

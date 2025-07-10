@@ -1,11 +1,22 @@
 <div class="chat-container">
   <!-- SQL Query Assistant Header -->
   <div class="sql-header">
-    <div class="sql-title">
-      <h3><i class="fas fa-robot"></i> EYPOR</h3>
+    <div class="header-content">
+      <div class="sql-title">
+        <h3><i class="fas fa-robot"></i> EYPOR</h3>
+        <div *ngIf="currentScenario" class="scenario-context">
+          <span class="scenario-label">Scenario:</span>
+          <span class="scenario-name">{{ getScenarioDisplayName() }}</span>
+          <span class="scenario-status" [class]="getScenarioStatus()">
+            {{ getScenarioStatus() }}
+          </span>
+        </div>
+      </div>
     </div>
     <div class="sql-controls">
-      <button class="clear-all-btn" (click)="clearChat()" [disabled]="isLoading"><i class="fas fa-trash"></i> Clear All</button>
+      <button class="clear-all-btn" (click)="clearChat()" [disabled]="isLoading">
+        <i class="fas fa-trash"></i> Clear All
+      </button>
       <button class="action-btn" (click)="exportChat()" [disabled]="messages.length <= 1">
         <i class="fas fa-download"></i> Export
       </button>

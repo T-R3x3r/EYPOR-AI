@@ -1,0 +1,37 @@
+Simplified Agent v2 Workflow Diagram
+===============================================
+
+START
+  |
+classify_request (Request Classification)
+  |
++-----------------+-----------------+-----------------+-----------------+
+|     chat        |   sql_query     | visualization   | db_modification |
+|     Path        |     Path        |     Path        |     Path        |
++-----------------+-----------------+-----------------+-----------------+
+  |                 |                 |                 |
+handle_chat    handle_sql_query  handle_visualization  prepare_db_modification
+  |                 |                 |                 |
+respond         execute_code      execute_code          execute_db_modification
+  |                 |                 |                 |
+END              respond           respond              respond
+                 |                 |                    |
+                END               END                  END
+
+Node Descriptions:
+=================
+* classify_request: Analyzes user input and routes to appropriate handler
+* handle_chat: Processes general Q&A without code execution
+* handle_sql_query: Generates SQL query scripts
+* handle_visualization: Creates chart/graph generation scripts
+* prepare_db_modification: Prepares database parameter changes
+* execute_code: Executes generated Python scripts
+* execute_db_modification: Performs database modifications
+* respond: Generates final response to user
+
+Workflow Paths:
+==============
+1. Chat Path: START -> classify_request -> handle_chat -> respond -> END
+2. SQL Path: START -> classify_request -> handle_sql_query -> execute_code -> respond -> END
+3. Visualization Path: START -> classify_request -> handle_visualization -> execute_code -> respond -> END
+4. DB Modification Path: START -> classify_request -> prepare_db_modification -> execute_db_modification -> respond -> END

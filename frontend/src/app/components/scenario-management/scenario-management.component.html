@@ -1,0 +1,369 @@
+<div class="scenario-management-container">
+  <!-- Header -->
+  <div class="management-header">
+    <div class="header-left">
+      <h2>Scenario Management</h2>
+      <span class="scenario-count">{{ filteredScenarios.length }} scenario(s)</span>
+    </div>
+    
+    <div class="header-right">
+      <!-- View Mode Toggle -->
+      <div class="view-mode-toggle">
+        <button 
+          class="view-btn" 
+          [class.active]="viewMode === 'list'"
+          (click)="setViewMode('list')"
+          title="List view">
+          <i class="fas fa-list"></i>
+        </button>
+        <button 
+          class="view-btn" 
+          [class.active]="viewMode === 'grid'"
+          (click)="setViewMode('grid')"
+          title="Grid view">
+          <i class="fas fa-th"></i>
+        </button>
+        <button 
+          class="view-btn" 
+          [class.active]="viewMode === 'details'"
+          (click)="setViewMode('details')"
+          title="Details view">
+          <i class="fas fa-table"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters and Search -->
+  <div class="filters-section">
+    <div class="filter-group">
+      <label class="filter-label">Type:</label>
+      <select [(ngModel)]="filterType" class="filter-select">
+        <option value="all">All Types</option>
+        <option value="base">Base Scenarios</option>
+        <option value="branch">Branch Scenarios</option>
+      </select>
+    </div>
+    
+    <div class="search-group">
+      <i class="fas fa-search search-icon"></i>
+      <input 
+        type="text" 
+        [(ngModel)]="searchTerm"
+        placeholder="Search scenarios..."
+        class="search-input">
+    </div>
+  </div>
+
+  <!-- Bulk Actions -->
+  <div *ngIf="selectedScenarios.size > 0" class="bulk-actions">
+    <div class="bulk-info">
+      <span>{{ selectedScenarios.size }} scenario(s) selected</span>
+      <button class="clear-selection" (click)="deselectAllScenarios()">
+        <i class="fas fa-times"></i>
+        Clear
+      </button>
+    </div>
+    
+    <div class="bulk-buttons">
+      <button 
+        class="btn btn-secondary"
+        (click)="duplicateSelectedScenarios()"
+        [disabled]="isLoading">
+        <i class="fas fa-copy"></i>
+        Duplicate
+      </button>
+      
+      <button 
+        class="btn btn-warning"
+        (click)="startComparison()"
+        [disabled]="selectedScenarios.size < 2">
+        <i class="fas fa-balance-scale"></i>
+        Compare
+      </button>
+      
+      <button 
+        class="btn btn-danger"
+        (click)="deleteSelectedScenarios()"
+        [disabled]="isLoading">
+        <i class="fas fa-trash"></i>
+        Delete
+      </button>
+    </div>
+  </div>
+
+  <!-- Error Message -->
+  <div *ngIf="errorMessage" class="error-banner" (click)="clearError()">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span>{{ errorMessage }}</span>
+    <i class="fas fa-times close-error"></i>
+  </div>
+
+  <!-- Loading Indicator -->
+  <div *ngIf="isLoading" class="loading-overlay">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+      <span>Processing...</span>
+    </div>
+  </div>
+
+  <!-- Scenarios List -->
+  <div class="scenarios-content">
+    <!-- List View -->
+    <div *ngIf="viewMode === 'list'" class="list-view">
+      <div class="list-header">
+        <div class="header-checkbox">
+          <input 
+            type="checkbox" 
+            [checked]="isAllSelected"
+            [indeterminate]="isPartiallySelected"
+            (change)="isAllSelected ? deselectAllScenarios() : selectAllScenarios()">
+        </div>
+        <div class="header-name" (click)="toggleSort('name')">
+          Name <i [class]="getSortIcon('name')"></i>
+        </div>
+        <div class="header-type">Type</div>
+        <div class="header-created" (click)="toggleSort('created')">
+          Created <i [class]="getSortIcon('created')"></i>
+        </div>
+        <div class="header-modified" (click)="toggleSort('modified')">
+          Modified <i [class]="getSortIcon('modified')"></i>
+        </div>
+        <div class="header-actions">Actions</div>
+      </div>
+      
+      <div class="list-body">
+        <div 
+          *ngFor="let scenario of filteredScenarios" 
+          class="list-item"
+          [class.current]="isCurrentScenario(scenario)"
+          [class.selected]="isSelected(scenario)">
+          
+          <div class="item-checkbox">
+            <input 
+              type="checkbox" 
+              [checked]="isSelected(scenario)"
+              (change)="toggleScenarioSelection(scenario.id)">
+          </div>
+          
+          <div class="item-name">
+            <span class="scenario-name">{{ scenario.name }}</span>
+            <span *ngIf="scenario.description" class="scenario-description">
+              {{ scenario.description }}
+            </span>
+          </div>
+          
+          <div class="item-type">
+            <span class="type-badge" [class]="getScenarioTypeClass(scenario)">
+              {{ getScenarioTypeLabel(scenario) }}
+            </span>
+          </div>
+          
+          <div class="item-created">
+            {{ formatDate(scenario.created_at) }}
+          </div>
+          
+          <div class="item-modified">
+            {{ formatDate(scenario.modified_at) }}
+          </div>
+          
+          <div class="item-actions">
+            <button 
+              class="action-btn"
+              (click)="switchToScenario(scenario)"
+              [class.active]="isCurrentScenario(scenario)"
+              title="Switch to this scenario">
+              <i class="fas fa-play"></i>
+            </button>
+            
+            <button 
+              class="action-btn"
+              (click)="renameScenario(scenario)"
+              title="Rename scenario">
+              <i class="fas fa-edit"></i>
+            </button>
+            
+            <button 
+              class="action-btn danger"
+              (click)="deleteScenario(scenario)"
+              title="Delete scenario">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid View -->
+    <div *ngIf="viewMode === 'grid'" class="grid-view">
+      <div 
+        *ngFor="let scenario of filteredScenarios" 
+        class="grid-item"
+        [class.current]="isCurrentScenario(scenario)"
+        [class.selected]="isSelected(scenario)">
+        
+        <div class="grid-item-header">
+          <input 
+            type="checkbox" 
+            [checked]="isSelected(scenario)"
+            (change)="toggleScenarioSelection(scenario.id)"
+            class="item-checkbox">
+          
+          <span class="type-badge" [class]="getScenarioTypeClass(scenario)">
+            {{ getScenarioTypeLabel(scenario) }}
+          </span>
+        </div>
+        
+        <div class="grid-item-content">
+          <h3 class="scenario-name">{{ scenario.name }}</h3>
+          <p *ngIf="scenario.description" class="scenario-description">
+            {{ scenario.description }}
+          </p>
+          
+          <div class="scenario-meta">
+            <div class="meta-item">
+              <i class="fas fa-calendar-plus"></i>
+              <span>{{ formatDate(scenario.created_at) }}</span>
+            </div>
+            <div class="meta-item">
+              <i class="fas fa-calendar-edit"></i>
+              <span>{{ formatDate(scenario.modified_at) }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid-item-actions">
+          <button 
+            class="btn btn-primary"
+            (click)="switchToScenario(scenario)"
+            [class.active]="isCurrentScenario(scenario)">
+            <i class="fas fa-play"></i>
+            {{ isCurrentScenario(scenario) ? 'Active' : 'Switch' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Details View -->
+    <div *ngIf="viewMode === 'details'" class="details-view">
+      <div 
+        *ngFor="let scenario of filteredScenarios" 
+        class="details-item"
+        [class.current]="isCurrentScenario(scenario)"
+        [class.selected]="isSelected(scenario)">
+        
+        <div class="details-header">
+          <input 
+            type="checkbox" 
+            [checked]="isSelected(scenario)"
+            (change)="toggleScenarioSelection(scenario.id)"
+            class="item-checkbox">
+          
+          <div class="scenario-info">
+            <h3 class="scenario-name">{{ scenario.name }}</h3>
+            <span class="type-badge" [class]="getScenarioTypeClass(scenario)">
+              {{ getScenarioTypeLabel(scenario) }}
+            </span>
+          </div>
+          
+          <div class="scenario-actions">
+            <button 
+              class="action-btn"
+              (click)="switchToScenario(scenario)"
+              [class.active]="isCurrentScenario(scenario)">
+              <i class="fas fa-play"></i>
+              Switch
+            </button>
+          </div>
+        </div>
+        
+        <div class="details-content">
+          <div class="detail-row">
+            <div class="detail-label">Description:</div>
+            <div class="detail-value">
+              {{ scenario.description || 'No description' }}
+            </div>
+          </div>
+          
+          <div class="detail-row">
+            <div class="detail-label">Created:</div>
+            <div class="detail-value">{{ formatDate(scenario.created_at) }}</div>
+          </div>
+          
+          <div class="detail-row">
+            <div class="detail-label">Modified:</div>
+            <div class="detail-value">{{ formatDate(scenario.modified_at) }}</div>
+          </div>
+          
+          <div class="detail-row" *ngIf="scenario.parent_scenario_id">
+            <div class="detail-label">Parent Scenario:</div>
+            <div class="detail-value">ID: {{ scenario.parent_scenario_id }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="filteredScenarios.length === 0" class="empty-state">
+      <i class="fas fa-folder-open"></i>
+      <h3>No scenarios found</h3>
+      <p *ngIf="searchTerm || filterType !== 'all'">
+        Try adjusting your search or filter criteria
+      </p>
+      <p *ngIf="!searchTerm && filterType === 'all'">
+        No scenarios have been created yet
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Comparison View Modal -->
+<div *ngIf="showComparisonView" class="comparison-modal">
+  <div class="comparison-content">
+    <div class="comparison-header">
+      <h3>Scenario Comparison</h3>
+      <button class="close-btn" (click)="closeComparison()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    
+    <div class="comparison-table">
+      <div class="comparison-row header">
+        <div class="comparison-cell">Property</div>
+        <div *ngFor="let scenario of comparisonScenarios" class="comparison-cell">
+          {{ scenario.name }}
+        </div>
+      </div>
+      
+      <div class="comparison-row">
+        <div class="comparison-cell">Type</div>
+        <div *ngFor="let scenario of comparisonScenarios" class="comparison-cell">
+          <span class="type-badge" [class]="getScenarioTypeClass(scenario)">
+            {{ getScenarioTypeLabel(scenario) }}
+          </span>
+        </div>
+      </div>
+      
+      <div class="comparison-row">
+        <div class="comparison-cell">Created</div>
+        <div *ngFor="let scenario of comparisonScenarios" class="comparison-cell">
+          {{ formatDate(scenario.created_at) }}
+        </div>
+      </div>
+      
+      <div class="comparison-row">
+        <div class="comparison-cell">Modified</div>
+        <div *ngFor="let scenario of comparisonScenarios" class="comparison-cell">
+          {{ formatDate(scenario.modified_at) }}
+        </div>
+      </div>
+      
+      <div class="comparison-row">
+        <div class="comparison-cell">Description</div>
+        <div *ngFor="let scenario of comparisonScenarios" class="comparison-cell">
+          {{ scenario.description || 'No description' }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

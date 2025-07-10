@@ -165,6 +165,219 @@ body {
   transform: translateX(20px);
 }
 
+/* Scenario Tabs */
+.scenario-tabs-container {
+  background: white;
+  border-bottom: 1px solid #e0e0e0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+.scenario-tabs {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  height: 48px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #e0e0e0 transparent;
+}
+
+.scenario-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.scenario-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scenario-tabs::-webkit-scrollbar-thumb {
+  background: #e0e0e0;
+  border-radius: 2px;
+}
+
+.scenario-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin-right: 4px;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 120px;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.scenario-tab:hover {
+  background: #e9ecef;
+  border-color: #FFE600;
+  transform: translateY(-1px);
+}
+
+.scenario-tab.active {
+  background: #FFE600;
+  border-color: #FFE600;
+  color: #333;
+  box-shadow: 0 2px 8px rgba(255, 230, 0, 0.3);
+  font-weight: 500;
+}
+
+.scenario-tab.base-scenario {
+  border-left: 3px solid #28a745;
+}
+
+.scenario-tab.base-scenario.active {
+  border-left-color: #333;
+}
+
+.scenario-tab.switching {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.scenario-name {
+  font-weight: 500;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-type {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scenario-type.base {
+  background: #28a745;
+  color: white;
+}
+
+.scenario-type.branch {
+  background: #ffc107;
+  color: #333;
+}
+
+.active-indicator {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #333;
+  border-radius: 1px;
+}
+
+.loading-indicator {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  color: #333;
+  font-size: 12px;
+}
+
+.create-scenario-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border: 1px dashed #e0e0e0;
+  border-radius: 6px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.create-scenario-btn:hover {
+  background: #e9ecef;
+  border-color: #FFE600;
+  color: #333;
+}
+
+.create-scenario-btn i {
+  font-size: 12px;
+}
+
+/* Component Headers with Scenario Context */
+.component-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.component-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.scenario-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.scenario-label {
+  font-weight: 500;
+}
+
+.scenario-context .scenario-name {
+  font-weight: 600;
+  color: #333;
+}
+
+.scenario-status {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scenario-status.base {
+  background: #d4edda;
+  color: #155724;
+}
+
+.scenario-status.branch {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.scenario-status.custom {
+  background: #d1ecf1;
+  color: #0c5460;
+}
+
+
+
 /* Main Layout */
 .main-layout {
   flex: 1;
@@ -392,9 +605,17 @@ body {
 /* Tab Navigation */
 .tab-navigation {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
   background: #f8f9fa;
   border-bottom: 1px solid #e0e0e0;
   flex-shrink: 0;
+}
+
+.tab-header {
+  display: flex;
+  gap: 4px;
 }
 
 .tab-btn {
@@ -664,4 +885,99 @@ body.dark-mode .text-muted,
 body.dark-mode .text-secondary,
 body.dark-mode .secondary-text {
   color: #eaeaf2 !important;
+}
+
+/* Dark Mode Styles for Scenario Tabs */
+body.dark-mode .scenario-tabs-container {
+  background: #2e2e38 !important;
+  border-bottom: 1px solid #474755 !important;
+}
+
+body.dark-mode .scenario-tab {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #c2c2cf !important;
+}
+
+body.dark-mode .scenario-tab:hover {
+  background: #2e2e38 !important;
+  border-color: #21acf6 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .scenario-tab.active {
+  background: #21acf6 !important;
+  border-color: #21acf6 !important;
+  color: #1a1a24 !important;
+  box-shadow: 0 2px 8px rgba(33, 172, 246, 0.3) !important;
+}
+
+body.dark-mode .scenario-tab.base-scenario {
+  border-left-color: #28a745 !important;
+}
+
+body.dark-mode .scenario-tab.base-scenario.active {
+  border-left-color: #1a1a24 !important;
+}
+
+body.dark-mode .scenario-type.base {
+  background: #28a745 !important;
+  color: white !important;
+}
+
+body.dark-mode .scenario-type.branch {
+  background: #ffc107 !important;
+  color: #1a1a24 !important;
+}
+
+body.dark-mode .active-indicator {
+  background: #1a1a24 !important;
+}
+
+body.dark-mode .loading-indicator {
+  color: #1a1a24 !important;
+}
+
+body.dark-mode .create-scenario-btn {
+  background: #1a1a24 !important;
+  border-color: #474755 !important;
+  color: #a0a0b0 !important;
+}
+
+body.dark-mode .create-scenario-btn:hover {
+  background: #2e2e38 !important;
+  border-color: #21acf6 !important;
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .component-header {
+  background: #1a1a24 !important;
+  border-bottom-color: #474755 !important;
+}
+
+body.dark-mode .component-header h3 {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .scenario-context {
+  color: #a0a0b0 !important;
+}
+
+body.dark-mode .scenario-context .scenario-name {
+  color: #eaeaf2 !important;
+}
+
+body.dark-mode .scenario-status.base {
+  background: #1e4d2b !important;
+  color: #4ade80 !important;
+}
+
+body.dark-mode .scenario-status.branch {
+  background: #713f12 !important;
+  color: #fbbf24 !important;
+}
+
+body.dark-mode .scenario-status.custom {
+  background: #164e63 !important;
+  color: #67e8f9 !important;
 } 

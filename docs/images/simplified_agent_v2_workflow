@@ -1,0 +1,34 @@
+// Simplified Agent v2 Workflow
+digraph {
+	rankdir=TB
+	START [label=START fillcolor=lightgreen shape=ellipse style=filled]
+	classify_request [label="classify_request
+(Request Classification)" fillcolor=lightblue shape=box style=filled]
+	handle_chat [label="handle_chat
+(Chat Q&A)" fillcolor=lightyellow shape=box style=filled]
+	handle_sql_query [label="handle_sql_query
+(SQL Query)" fillcolor=lightyellow shape=box style=filled]
+	handle_visualization [label="handle_visualization
+(Visualization)" fillcolor=lightyellow shape=box style=filled]
+	prepare_db_modification [label="prepare_db_modification
+(DB Mod Prep)" fillcolor=lightyellow shape=box style=filled]
+	execute_db_modification [label="execute_db_modification
+(DB Mod Exec)" fillcolor=lightyellow shape=box style=filled]
+	execute_code [label="execute_code
+(Code Execution)" fillcolor=lightcoral shape=box style=filled]
+	respond [label="respond
+(Response)" fillcolor=lightgreen shape=box style=filled]
+	END [label=END fillcolor=lightgreen shape=ellipse style=filled]
+	START -> classify_request
+	classify_request -> handle_chat [label=chat]
+	classify_request -> handle_sql_query [label=sql_query]
+	classify_request -> handle_visualization [label=visualization]
+	classify_request -> prepare_db_modification [label=db_modification]
+	handle_chat -> respond
+	handle_sql_query -> execute_code
+	handle_visualization -> execute_code
+	execute_code -> respond
+	prepare_db_modification -> execute_db_modification
+	execute_db_modification -> respond
+	respond -> END
+}

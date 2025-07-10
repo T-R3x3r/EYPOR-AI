@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { ApiService } from './api.service';
+import { ScenarioService } from './scenario.service';
 
 interface DatabaseChange {
   table: string;
@@ -9,6 +10,7 @@ interface DatabaseChange {
   old_value: any;
   new_value: any;
   timestamp: Date;
+  scenarioId?: number;  // Add scenario context
 }
 
 interface CellChange {
@@ -51,7 +53,10 @@ export class DatabaseTrackingService {
   private availableModels: AvailableModel[] = [];
   private availableModelsSubject = new BehaviorSubject<AvailableModel[]>([]);
 
-  constructor(private apiService: ApiService) {}
+  constructor(
+    private apiService: ApiService,
+    private scenarioService: ScenarioService
+  ) {}
 
   // Observable for components to subscribe to changes
   getChanges(): Observable<DatabaseChange[]> {
@@ -81,7 +86,8 @@ export class DatabaseTrackingService {
       row_id,
       old_value,
       new_value,
-      timestamp: new Date()
+      timestamp: new Date(),
+      scenarioId: this.scenarioService.currentScenario?.id
     };
 
     this.changes.push(change);

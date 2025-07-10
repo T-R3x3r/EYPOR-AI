@@ -1,15 +1,26 @@
 <div class="file-tree" #fileTreeRoot>
+  <!-- Scenario Context Header -->
+  <div *ngIf="currentScenario" class="scenario-context-header">
+    <div class="scenario-info">
+      <span class="scenario-label">Scenario:</span>
+      <span class="scenario-name">{{ getScenarioDisplayName() }}</span>
+      <span class="scenario-status" [class]="getScenarioStatus()">
+        {{ getScenarioStatus() }}
+      </span>
+    </div>
+  </div>
+
   <div *ngIf="isLoading" class="loading">
     <div class="spinner"></div>
     <span>Loading files...</span>
   </div>
 
-  <div *ngIf="!isLoading && fileTree.length === 0 && aiCreatedTree.length === 0" class="no-files">
+  <div *ngIf="!isLoading && fileTree.length === 0 && queryGroups.length === 0" class="no-files">
     <p>No files uploaded yet.</p>
     <p>Upload a zip file to see the file structure here.</p>
   </div>
 
-  <div *ngIf="!isLoading && (fileTree.length > 0 || aiCreatedTree.length > 0)" class="tree-container" #treeContainer>
+  <div *ngIf="!isLoading && (fileTree.length > 0 || queryGroups.length > 0)" class="tree-container" #treeContainer>
     <!-- Requirements installation button -->
     <div *ngIf="hasRequirementsFile()" class="requirements-section">
       <button class="action-btn install-btn" (click)="installRequirements()">
@@ -184,112 +195,72 @@
       </div>
     </div>
 
-    <!-- AI Created files section -->
-    <div *ngIf="aiCreatedTree.length > 0" class="ai-created-files-section">
+    <!-- Query-specific AI Generated Files sections -->
+    <div *ngIf="queryGroups.length > 0" class="query-groups-section">
       <div class="section-divider"></div>
-      <div class="section-header ai-header">
+      <div class="section-header query-header">
         <i class="fas fa-robot"></i>
-        <span>AI Created Files</span>
+        <span>AI Generated Files by Query</span>
       </div>
-      <div class="tree-items">
-        <div *ngFor="let node of aiCreatedTree" class="tree-item ai-created">
-          <div class="item-content" (click)="toggleFolder(node)">
-            <i [class]="getFileIcon(node)" class="item-icon"></i>
-            <span class="item-name">{{ node.name }}</span>
-            <i *ngIf="node.isDirectory" 
-               [class]="node.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
-               class="expand-icon"></i>
+      
+      <div *ngFor="let group of queryGroups" class="query-group">
+        <div class="query-group-header">
+          <div class="query-info">
+            <i class="fas fa-comment"></i>
+            <span class="query-text">{{ queryFileOrganizer.getDisplayQuery(group.query) }}</span>
+            <span class="query-timestamp">{{ queryFileOrganizer.formatTimestamp(group.timestamp) }}</span>
           </div>
-          
-          <!-- Action buttons for AI-created files -->
-          <div *ngIf="!node.isDirectory" class="item-actions">
-            <button *ngIf="node.name.endsWith('.py')" 
-                    class="action-btn run-btn" 
-                    (click)="runPythonFile(node.path)">
-              <i class="fas fa-play"></i>
-              Run
-            </button>
-            <button *ngIf="node.name.endsWith('.sql')" 
-                    class="action-btn run-btn sql-run" 
-                    (click)="runSQLFile(node.path)">
-              <i class="fas fa-database"></i>
-              Run SQL
-            </button>
-            <button *ngIf="isViewableFile(node.name)" 
-                    class="action-btn view-btn" 
-                    (click)="viewFileContent(node.path)">
-              <i class="fas fa-eye"></i>
-              View
-            </button>
-            <button *ngIf="isImageFile(node.name)" 
-                    class="action-btn display-btn" 
-                    (click)="displayImage(node.path)">
-              <i class="fas fa-image"></i>
-              Display
-            </button>
-            <button *ngIf="isDownloadableFile(node.name)" 
-                    class="action-btn download-btn" 
-                    (click)="downloadFile(node.path)">
-              <i class="fas fa-download"></i>
-              Download
-            </button>
-            <button class="action-btn delete-btn" 
-                    (click)="deleteFile(node.path)"
-                    title="Delete">
-              <i class="fas fa-trash"></i>
-            </button>
-          </div>
-
-          <!-- Recursive children for AI-created files -->
-          <div *ngIf="node.isDirectory && node.expanded && node.children" 
-               class="children-container">
-            <div *ngFor="let child of node.children" class="tree-item child-item ai-created">
-              <div class="item-content" (click)="toggleFolder(child)">
-                <i [class]="getFileIcon(child)" class="item-icon"></i>
-                <span class="item-name">{{ child.name }}</span>
-                <i *ngIf="child.isDirectory" 
-                   [class]="child.expanded ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" 
-                   class="expand-icon"></i>
-              </div>
-              
-              <!-- Action buttons for AI-created child files -->
-              <div *ngIf="!child.isDirectory" class="item-actions">
-                <button *ngIf="child.name.endsWith('.py')" 
-                        class="action-btn run-btn" 
-                        (click)="runPythonFile(child.path)">
-                  <i class="fas fa-play"></i>
-                  Run
-                </button>
-                <button *ngIf="child.name.endsWith('.sql')" 
-                        class="action-btn run-btn sql-run" 
-                        (click)="runSQLFile(child.path)">
-                  <i class="fas fa-database"></i>
-                  Run SQL
-                </button>
-                <button *ngIf="isViewableFile(child.name)" 
-                        class="action-btn view-btn" 
-                        (click)="viewFileContent(child.path)">
-                  <i class="fas fa-eye"></i>
-                  View
-                </button>
-                <button *ngIf="isImageFile(child.name)" 
-                        class="action-btn display-btn" 
-                        (click)="displayImage(child.path)">
-                  <i class="fas fa-image"></i>
-                  Display
-                </button>
-                <button *ngIf="isDownloadableFile(child.name)" 
-                        class="action-btn download-btn" 
-                        (click)="downloadFile(child.path)">
-                  <i class="fas fa-download"></i>
-                  Download
-                </button>
-                <button class="action-btn delete-btn" 
-                        (click)="deleteFile(child.path)"
-                        title="Delete">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </div>
+          <button class="action-btn delete-btn" 
+                  (click)="removeQueryGroup(group.queryId)"
+                  title="Remove this query group">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+        
+        <div class="tree-items">
+          <div *ngFor="let file of group.files" class="tree-item ai-created">
+            <div class="item-content">
+              <i [class]="getFileIcon({name: file, path: file, isDirectory: false})" class="item-icon"></i>
+              <span class="item-name">{{ file }}</span>
+            </div>
+            
+            <!-- Action buttons for AI-generated files -->
+            <div class="item-actions">
+              <button *ngIf="file.endsWith('.py')" 
+                      class="action-btn run-btn" 
+                      (click)="runPythonFile(file)">
+                <i class="fas fa-play"></i>
+                Run
+              </button>
+              <button *ngIf="file.endsWith('.sql')" 
+                      class="action-btn run-btn sql-run" 
+                      (click)="runSQLFile(file)">
+                <i class="fas fa-database"></i>
+                Run SQL
+              </button>
+              <button *ngIf="isViewableFile(file)" 
+                      class="action-btn view-btn" 
+                      (click)="viewFileContent(file)">
+                <i class="fas fa-eye"></i>
+                View
+              </button>
+              <button *ngIf="isImageFile(file)" 
+                      class="action-btn display-btn" 
+                      (click)="displayImage(file)">
+                <i class="fas fa-image"></i>
+                Display
+              </button>
+              <button *ngIf="isDownloadableFile(file)" 
+                      class="action-btn download-btn" 
+                      (click)="downloadFile(file)">
+                <i class="fas fa-download"></i>
+                Download
+              </button>
+              <button class="action-btn delete-btn" 
+                      (click)="deleteFile(file)"
+                      title="Delete">
+                <i class="fas fa-trash"></i>
+              </button>
             </div>
           </div>
         </div>

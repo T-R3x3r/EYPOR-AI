@@ -1,56 +1,80 @@
 # EYPOR-AI – AI-Powered Operations Research Platform
 
 ## Overview
-EYPOR-AI is an end-to-end, AI-powered environment for data-driven decision making and optimisation. The platform features a multi-agent architecture with specialized agents handling different aspects of the workflow, all accessible through a natural language interface.
+EYPOR-AI is an end-to-end, AI-powered environment for data-driven decision making and optimisation. The platform features a **Simplified Agent v2** architecture that intelligently routes user requests through specialized handlers, all accessible through a natural language interface.
 
 The system comprises:
 - A Python/FastAPI backend with LangGraph-based agent orchestration
 - An Angular frontend providing an intuitive chat interface
-- Multiple specialized AI agents working in concert
-- Integrated database and model management capabilities
+- A Simplified Agent v2 with specialized request handlers
+- Integrated database and scenario management capabilities
 
 ---
 
 ## Key Capabilities
-• **Intelligent Request Analysis**: Automatic classification and routing of user requests to specialized agents  
-• **SQL Operations**: Natural-language queries with automatic schema discovery and validation  
+• **Intelligent Request Classification**: Automatic analysis and routing of user requests to specialized handlers  
+• **SQL Operations**: Natural-language queries with automatic schema discovery and Plotly table generation  
 • **Dynamic Visualization**: Automated generation and execution of Python/Plotly visualization code  
-• **Database Management**: Parameter updates with automatic model re-execution capabilities  
-• **Model Integration**: Intelligent discovery and execution of optimization models  
-• **Error Recovery**: Self-healing code execution with automated fixes  
-• **Human-in-the-Loop**: User-controlled model selection after database modifications  
+• **Database Management**: Parameter updates with scenario-aware database context  
+• **Scenario Management**: Multi-scenario support with isolated databases and file directories  
+• **Enhanced File Management**: Automatic cleanup of empty query groups and organized file structure  
+• **Built-in Chat Capability**: Q&A support without code execution for general questions  
+• **Error Handling**: Comprehensive execution error capture and user-friendly reporting  
 • **Persistent Memory**: Browser-side conversation storage with context retention
 
 ---
 
 ## High-Level Agent Workflow
 
-The system employs two specialized agents working in concert:
+The system employs a **Simplified Agent v2** architecture that intelligently routes and processes user requests through specialized handlers:
 
-1. **Data Analyst Agent** (Primary Intelligence):
-   - Request analysis and classification
-   - SQL query generation and execution
-   - Visualization script creation
-   - Database modification preparation
-   - Model discovery and execution
-   - Response generation
+### **Simplified Agent v2 Workflow**
 
-2. **Code Fixer Agent** (Error Recovery):
-   - Execution error analysis
-   - Automated code fixes
-   - Syntax and import corrections
-   - Major code restructuring
-   - Re-execution management
+![Simplified Agent v2 Workflow](docs/images/data_analyst_workflow.png)
 
-![Data Analyst Workflow](docs/images/data_analyst_workflow.png)
+The workflow features intelligent request classification and specialized processing:
 
-The workflow intelligently routes requests through:
-- SQL query path for data retrieval and analysis
-- Visualization path for creating charts and graphs
-- Database modification path with model selection
-- Error recovery path when execution issues occur
+1. **Request Classification** (`classify_request`):
+   - Analyzes user input to determine request type
+   - Routes to appropriate specialized handler
+   - Supports: `chat`, `sql_query`, `visualization`, `db_modification`
 
-All paths converge to a response node, ensuring complete interaction cycles.
+2. **Specialized Handlers**:
+   - **`handle_chat`**: General Q&A without code execution
+   - **`handle_sql_query`**: SQL query generation and execution
+   - **`handle_visualization`**: Chart/graph generation with Plotly
+   - **`prepare_db_modification`**: Database parameter change preparation
+
+3. **Code Execution** (`execute_code`):
+   - Executes generated Python scripts for SQL and visualization requests
+   - Captures outputs, errors, and generated files
+   - Supports interactive HTML charts and data exports
+
+4. **Database Modification** (`execute_db_modification`):
+   - Performs parameter updates with validation
+   - Maintains data integrity across scenarios
+   - Supports model re-execution capabilities
+
+5. **Response Generation** (`respond`):
+   - Formats final responses with context
+   - Includes generated files and execution results
+   - Provides user-friendly output formatting
+
+### **Workflow Paths**
+
+- **Chat Path**: `START → classify_request → handle_chat → respond → END`
+- **SQL Path**: `START → classify_request → handle_sql_query → execute_code → respond → END`
+- **Visualization Path**: `START → classify_request → handle_visualization → execute_code → respond → END`
+- **DB Modification Path**: `START → classify_request → prepare_db_modification → execute_db_modification → respond → END`
+
+### **Key Improvements in v2**
+
+- **Simplified Architecture**: Single agent with specialized handlers instead of multiple agents
+- **Scenario-Aware Database Context**: Always uses current scenario's database and file directory
+- **Built-in Chat Capability**: Supports Q&A without code execution
+- **Enhanced File Management**: Automatic cleanup of empty query groups
+- **Improved Error Handling**: Better execution error capture and reporting
+- **Multi-Scenario Support**: Architecture supports future scenario comparisons
 
 ---
 
@@ -108,6 +132,25 @@ The **docs/** folder contains self-contained guides for every subsystem:
 • [TEMP_FILE_MANAGEMENT](docs/TEMP_FILE_MANAGEMENT.md) – temporary file handling and cleanup
 
 All guides focus on *how the feature works* rather than its development history or bug-fix logs.
+
+---
+
+## Recent Updates (v2 Agent)
+
+### **Simplified Agent v2 Implementation**
+- **Unified Architecture**: Replaced multi-agent system with single agent and specialized handlers
+- **Scenario-Aware Database Context**: Proper routing to current scenario's database and file directory
+- **Enhanced File Management**: Automatic cleanup of empty query groups in sidebar
+- **Built-in Chat Support**: Q&A capability without code execution for general questions
+
+### **Key Fixes**
+- **Database Routing**: Fixed major issue where agent used wrong database path
+- **File Organization**: Improved sidebar query group management with automatic cleanup
+- **Error Handling**: Better execution error capture and user feedback
+- **Multi-Scenario Support**: Architecture ready for future scenario comparisons
+
+### **Workflow Diagram**
+The updated workflow diagram shows the new v2 agent structure with intelligent request classification and specialized processing paths. The diagram is generated from the actual agent code and reflects the current implementation.
 
 ---
 

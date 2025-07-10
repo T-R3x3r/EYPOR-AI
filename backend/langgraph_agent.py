@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, List, Tuple, Literal, Annotated
+from typing import Dict, List, Tuple, Literal, Annotated, Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
@@ -105,6 +105,8 @@ class AgentState(TypedDict):
     available_models: List[str]
     selected_models: List[str]
     model_execution_results: List[str]
+    # New field for scenario management
+    scenario_id: Optional[int]
 
 class CodeExecutorAgent:
     def __init__(self, ai_model: str = "openai", temp_dir: str = "", agent_type: str = None):
@@ -155,6 +157,10 @@ class CodeExecutorAgent:
         # Cache for database schema (set externally)
         self.cached_database_schema = None
         self.cached_full_schema = None  # Store original unfiltered schema
+        
+        # Scenario management
+        self.current_scenario_id = None
+        self.current_database_path = None
     
     def _initialize_memory(self):
         """Initialize memory system for conversation persistence"""
@@ -1755,17 +1761,36 @@ print(f"Found data files: {data_files}")
         
         return state
     
-    def run(self, user_message: str, execution_output: str = "", execution_error: str = "", thread_id: str = "default", user_feedback: str = "") -> Tuple[str, List[str]]:
-        """Run the multi-agent workflow with conversation memory and human-in-the-loop"""
-        print(f"DEBUG: Starting run with agent_type: {self.agent_type}")
-        print(f"DEBUG: User message: {user_message}")
-        print(f"DEBUG: Thread ID: {thread_id}")
+    def run(self, user_message: str, execution_output: str = "", execution_error: str = "", thread_id: str = "default", user_feedback: str = "", scenario_id: Optional[int] = None, database_path: Optional[str] = None) -> Tuple[str, List[str]]:
+        """Run the agent with scenario awareness"""
+        # Update scenario information
+        if scenario_id is not None:
+            self.current_scenario_id = scenario_id
+        if database_path is not None:
+            self.current_database_path = database_path
         
-        # Reset request hash tracking for new request
-        self.last_request_hash = None
-        self.execution_counter = 0
+        # Get current scenario info if not provided
+        if self.current_scenario_id is None or self.current_database_path is None:
+            try:
+                from scenario_manager import scenario_state
+                current_scenario = scenario_state.get_current_scenario()
+                if current_scenario:
+                    self.current_scenario_id = current_scenario.id
+                    self.current_database_path = current_scenario.database_path
+            except ImportError:
+                print("Warning: scenario_manager not available, using default database")
         
-        initial_state: AgentState = {
+        # Update database schema for current scenario
+        if self.current_database_path and os.path.exists(self.current_database_path):
+            try:
+                from main import get_database_info
+                schema = get_database_info(self.current_database_path)
+                self.set_cached_schema(schema)
+            except Exception as e:
+                print(f"Warning: Could not update schema for scenario {self.current_scenario_id}: {e}")
+        
+        # Create initial state with scenario information
+        initial_state = {
             "messages": [HumanMessage(content=user_message)],
             "files": {},
             "temp_dir": self.temp_dir,
@@ -1774,53 +1799,96 @@ print(f"Found data files: {data_files}")
             "created_files": [],
             "retry_count": 0,
             "current_file": "",
-            "has_execution_error": False,
+            "has_execution_error": bool(execution_error),
             "last_error_type": "",
             "execution_plan": "",
             "required_files": [],
             "analysis_type": "",
             "selected_file_contents": {},
-            "database_schema": {},
-            "database_path": "",
+            "database_schema": self.cached_database_schema or {},
+            "database_path": self.current_database_path or "",
             "action_type": "",
             "action_result": "",
             "db_modification_result": {},
-            "pending_approval": {},
-            "approval_required": False,
-            "approval_message": "",
             "user_feedback": user_feedback,
-            "interrupt_reason": ""
+            "generated_sql": "",
+            "sql_validation_result": {},
+            "query_execution_result": {},
+            "interpretation_response": "",
+            "request_type": "",
+            "sql_query_result": "",
+            "visualization_request": "",
+            "modification_request": {},
+            "identified_tables": [],
+            "identified_columns": [],
+            "current_values": {},
+            "new_values": {},
+            "modification_sql": "",
+            "available_models": [],
+            "selected_models": [],
+            "model_execution_results": [],
+            "scenario_id": self.current_scenario_id
         }
         
-        # Configure thread for conversation memory
-        config = {"configurable": {"thread_id": thread_id}}
-        
-        # Run the multi-agent graph with memory and interrupts
-        # TEMPORARILY DISABLED: Memory system causing duplicate executions
-        print("DEBUG: Running workflow WITHOUT memory to prevent duplicates")
-        final_state = self.graph.invoke(initial_state)
-        last_state = final_state
-        
-        # Extract only the latest response message (avoid accumulating previous responses)
-        messages = last_state.get("messages", [])
-        latest_ai_message = None
-        
-        # Find the last AI message in the conversation
-        for msg in reversed(messages):
-            if isinstance(msg, AIMessage):
-                latest_ai_message = msg
-                break
-        
-        full_response = latest_ai_message.content if latest_ai_message else "No response generated"
-        
-        # Update stored execution results for frontend access
-        self.last_execution_output = last_state.get("execution_output", "")
-        self.last_execution_error = last_state.get("execution_error", "")
-        
-        print(f"DEBUG: Final created_files: {last_state.get('created_files', [])}")
-        print(f"DEBUG: Final files dict keys: {list(last_state.get('files', {}).keys())}")
-        
-        return full_response, last_state.get("created_files", [])
+        # Run the graph
+        try:
+            if self.checkpointer:
+                result = self.graph.invoke(initial_state, config={"configurable": {"thread_id": thread_id}})
+            else:
+                result = self.graph.invoke(initial_state)
+            
+            # Extract response and created files
+            response = ""
+            created_files = []
+            
+            if result and "messages" in result:
+                messages = result["messages"]
+                if messages:
+                    last_message = messages[-1]
+                    if hasattr(last_message, 'content'):
+                        response = last_message.content
+            
+            if result and "created_files" in result:
+                created_files = result["created_files"]
+            
+            # Don't log AI Agent messages to execution history - they belong in chat only
+            # Only log actual code executions that generate files or have errors
+            if self.current_scenario_id and self.current_database_path and (execution_error or created_files):
+                try:
+                    # Use the global scenario manager instance
+                    from scenario_manager import ScenarioManager
+                    scenario_manager = ScenarioManager(os.path.join(os.getcwd(), 'scenarios'))
+                    scenario_manager.add_execution_history(
+                        scenario_id=self.current_scenario_id,
+                        command=f"AI Agent Execution: {user_message[:100]}...",
+                        output=response[:500] if response else None,
+                        error=execution_error if execution_error else None
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not log execution to scenario history: {e}")
+            
+            return response, created_files
+            
+        except Exception as e:
+            error_msg = f"Error running agent: {str(e)}"
+            print(f"DEBUG: {error_msg}")
+            
+            # Only log actual execution errors to scenario history, not chat errors
+            if self.current_scenario_id and "execution" in error_msg.lower():
+                try:
+                    # Use the global scenario manager instance
+                    from scenario_manager import ScenarioManager
+                    scenario_manager = ScenarioManager(os.path.join(os.getcwd(), 'scenarios'))
+                    scenario_manager.add_execution_history(
+                        scenario_id=self.current_scenario_id,
+                        command=f"AI Agent Execution Error: {user_message[:100]}...",
+                        output=None,
+                        error=error_msg
+                    )
+                except Exception as log_error:
+                    print(f"Warning: Could not log error to scenario history: {log_error}")
+            
+            return error_msg, []
 
 
 
@@ -1857,48 +1925,50 @@ print(f"Found data files: {data_files}")
             return False
 
     def _get_database_schema(self, db_path: str) -> Dict[str, any]:
-        """Extract database schema information without accessing actual data"""
+        """Get database schema - now uses current scenario's database if available"""
+        if self.current_database_path and os.path.exists(self.current_database_path):
+            db_path = self.current_database_path
+        
+        if not db_path or not os.path.exists(db_path):
+            return {"tables": [], "total_tables": 0, "error": "Database not found"}
+        
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             
-            schema_info = {
-                "tables": {},
-                "total_tables": 0,
-                "database_path": db_path
-            }
-            
             # Get all tables
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [row[0] for row in cursor.fetchall()]
-            schema_info["total_tables"] = len(tables)
+            tables = cursor.fetchall()
+            
+            schema = {"tables": [], "total_tables": len(tables)}
             
             for table in tables:
-                # Get table schema
-                cursor.execute(f"PRAGMA table_info({table})")
+                table_name = table[0]
+                cursor.execute(f"PRAGMA table_info({table_name})")
                 columns = cursor.fetchall()
                 
-                # Get row count
-                cursor.execute(f"SELECT COUNT(*) FROM {table}")
-                row_count = cursor.fetchone()[0]
-                
-                schema_info["tables"][table] = {
-                    "columns": [],
-                    "column_types": {},
-                    "row_count": row_count
+                table_info = {
+                    "name": table_name,
+                    "columns": []
                 }
                 
                 for col in columns:
-                    col_name, col_type = col[1], col[2]
-                    schema_info["tables"][table]["columns"].append(col_name)
-                    schema_info["tables"][table]["column_types"][col_name] = col_type
+                    column_info = {
+                        "name": col[1],
+                        "type": col[2],
+                        "notnull": bool(col[3]),
+                        "default": col[4],
+                        "primary_key": bool(col[5])
+                    }
+                    table_info["columns"].append(column_info)
+                
+                schema["tables"].append(table_info)
             
             conn.close()
-            return schema_info
+            return schema
             
         except Exception as e:
-            print(f"Error getting database schema: {e}")
-            return {"tables": {}, "total_tables": 0, "database_path": db_path, "error": str(e)}
+            return {"tables": [], "total_tables": 0, "error": str(e)}
 
     def _classify_user_request(self, message: str) -> str:
         """Classify the user's request to determine the appropriate action type"""
@@ -2796,7 +2866,24 @@ CREATE_FILE: [filename]
             return "respond"
     
     def _execute_sql_query_node(self, state: AgentState) -> AgentState:
-        """Generate SQL query and create a Python script to execute it"""
+        """Execute SQL query using current scenario's database"""
+        # Check if this is actually a SQL query request
+        request_type = state.get("request_type", "SQL_QUERY")
+        if request_type == "DATABASE_MODIFICATION":
+            print(f"DEBUG: _execute_sql_query_node called for DATABASE_MODIFICATION request - skipping")
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content="🔄 Database modification requests should not generate SQL query files")]
+            }
+        
+        # Ensure we're using the current scenario's database
+        db_path = self.current_database_path or state.get("database_path", "")
+        if not db_path or not os.path.exists(db_path):
+            state["sql_query_result"] = "Error: No database available for current scenario"
+            return state
+        
+        # Rest of the existing SQL execution logic...
+        # (Keep the existing implementation but ensure it uses db_path)
         import hashlib
         
         # Get the original user message (not the last message which might be AI classification)
