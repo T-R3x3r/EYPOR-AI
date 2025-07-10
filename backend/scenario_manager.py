@@ -105,32 +105,51 @@ class ExecutionHistory:
     timestamp: datetime
     execution_time_ms: Optional[int]
     output_files: Optional[str] = None  # JSON string of output files
+
+
+@dataclass
+class ComparisonHistory:
+    """Represents comparison history across multiple scenarios"""
+    id: Optional[int]
+    comparison_name: str
+    scenario_ids: str  # JSON string of scenario IDs
+    scenario_names: str  # JSON string of scenario names
+    comparison_type: str  # 'table', 'chart', 'analysis'
+    output_file_path: str
+    created_at: datetime
+    created_by_scenario_id: Optional[int]
+    description: Optional[str]
+    metadata: Optional[str] = None  # JSON string of additional metadata
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert execution history to dictionary"""
+        """Convert comparison history to dictionary"""
         return {
             'id': self.id,
-            'scenario_id': self.scenario_id,
-            'command': self.command,
-            'output': self.output,
-            'error': self.error,
-            'timestamp': self.timestamp.isoformat(),
-            'execution_time_ms': self.execution_time_ms,
-            'output_files': self.output_files
+            'comparison_name': self.comparison_name,
+            'scenario_ids': self.scenario_ids,
+            'scenario_names': self.scenario_names,
+            'comparison_type': self.comparison_type,
+            'output_file_path': self.output_file_path,
+            'created_at': self.created_at.isoformat(),
+            'created_by_scenario_id': self.created_by_scenario_id,
+            'description': self.description,
+            'metadata': self.metadata
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ExecutionHistory':
-        """Create execution history from dictionary"""
+    def from_dict(cls, data: Dict[str, Any]) -> 'ComparisonHistory':
+        """Create comparison history from dictionary"""
         return cls(
             id=data.get('id'),
-            scenario_id=data['scenario_id'],
-            command=data['command'],
-            output=data.get('output'),
-            error=data.get('error'),
-            timestamp=datetime.fromisoformat(data['timestamp']),
-            execution_time_ms=data.get('execution_time_ms'),
-            output_files=data.get('output_files')
+            comparison_name=data['comparison_name'],
+            scenario_ids=data['scenario_ids'],
+            scenario_names=data['scenario_names'],
+            comparison_type=data['comparison_type'],
+            output_file_path=data['output_file_path'],
+            created_at=datetime.fromisoformat(data['created_at']),
+            created_by_scenario_id=data.get('created_by_scenario_id'),
+            description=data.get('description'),
+            metadata=data.get('metadata')
         )
 
 
@@ -174,6 +193,7 @@ class ScenarioManager:
         self.project_root = project_root
         self.scenarios_dir = os.path.join(project_root, "scenarios")
         self.shared_dir = os.path.join(project_root, "shared")
+        self.comparisons_dir = os.path.join(project_root, "comparisons")
         self.metadata_db_path = os.path.join(project_root, "metadata.db")
         self.state = ScenarioState()
         
@@ -189,6 +209,7 @@ class ScenarioManager:
         os.makedirs(self.shared_dir, exist_ok=True)
         os.makedirs(os.path.join(self.shared_dir, "uploaded_files"), exist_ok=True)
         os.makedirs(os.path.join(self.shared_dir, "analysis_files"), exist_ok=True)
+        os.makedirs(self.comparisons_dir, exist_ok=True)
     
     def _init_metadata_db(self):
         """Initialize the metadata database with required tables"""
@@ -239,6 +260,23 @@ class ScenarioManager:
             )
         ''')
         
+        # Create comparison_history table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS comparison_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                comparison_name TEXT NOT NULL,
+                scenario_ids TEXT NOT NULL,
+                scenario_names TEXT NOT NULL,
+                comparison_type TEXT NOT NULL,
+                output_file_path TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by_scenario_id INTEGER,
+                description TEXT,
+                metadata TEXT,
+                FOREIGN KEY (created_by_scenario_id) REFERENCES scenarios(id)
+            )
+        ''')
+        
         # Add output_files column if it doesn't exist (for existing databases)
         try:
             cursor.execute('ALTER TABLE execution_history ADD COLUMN output_files TEXT')
@@ -251,6 +289,8 @@ class ScenarioManager:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_scenarios_parent ON scenarios(parent_scenario_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_execution_scenario ON execution_history(scenario_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_execution_timestamp ON execution_history(timestamp)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_comparison_created_at ON comparison_history(created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_comparison_type ON comparison_history(comparison_type)')
         
         conn.commit()
         conn.close()
@@ -261,8 +301,8 @@ class ScenarioManager:
         cursor = conn.cursor()
         
         try:
-            # Generate unique scenario directory name
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Generate unique scenario directory name with microsecond precision
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include milliseconds
             scenario_dir_name = f"scenario_{timestamp}"
             scenario_dir = os.path.join(self.scenarios_dir, scenario_dir_name)
             os.makedirs(scenario_dir, exist_ok=True)
@@ -694,6 +734,229 @@ class ScenarioManager:
             execution_time_ms=row[6],
             output_files=row[7] if len(row) > 7 else None
         )
+    
+    def _row_to_comparison_history(self, row) -> ComparisonHistory:
+        """Convert database row to ComparisonHistory object"""
+        return ComparisonHistory(
+            id=row[0],
+            comparison_name=row[1],
+            scenario_ids=row[2],
+            scenario_names=row[3],
+            comparison_type=row[4],
+            output_file_path=row[5],
+            created_at=datetime.fromisoformat(row[6]),
+            created_by_scenario_id=row[7],
+            description=row[8],
+            metadata=row[9] if len(row) > 9 else None
+        )
+    
+    def add_comparison_history(self, comparison_name: str, scenario_ids: List[int], 
+                             scenario_names: List[str], comparison_type: str, 
+                             output_file_path: str, created_by_scenario_id: Optional[int] = None,
+                             description: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> ComparisonHistory:
+        """Add a comparison history entry"""
+        conn = sqlite3.connect(self.metadata_db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Convert lists to JSON strings
+            scenario_ids_json = json.dumps(scenario_ids)
+            scenario_names_json = json.dumps(scenario_names)
+            metadata_json = json.dumps(metadata) if metadata else None
+            
+            cursor.execute('''
+                INSERT INTO comparison_history 
+                (comparison_name, scenario_ids, scenario_names, comparison_type, output_file_path, 
+                 created_by_scenario_id, description, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (comparison_name, scenario_ids_json, scenario_names_json, comparison_type, 
+                  output_file_path, created_by_scenario_id, description, metadata_json))
+            
+            comparison_id = cursor.lastrowid
+            
+            cursor.execute('SELECT * FROM comparison_history WHERE id = ?', (comparison_id,))
+            row = cursor.fetchone()
+            
+            conn.commit()
+            
+            return self._row_to_comparison_history(row)
+        finally:
+            conn.close()
+    
+    def get_comparison_history(self, limit: Optional[int] = None, 
+                             comparison_type: Optional[str] = None) -> List[ComparisonHistory]:
+        """Get comparison history entries"""
+        conn = sqlite3.connect(self.metadata_db_path)
+        cursor = conn.cursor()
+        
+        try:
+            query = 'SELECT * FROM comparison_history'
+            params = []
+            
+            if comparison_type:
+                query += ' WHERE comparison_type = ?'
+                params.append(comparison_type)
+            
+            query += ' ORDER BY created_at DESC'
+            
+            if limit:
+                query += f' LIMIT {limit}'
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            history = []
+            for row in rows:
+                history.append(self._row_to_comparison_history(row))
+            
+            return history
+        finally:
+            conn.close()
+    
+    def get_comparison_by_id(self, comparison_id: int) -> Optional[ComparisonHistory]:
+        """Get a specific comparison history entry by ID"""
+        conn = sqlite3.connect(self.metadata_db_path)
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute('SELECT * FROM comparison_history WHERE id = ?', (comparison_id,))
+            row = cursor.fetchone()
+            
+            if row:
+                return self._row_to_comparison_history(row)
+            return None
+        finally:
+            conn.close()
+    
+    def delete_comparison_history(self, comparison_id: int) -> bool:
+        """Delete a comparison history entry and its associated file"""
+        conn = sqlite3.connect(self.metadata_db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get the comparison record first
+            cursor.execute('SELECT output_file_path FROM comparison_history WHERE id = ?', (comparison_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return False
+            
+            output_file_path = row[0]
+            
+            # Delete the file if it exists
+            if os.path.exists(output_file_path):
+                try:
+                    os.remove(output_file_path)
+                except Exception as e:
+                    print(f"Warning: Could not delete comparison file {output_file_path}: {e}")
+            
+            # Delete the database record
+            cursor.execute('DELETE FROM comparison_history WHERE id = ?', (comparison_id,))
+            conn.commit()
+            
+            return cursor.rowcount > 0
+        finally:
+            conn.close()
+    
+    def generate_comparison_filename(self, scenario_names: List[str], comparison_type: str, 
+                                   extension: str = "html") -> str:
+        """Generate a standardized filename for comparison outputs"""
+        import re
+        from datetime import datetime
+        
+        # Sanitize scenario names for filename
+        def sanitize_name(name: str) -> str:
+            # Remove or replace problematic characters
+            sanitized = re.sub(r'[<>:"/\\|?*]', '_', name)
+            # Replace spaces with underscores
+            sanitized = sanitized.replace(' ', '_')
+            # Remove multiple consecutive underscores
+            sanitized = re.sub(r'_+', '_', sanitized)
+            # Remove leading/trailing underscores
+            sanitized = sanitized.strip('_')
+            # Limit length
+            if len(sanitized) > 30:
+                sanitized = sanitized[:30]
+            return sanitized or 'scenario'
+        
+        # Create filename components
+        sanitized_names = [sanitize_name(name) for name in scenario_names]
+        
+        # Limit number of scenario names in filename
+        if len(sanitized_names) > 3:
+            scenario_part = f"{sanitized_names[0]}_{sanitized_names[1]}_and_{len(sanitized_names)-2}_more"
+        else:
+            scenario_part = "_vs_".join(sanitized_names)
+        
+        # Generate timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create filename
+        filename = f"comparison_{comparison_type}_{scenario_part}_{timestamp}.{extension}"
+        
+        # Ensure filename is not too long
+        max_length = 200
+        if len(filename) > max_length:
+            available_length = max_length - len(f"comparison_{comparison_type}_TIMESTAMP.{extension}")
+            if available_length > 20:
+                scenario_part = scenario_part[:available_length]
+                filename = f"comparison_{comparison_type}_{scenario_part}_{timestamp}.{extension}"
+            else:
+                filename = f"comparison_{comparison_type}_{timestamp}.{extension}"
+        
+        return filename
+    
+    def get_comparison_file_path(self, filename: str) -> str:
+        """Get the full path for a comparison file"""
+        return os.path.join(self.comparisons_dir, filename)
+    
+    def list_comparison_files(self) -> List[str]:
+        """List all comparison files in the comparisons directory"""
+        if not os.path.exists(self.comparisons_dir):
+            return []
+        
+        files = []
+        for file in os.listdir(self.comparisons_dir):
+            if file.endswith('.html'):
+                files.append(file)
+        
+        return sorted(files, reverse=True)  # Most recent first
+    
+    def cleanup_old_comparisons(self, max_age_days: int = 30) -> int:
+        """Clean up old comparison files and database entries"""
+        from datetime import timedelta
+        
+        cutoff_date = datetime.now() - timedelta(days=max_age_days)
+        
+        conn = sqlite3.connect(self.metadata_db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Find old comparison records
+            cursor.execute('''
+                SELECT id, output_file_path FROM comparison_history 
+                WHERE created_at < ?
+            ''', (cutoff_date.isoformat(),))
+            
+            old_comparisons = cursor.fetchall()
+            deleted_count = 0
+            
+            for comparison_id, file_path in old_comparisons:
+                # Delete the file if it exists
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Warning: Could not delete old comparison file {file_path}: {e}")
+                
+                # Delete the database record
+                cursor.execute('DELETE FROM comparison_history WHERE id = ?', (comparison_id,))
+                deleted_count += 1
+            
+            conn.commit()
+            return deleted_count
+        finally:
+            conn.close()
 
 
 # Global scenario manager instance

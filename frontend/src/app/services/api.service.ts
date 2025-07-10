@@ -485,4 +485,8 @@ export class ApiService {
   deleteAnalysisFile(fileId: number): Observable<any> {
     return this.http.delete<any>(`${this.baseUrl}/analysis-files/${fileId}`);
   }
+
+  getServerStartupInfo(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/server-startup`);
+  }
 } 

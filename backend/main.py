@@ -56,6 +56,10 @@ if scenarios:
 else:
     print("DEBUG: No scenarios available after startup clearing")
 
+# Server startup timestamp for frontend localStorage clearing
+server_startup_timestamp = datetime.now().isoformat()
+print(f"🔄 Server started at: {server_startup_timestamp}")
+
 # Fallback agent functions
 def list_available_agents():
     return ["data_analyst", "code_fixer", "database_modifier"]
@@ -554,34 +558,52 @@ async def upload_files(file: UploadFile = File(...)):
 
 @app.get("/files")
 async def get_files():
-    """Get list of uploaded files and current scenario-generated files only"""
+    """Get list of uploaded files and ALL scenario-generated files for cross-scenario compatibility"""
     uploaded_list = [f for f in uploaded_files.keys() if f not in ai_created_files]
     ai_created_list = [f for f in uploaded_files.keys() if f in ai_created_files]
     
-    # Get ONLY current scenario-generated files (not all scenarios)
+    # Get files from ALL scenarios (cross-scenario compatibility)
     scenario_files = []
-    current_scenario = scenario_manager.get_current_scenario()
+    all_scenarios = scenario_manager.list_scenarios()
     
-    if current_scenario:
-        scenario_dir = os.path.dirname(current_scenario.database_path)
-        print(f"DEBUG: Checking current scenario directory: {scenario_dir}")
+    for scenario in all_scenarios:
+        # Check in the database directory (where both Python and HTML files are stored)
+        db_dir = os.path.dirname(scenario.database_path)
+        print(f"DEBUG: Checking scenario directory: {db_dir}")
         
-        if os.path.exists(scenario_dir):
+        if os.path.exists(db_dir):
             try:
-                all_files_in_dir = os.listdir(scenario_dir)
-                print(f"DEBUG: Files in current scenario {current_scenario.name}: {all_files_in_dir}")
+                all_files_in_dir = os.listdir(db_dir)
+                print(f"DEBUG: Files in scenario {scenario.name}: {all_files_in_dir}")
                 
                 for file in all_files_in_dir:
                     if file.endswith(('.html', '.csv', '.png', '.jpg', '.jpeg', '.svg', '.pdf', '.json', '.py')):
                         # Add scenario prefix to avoid filename conflicts
-                        scenario_file = f"[{current_scenario.name}] {file}"
+                        scenario_file = f"[{scenario.name}] {file}"
                         if scenario_file not in scenario_files:
                             scenario_files.append(scenario_file)
-                            print(f"DEBUG: Added current scenario file: {scenario_file}")
+                            print(f"DEBUG: Added scenario file: {scenario_file}")
             except Exception as e:
-                print(f"DEBUG: Error reading current scenario directory {scenario_dir}: {e}")
+                print(f"DEBUG: Error reading scenario directory {db_dir}: {e}")
+        
+        # Also check in the old scenario directory for backward compatibility
+        old_scenario_dir = os.path.join(scenario_manager.scenarios_dir, f"scenario_{scenario.id}")
+        if os.path.exists(old_scenario_dir):
+            try:
+                all_files_in_old_dir = os.listdir(old_scenario_dir)
+                print(f"DEBUG: Files in old scenario directory {scenario.name}: {all_files_in_old_dir}")
+                
+                for file in all_files_in_old_dir:
+                    if file.endswith(('.html', '.csv', '.png', '.jpg', '.jpeg', '.svg', '.pdf', '.json', '.py')):
+                        # Add scenario prefix to avoid filename conflicts
+                        scenario_file = f"[{scenario.name}] {file}"
+                        if scenario_file not in scenario_files:
+                            scenario_files.append(scenario_file)
+                            print(f"DEBUG: Added old scenario file: {scenario_file}")
+            except Exception as e:
+                print(f"DEBUG: Error reading old scenario directory {old_scenario_dir}: {e}")
     
-    print(f"DEBUG: Current scenario files found: {scenario_files}")
+    print(f"DEBUG: All scenario files found: {scenario_files}")
     
     # Combine all files
     all_files = list(uploaded_files.keys()) + scenario_files
@@ -617,11 +639,20 @@ async def get_file_content(filename: str):
                     return {"filename": filename, "content": content}
                 break
     
-    # Check if it's a scenario-generated file (backward compatibility)
-    current_scenario = scenario_manager.get_current_scenario()
-    if current_scenario:
-        scenario_dir = os.path.dirname(current_scenario.database_path)
-        scenario_file_path = os.path.join(scenario_dir, filename)
+    # Search ALL scenario directories for the file (cross-scenario compatibility)
+    all_scenarios = scenario_manager.list_scenarios()
+    
+    for scenario in all_scenarios:
+        # Look in the database directory (where both Python and HTML files are stored)
+        db_dir = os.path.dirname(scenario.database_path)
+        scenario_file_path = os.path.join(db_dir, filename)
+        if os.path.exists(scenario_file_path):
+            content = read_file_content(scenario_file_path)
+            return {"filename": filename, "content": content}
+        
+        # Also check in the old scenario directory for backward compatibility
+        old_scenario_dir = os.path.join(scenario_manager.scenarios_dir, f"scenario_{scenario.id}")
+        scenario_file_path = os.path.join(old_scenario_dir, filename)
         if os.path.exists(scenario_file_path):
             content = read_file_content(scenario_file_path)
             return {"filename": filename, "content": content}
@@ -663,20 +694,31 @@ async def download_file(filename: str):
                     print(f"DEBUG: Scenario-prefixed file not found: {filename}")
                     raise HTTPException(status_code=404, detail="File not found")
             else:
-                # Check if it's a scenario output file (backward compatibility)
-                scenario = scenario_manager.get_current_scenario()
-                if scenario:
-                    scenario_dir = os.path.dirname(scenario.database_path)
+                # Search ALL scenario directories for the file (cross-scenario compatibility)
+                all_scenarios = scenario_manager.list_scenarios()
+                file_found = False
+                
+                for scenario in all_scenarios:
+                    # Look in the database directory (where both Python and HTML files are stored)
+                    db_dir = os.path.dirname(scenario.database_path)
+                    scenario_file_path = os.path.join(db_dir, filename)
+                    if os.path.exists(scenario_file_path):
+                        file_path = scenario_file_path
+                        file_found = True
+                        print(f"DEBUG: Found file in scenario '{scenario.name}': {file_path}")
+                        break
+                    
+                    # Also check in the old scenario directory for backward compatibility
+                    scenario_dir = os.path.join(scenario_manager.scenarios_dir, f"scenario_{scenario.id}")
                     scenario_file_path = os.path.join(scenario_dir, filename)
                     if os.path.exists(scenario_file_path):
                         file_path = scenario_file_path
-                        print(f"DEBUG: Found scenario file: {file_path}")
-                    else:
-                        print(f"DEBUG: File not found in uploaded_files or scenario: {filename}")
-                        print(f"DEBUG: Available keys: {list(uploaded_files.keys())}")
-                        raise HTTPException(status_code=404, detail="File not found")
-                else:
-                    print(f"DEBUG: File not found in uploaded_files: {filename}")
+                        file_found = True
+                        print(f"DEBUG: Found file in old scenario directory '{scenario.name}': {file_path}")
+                        break
+                
+                if not file_found:
+                    print(f"DEBUG: File not found in uploaded_files or any scenario: {filename}")
                     print(f"DEBUG: Available keys: {list(uploaded_files.keys())}")
                     raise HTTPException(status_code=404, detail="File not found")
         print(f"DEBUG: File path from uploaded_files: {file_path}")
@@ -859,6 +901,13 @@ async def run_file(filename: str):
         print(f"DEBUG: abs_path: {abs_path}")
         print(f"DEBUG: current_scenario database_path: {current_scenario.database_path if current_scenario else 'None'}")
         
+        # Check if this is a comparison file (contains multiple database paths or comparison logic)
+        is_comparison_file = (
+            'comparison' in filename.lower() or
+            'vs_' in filename.lower() or
+            'scenario' in filename.lower() and ('vs' in filename.lower() or 'comparison' in filename.lower())
+        )
+        
         # Check if this is an uploaded model file (like runall.py, model.py, etc.)
         is_uploaded_model = False
         if filename in uploaded_files:
@@ -866,6 +915,20 @@ async def run_file(filename: str):
             # For uploaded model files, execute in the uploaded files directory where all dependencies are located
             execution_cwd = temp_dir  # Uploaded files directory
             print(f"DEBUG: Using uploaded files directory for model execution: {execution_cwd}")
+        elif is_comparison_file and current_scenario:
+            # For comparison files, we need to determine the correct execution directory
+            # First, try to find where the comparison file was originally created
+            file_dir = os.path.dirname(abs_path) if abs_path else None
+            
+            if file_dir and os.path.exists(file_dir):
+                # If the file exists in a scenario directory, use that directory
+                # This ensures output files are created in the same location as the comparison file
+                execution_cwd = file_dir
+                print(f"DEBUG: Using comparison file's original directory: {execution_cwd}")
+            else:
+                # Fallback to current scenario's database directory
+                execution_cwd = os.path.dirname(current_scenario.database_path)
+                print(f"DEBUG: Using scenario execution directory for comparison file: {execution_cwd}")
         elif current_scenario and abs_path.startswith(os.path.dirname(current_scenario.database_path)):
             # This is a scenario file, execute in the scenario's database directory
             execution_cwd = os.path.dirname(current_scenario.database_path)
@@ -910,10 +973,26 @@ async def run_file(filename: str):
             with open(abs_path, 'r', encoding='utf-8') as f:
                 file_content = f.read()
             
+            # Check if this is a comparison file (contains multiple database paths or comparison logic)
+            is_comparison_file = (
+                'comparison' in filename.lower() or
+                'vs_' in filename.lower() or
+                'scenario' in filename.lower() and ('vs' in filename.lower() or 'comparison' in filename.lower()) or
+                any(keyword in file_content.lower() for keyword in [
+                    'base_scenario_db', 'test_scenario_db', 'alternative_scenario_db',
+                    'scenario_names', 'multi_database', 'comparison_visualization',
+                    'scenario_name', 'scenario_names', 'scenario_data'
+                ]) or
+                file_content.count('database.db') > 1 or  # Multiple database references
+                file_content.count('sqlite3.connect') > 1  # Multiple database connections
+            )
+            
             # Get current scenario's database path for injection
             current_db_path = None
             print(f"DEBUG: About to check current_scenario: {current_scenario}")
-            if current_scenario:
+            print(f"DEBUG: Is comparison file: {is_comparison_file}")
+            
+            if current_scenario and not is_comparison_file:
                 print(f"DEBUG: current_scenario is not None, database_path: {current_scenario.database_path}")
                 current_db_path = current_scenario.database_path
                 # Convert Windows backslashes to double backslashes to avoid escape sequence issues
@@ -3051,6 +3130,14 @@ async def get_agent_version():
             "Plotly-only visualizations",
             "Preserved DB modification logic"
         ]
+    }
+
+@app.get("/server-startup")
+async def get_server_startup_info():
+    """Get server startup information for frontend localStorage clearing"""
+    return {
+        "startup_timestamp": server_startup_timestamp,
+        "server_restarted": True
     }
 
 if __name__ == "__main__":

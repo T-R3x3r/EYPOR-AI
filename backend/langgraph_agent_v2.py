@@ -18,7 +18,7 @@ import random
 import json
 import glob
 import re
-from typing import Dict, List, Any, Optional, Tuple, Literal
+from typing import Dict, List, Any, Optional, Tuple, Literal, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -30,6 +30,10 @@ from typing_extensions import Annotated, TypedDict
 # Import scenario management
 from scenario_manager import ScenarioManager
 
+# Type hints for pandas (avoid circular imports)
+if TYPE_CHECKING:
+    import pandas as pd
+
 
 @dataclass
 class DatabaseContext:
@@ -39,20 +43,64 @@ class DatabaseContext:
     schema_info: Optional[Dict[str, Any]]
     temp_dir: Optional[str]
     
+    # Multi-scenario comparison fields
+    multi_database_contexts: Optional[Dict[str, 'DatabaseContext']] = None
+    comparison_mode: bool = False
+    primary_scenario: Optional[str] = None
+    
     def is_valid(self) -> bool:
         """Check if database context is valid and usable"""
-        return (
-            self.database_path is not None and 
-            os.path.exists(self.database_path) and
-            self.temp_dir is not None
-        )
+        if self.comparison_mode:
+            # In comparison mode, check all databases in multi_database_contexts
+            if not self.multi_database_contexts:
+                return False
+            
+            # Check that all database contexts are valid
+            for scenario_name, db_context in self.multi_database_contexts.items():
+                if not db_context.is_valid():
+                    print(f"Warning: Database context for scenario '{scenario_name}' is not valid")
+                    return False
+            
+            # Check that primary scenario is specified and exists
+            if not self.primary_scenario or self.primary_scenario not in self.multi_database_contexts:
+                print(f"Warning: Primary scenario '{self.primary_scenario}' not found in comparison contexts")
+                return False
+            
+            return True
+        else:
+            # Single scenario mode - use original validation logic
+            return (
+                self.database_path is not None and 
+                os.path.exists(self.database_path) and
+                self.temp_dir is not None
+            )
+    
+    def get_primary_context(self) -> Optional['DatabaseContext']:
+        """Get the primary database context for comparison operations"""
+        if self.comparison_mode and self.primary_scenario and self.multi_database_contexts:
+            return self.multi_database_contexts.get(self.primary_scenario)
+        return None
+    
+    def get_all_database_paths(self) -> List[str]:
+        """Get all database paths in comparison mode"""
+        if self.comparison_mode and self.multi_database_contexts:
+            return [ctx.database_path for ctx in self.multi_database_contexts.values() if ctx.database_path]
+        elif self.database_path:
+            return [self.database_path]
+        return []
+    
+    def get_scenario_names(self) -> List[str]:
+        """Get all scenario names in comparison mode"""
+        if self.comparison_mode and self.multi_database_contexts:
+            return list(self.multi_database_contexts.keys())
+        return []
 
 
 class AgentState(TypedDict):
     """Simplified state for the agent workflow"""
     messages: Annotated[List[BaseMessage], add_messages]
     user_request: str
-    request_type: str  # 'chat', 'sql_query', 'visualization', 'db_modification'
+    request_type: str  # 'chat', 'sql_query', 'visualization', 'db_modification', 'scenario_comparison'
     db_context: DatabaseContext
     
     # Execution results
@@ -63,6 +111,12 @@ class AgentState(TypedDict):
     # DB modification specific (preserved from v1)
     modification_request: Optional[Dict[str, Any]]
     db_modification_result: Optional[Dict[str, Any]]
+    
+    # Multi-scenario comparison specific
+    comparison_scenarios: List[str]  # list of scenario names to compare
+    comparison_data: Dict[str, Any]  # aggregated data from multiple scenarios
+    comparison_type: str  # type of comparison ('table', 'chart', 'analysis')
+    scenario_name_mapping: Dict[str, int]  # map scenario names to IDs
 
 
 class SimplifiedAgent:
@@ -80,8 +134,26 @@ class SimplifiedAgent:
     def _get_llm(self):
         """Get or create the LLM instance (lazy initialization)"""
         if self.llm is None:
+            # Load environment variables from EY.env file
+            import os
+            from dotenv import load_dotenv
+            
+            # Try to load from EY.env file
+            ey_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "EY.env")
+            if os.path.exists(ey_env_path):
+                load_dotenv(ey_env_path)
+                print(f"DEBUG: Loaded environment from {ey_env_path}")
+            else:
+                print(f"DEBUG: EY.env file not found at {ey_env_path}")
+            
             if self.ai_model == "openai":
                 from langchain_openai import ChatOpenAI
+                # Check if API key is available
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    raise ValueError("OPENAI_API_KEY not found in environment variables. Please check your EY.env file.")
+                
+                print(f"DEBUG: Using OpenAI API key: {api_key[:10]}...")
                 self.llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
             else:
                 raise ValueError(f"Unsupported AI model: {self.ai_model}")
@@ -93,9 +165,11 @@ class SimplifiedAgent:
         
         # Core nodes
         workflow.add_node("classify_request", self._classify_request)
+        workflow.add_node("extract_scenarios", self._extract_scenarios)  # New node for scenario extraction
         workflow.add_node("handle_chat", self._handle_chat)
         workflow.add_node("handle_sql_query", self._handle_sql_query)
         workflow.add_node("handle_visualization", self._handle_visualization)
+        workflow.add_node("handle_scenario_comparison", self._handle_scenario_comparison)
         workflow.add_node("prepare_db_modification", self._prepare_db_modification)
         workflow.add_node("execute_db_modification", self._execute_db_modification)
         workflow.add_node("execute_code", self._execute_code)
@@ -112,6 +186,7 @@ class SimplifiedAgent:
                 "chat": "handle_chat",
                 "sql_query": "handle_sql_query", 
                 "visualization": "handle_visualization",
+                "scenario_comparison": "extract_scenarios",  # Route to scenario extraction first
                 "db_modification": "prepare_db_modification"
             }
         )
@@ -123,6 +198,10 @@ class SimplifiedAgent:
         workflow.add_edge("handle_sql_query", "execute_code")
         workflow.add_edge("handle_visualization", "execute_code")
         workflow.add_edge("execute_code", "respond")
+        
+        # Scenario comparison workflow: extract scenarios -> handle comparison -> execute code
+        workflow.add_edge("extract_scenarios", "handle_scenario_comparison")
+        workflow.add_edge("handle_scenario_comparison", "execute_code")
         
         # DB modification workflow (preserved from v1)
         workflow.add_edge("prepare_db_modification", "execute_db_modification")
@@ -172,8 +251,344 @@ class SimplifiedAgent:
             temp_dir=temp_dir
         )
     
+    def _resolve_scenario_names(self, scenario_names: List[str]) -> Dict[str, str]:
+        """
+        Resolve scenario names to their database paths with fuzzy matching.
+        
+        Args:
+            scenario_names: List of scenario names (strings) from user input
+            
+        Returns:
+            Dict mapping scenario names to their database paths
+            
+        Raises:
+            ValueError: If scenarios cannot be found or resolved
+        """
+        if not self.scenario_manager:
+            raise ValueError("No scenario manager available")
+        
+        # Get all available scenarios
+        all_scenarios = self.scenario_manager.list_scenarios()
+        if not all_scenarios:
+            raise ValueError("No scenarios available in the system")
+        
+        # Create a mapping of normalized names to scenario objects
+        name_to_scenario = {}
+        for scenario in all_scenarios:
+            # Store both exact and normalized versions
+            name_to_scenario[scenario.name] = scenario
+            name_to_scenario[scenario.name.lower()] = scenario
+            name_to_scenario[scenario.name.strip()] = scenario
+            
+            # Also store partial matches (for fuzzy matching)
+            words = scenario.name.lower().split()
+            for word in words:
+                if len(word) > 2:  # Only consider words longer than 2 characters
+                    name_to_scenario[word] = scenario
+        
+        # Resolve each requested scenario name
+        resolved_scenarios = {}
+        missing_scenarios = []
+        
+        for requested_name in scenario_names:
+            requested_name = requested_name.strip()
+            resolved = False
+            
+            # Try exact match first
+            if requested_name in name_to_scenario:
+                scenario = name_to_scenario[requested_name]
+                resolved_scenarios[requested_name] = scenario.database_path
+                resolved = True
+                continue
+            
+            # Try case-insensitive match
+            if requested_name.lower() in name_to_scenario:
+                scenario = name_to_scenario[requested_name.lower()]
+                resolved_scenarios[requested_name] = scenario.database_path
+                resolved = True
+                continue
+            
+            # Try partial matching (substring search)
+            for scenario in all_scenarios:
+                if requested_name.lower() in scenario.name.lower():
+                    resolved_scenarios[requested_name] = scenario.database_path
+                    resolved = True
+                    break
+            
+            # Try word-based matching
+            if not resolved:
+                requested_words = requested_name.lower().split()
+                for scenario in all_scenarios:
+                    scenario_words = scenario.name.lower().split()
+                    # Check if any requested word matches any scenario word
+                    if any(req_word in scenario_words for req_word in requested_words):
+                        resolved_scenarios[requested_name] = scenario.database_path
+                        resolved = True
+                        break
+            
+            if not resolved:
+                missing_scenarios.append(requested_name)
+        
+        # If any scenarios couldn't be resolved, provide detailed error message
+        if missing_scenarios:
+            available_names = [s.name for s in all_scenarios]
+            error_msg = f"Could not find the following scenarios: {', '.join(missing_scenarios)}\n"
+            error_msg += f"Available scenarios: {', '.join(available_names)}"
+            raise ValueError(error_msg)
+        
+        return resolved_scenarios
+    
+    def _create_comparison_database_context(self, scenario_names: List[str], primary_scenario: Optional[str] = None) -> DatabaseContext:
+        """
+        Create a multi-database context for comparison operations.
+        
+        Args:
+            scenario_names: List of scenario names to compare
+            primary_scenario: Name of the primary scenario (defaults to first scenario)
+            
+        Returns:
+            DatabaseContext configured for comparison mode
+        """
+        print(f"🔍 DEBUG: _create_comparison_database_context called with scenarios: {scenario_names}")
+        
+        if not self.scenario_manager:
+            print(f"🔍 DEBUG: No scenario manager available, returning empty context")
+            return DatabaseContext(None, None, None, None, comparison_mode=True)
+        
+        # Resolve scenario names to database paths
+        try:
+            print(f"🔍 DEBUG: Resolving scenario names to database paths...")
+            scenario_paths = self._resolve_scenario_names(scenario_names)
+            print(f"🔍 DEBUG: Resolved scenario paths: {scenario_paths}")
+        except ValueError as e:
+            print(f"🔍 DEBUG: Error resolving scenario names: {e}")
+            return DatabaseContext(None, None, None, None, comparison_mode=True)
+        
+        # Create individual database contexts for each scenario
+        multi_contexts = {}
+        print(f"🔍 DEBUG: Creating individual database contexts...")
+        for scenario_name, database_path in scenario_paths.items():
+            print(f"🔍 DEBUG: Processing scenario '{scenario_name}' with path '{database_path}'")
+            
+            # Get scenario ID
+            scenario = None
+            all_scenarios = self.scenario_manager.list_scenarios()
+            for s in all_scenarios:
+                if s.database_path == database_path:
+                    scenario = s
+                    break
+            
+            if not scenario:
+                print(f"🔍 DEBUG: Could not find scenario object for '{scenario_name}'")
+                continue
+            
+            print(f"🔍 DEBUG: Found scenario object with ID: {scenario.id}")
+            
+            # Get schema info
+            schema_info = None
+            if database_path and os.path.exists(database_path):
+                try:
+                    schema_info = self._get_database_info(database_path)
+                    print(f"🔍 DEBUG: Got schema info for '{scenario_name}': {len(schema_info.get('tables', {}))} tables")
+                except Exception as e:
+                    print(f"🔍 DEBUG: Error getting schema info for {scenario_name}: {e}")
+            else:
+                print(f"🔍 DEBUG: Database path does not exist: {database_path}")
+            
+            # Create temp directory
+            temp_dir = os.path.dirname(database_path)
+            if not os.path.exists(temp_dir):
+                os.makedirs(temp_dir, exist_ok=True)
+                print(f"🔍 DEBUG: Created temp directory: {temp_dir}")
+            
+            # Create individual context
+            individual_context = DatabaseContext(
+                scenario_id=scenario.id,
+                database_path=database_path,
+                schema_info=schema_info,
+                temp_dir=temp_dir,
+                comparison_mode=False  # Individual contexts are not in comparison mode
+            )
+            
+            print(f"🔍 DEBUG: Created individual context for '{scenario_name}' - valid: {individual_context.is_valid()}")
+            multi_contexts[scenario_name] = individual_context
+        
+        print(f"🔍 DEBUG: Created {len(multi_contexts)} individual contexts")
+        
+        # Set primary scenario (default to first if not specified)
+        if not primary_scenario and multi_contexts:
+            primary_scenario = list(multi_contexts.keys())[0]
+            print(f"🔍 DEBUG: Set primary scenario to: {primary_scenario}")
+        
+        # Create comparison context
+        comparison_context = DatabaseContext(
+            scenario_id=None,  # No single scenario ID in comparison mode
+            database_path=None,  # No single database path in comparison mode
+            schema_info=None,  # Schema info varies by scenario
+            temp_dir=None,  # Temp dir will be set to primary scenario's dir
+            multi_database_contexts=multi_contexts,
+            comparison_mode=True,
+            primary_scenario=primary_scenario
+        )
+        
+        # Set temp directory to primary scenario's directory
+        if primary_scenario and primary_scenario in multi_contexts:
+            comparison_context.temp_dir = multi_contexts[primary_scenario].temp_dir
+            print(f"🔍 DEBUG: Set temp directory to primary scenario: {comparison_context.temp_dir}")
+        
+        print(f"🔍 DEBUG: Created comparison context - valid: {comparison_context.is_valid()}, comparison_mode: {comparison_context.comparison_mode}")
+        return comparison_context
+    
+    def _extract_comparison_scenarios(self, user_request: str) -> List[str]:
+        """
+        Extract scenario names from comparison requests using regex patterns.
+        
+        Args:
+            user_request: The user's request text
+            
+        Returns:
+            List of scenario names found in the request, or empty list if no comparison detected
+        """
+        import re
+        
+        print(f"🔍 DEBUG: _extract_comparison_scenarios called with: '{user_request}'")
+        
+        # Comparison keywords that indicate a comparison request
+        comparison_keywords = [
+            "compare", "comparison", "versus", "vs", "between", "across", 
+            "difference", "differences", "compare", "comparing"
+        ]
+        
+        # Check if request contains comparison keywords
+        request_lower = user_request.lower()
+        has_comparison_keyword = any(keyword in request_lower for keyword in comparison_keywords)
+        print(f"🔍 DEBUG: Has comparison keyword: {has_comparison_keyword}")
+        print(f"🔍 DEBUG: Found keywords: {[kw for kw in comparison_keywords if kw in request_lower]}")
+        
+        if not has_comparison_keyword:
+            print(f"🔍 DEBUG: No comparison keywords found, returning empty list")
+            return []
+        
+        # Get all available scenario names for matching
+        if not self.scenario_manager:
+            print(f"🔍 DEBUG: No scenario manager available")
+            return []
+        
+        all_scenarios = self.scenario_manager.list_scenarios()
+        scenario_names = [s.name for s in all_scenarios]
+        print(f"🔍 DEBUG: Available scenarios: {scenario_names}")
+        
+        # Try different regex patterns to extract scenario names
+        
+        # Pattern 1: "scenario A vs scenario B" or "compare A and B"
+        patterns = [
+            # "compare Base and Test" - simple pattern
+            r'compare\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?:and|&)\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+            # "compare Base Scenario and Test Scenario" - with "Scenario" keyword
+            r'compare\s+([A-Za-z]+\s+Scenario)\s+(?:and|&)\s+([A-Za-z]+\s+Scenario)',
+            # "Base vs Test" - simple vs pattern
+            r'([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+(?:vs|versus)\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+            # "compare Base, Test" - comma separated
+            r'compare\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s*,\s*([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+            # "between Base and Test"
+            r'between\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s+and\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+            # "across Base, Test"
+            r'across\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)\s*,\s*([A-Za-z]+(?:\s+[A-Za-z]+)*)',
+        ]
+        
+        print(f"🔍 DEBUG: Testing regex patterns...")
+        for i, pattern in enumerate(patterns):
+            matches = re.findall(pattern, user_request, re.IGNORECASE)
+            print(f"🔍 DEBUG: Pattern {i+1}: '{pattern}' -> matches: {matches}")
+            if matches:
+                # Flatten the matches and clean up
+                found_scenarios = []
+                for match in matches:
+                    if isinstance(match, tuple):
+                        found_scenarios.extend(match)
+                    else:
+                        found_scenarios.append(match)
+                
+                print(f"🔍 DEBUG: Found scenarios from pattern: {found_scenarios}")
+                
+                # Clean up scenario names and validate against available scenarios
+                valid_scenarios = []
+                for scenario_name in found_scenarios:
+                    scenario_name_clean = scenario_name.strip().lower()
+                    best_match = None
+                    best_score = 0
+                    for available_name in scenario_names:
+                        available_name_lower = available_name.lower()
+                        # Exact match
+                        if scenario_name_clean == available_name_lower:
+                            best_match = available_name
+                            best_score = 100
+                            break
+                        # Substring match
+                        if scenario_name_clean in available_name_lower or available_name_lower in scenario_name_clean:
+                            if best_score < 80:
+                                best_match = available_name
+                                best_score = 80
+                        # Fuzzy match (sequence matcher)
+                        import difflib
+                        ratio = difflib.SequenceMatcher(None, scenario_name_clean, available_name_lower).ratio()
+                        if ratio > best_score/100 and ratio >= 0.5:
+                            best_match = available_name
+                            best_score = int(ratio*100)
+                    if best_match and best_match not in valid_scenarios:
+                        print(f"🔍 DEBUG: Fuzzy matched '{scenario_name}' to '{best_match}' (score={best_score})")
+                        valid_scenarios.append(best_match)
+                print(f"🔍 DEBUG: Valid scenarios found: {valid_scenarios}")
+                if len(valid_scenarios) >= 2:
+                    print(f"🔍 DEBUG: Returning valid scenarios: {valid_scenarios}")
+                    return valid_scenarios
+        
+        # If no patterns matched, try to find scenario names in the text
+        # Look for scenario names that appear in the request
+        print(f"🔍 DEBUG: No regex patterns matched, looking for scenario names in text...")
+        found_scenarios = []
+        for scenario_name in scenario_names:
+            if scenario_name.lower() in request_lower:
+                print(f"🔍 DEBUG: Found scenario name '{scenario_name}' in request")
+                found_scenarios.append(scenario_name)
+        
+        # If we found multiple scenarios and there are comparison keywords, it's likely a comparison
+        if len(found_scenarios) >= 2 and has_comparison_keyword:
+            print(f"🔍 DEBUG: Found multiple scenarios with comparison keywords: {found_scenarios}")
+            return found_scenarios
+        
+        print(f"🔍 DEBUG: No valid scenarios found, returning empty list")
+        return []
+    
+    def _determine_comparison_type(self, user_request: str) -> str:
+        """
+        Determine the type of comparison based on the user request.
+        
+        Args:
+            user_request: The user's request text
+            
+        Returns:
+            Comparison type: 'table', 'chart', or 'analysis'
+        """
+        request_lower = user_request.lower()
+        
+        # Check for visualization keywords
+        viz_keywords = ["chart", "graph", "plot", "visualiz", "draw", "map", "diagram", "bar", "line", "pie"]
+        if any(keyword in request_lower for keyword in viz_keywords):
+            return "chart"
+        
+        # Check for table keywords
+        table_keywords = ["table", "list", "show", "display", "data", "results"]
+        if any(keyword in request_lower for keyword in table_keywords):
+            return "table"
+        
+        # Default to analysis
+        return "analysis"
+    
     def _classify_request(self, state: AgentState) -> AgentState:
         """Classify the user request to determine how to handle it"""
+        print(f"🔍 DEBUG: _classify_request called with state keys: {list(state.keys())}")
+        
         user_request = state.get("user_request", "")
         if not user_request:
             # Get from messages
@@ -182,9 +597,40 @@ class SimplifiedAgent:
                     user_request = msg.content
                     break
         
-        # Simple keyword-based classification with LLM fallback
-        request_lower = user_request.lower()
+        print(f"🔍 DEBUG: User request: '{user_request}'")
         
+        # Check for comparison keywords to identify comparison requests
+        comparison_keywords = [
+            "compare", "comparison", "versus", "vs", "between", "across", 
+            "difference", "differences", "compare", "comparing"
+        ]
+        
+        request_lower = user_request.lower()
+        has_comparison_keyword = any(keyword in request_lower for keyword in comparison_keywords)
+        
+        if has_comparison_keyword:
+            print(f"🔍 DEBUG: Comparison keywords detected, classifying as scenario_comparison")
+            request_type = "scenario_comparison"
+            
+            # Get database context for current scenario (will be updated by extract_scenarios node)
+            db_context = self._get_database_context()
+            
+            return {
+                **state,
+                "user_request": user_request,
+                "request_type": request_type,
+                "db_context": db_context,
+                "messages": state["messages"] + [AIMessage(content=f"🎯 Request classified as: {request_type}")],
+                # Initialize comparison fields with default values (will be populated by extract_scenarios)
+                "comparison_scenarios": [],
+                "comparison_data": {},
+                "comparison_type": "",
+                "scenario_name_mapping": {}
+            }
+        
+        print(f"🔍 DEBUG: Not a comparison request, checking other patterns...")
+        
+        # Simple keyword-based classification with LLM fallback
         # Check for clear DB modification patterns
         db_mod_patterns = ["change", "update", "set", "modify", "alter", "edit"]
         param_patterns = ["parameter", "param", "cost", "demand", "capacity", "limit"]
@@ -192,37 +638,49 @@ class SimplifiedAgent:
         if any(pattern in request_lower for pattern in db_mod_patterns) and \
            any(pattern in request_lower for pattern in param_patterns):
             request_type = "db_modification"
+            print(f"🔍 DEBUG: Classified as db_modification")
         
         # Check for visualization patterns
         elif any(pattern in request_lower for pattern in [
             "chart", "graph", "plot", "visualiz", "draw", "map", "diagram"
         ]):
             request_type = "visualization"
+            print(f"🔍 DEBUG: Classified as visualization")
         
         # Check for SQL patterns
         elif any(pattern in request_lower for pattern in [
             "select", "query", "find", "search", "get", "retrieve", "list", "show", "count", "sum"
         ]):
             request_type = "sql_query"
+            print(f"🔍 DEBUG: Classified as sql_query")
         
         # For ambiguous cases, use LLM classification
         else:
+            print(f"🔍 DEBUG: Using LLM classification for ambiguous request")
             request_type = self._llm_classify_request(user_request)
+            print(f"🔍 DEBUG: LLM classified as: {request_type}")
         
         # Get database context for current scenario
+        print(f"🔍 DEBUG: Getting database context for current scenario...")
         db_context = self._get_database_context()
+        print(f"🔍 DEBUG: Database context - valid: {db_context.is_valid()}, path: {db_context.database_path}")
         
         return {
             **state,
             "user_request": user_request,
             "request_type": request_type,
             "db_context": db_context,
-            "messages": state["messages"] + [AIMessage(content=f"🎯 Request classified as: {request_type}")]
+            "messages": state["messages"] + [AIMessage(content=f"🎯 Request classified as: {request_type}")],
+            # Initialize comparison fields with default values
+            "comparison_scenarios": [],
+            "comparison_data": {},
+            "comparison_type": "",
+            "scenario_name_mapping": {}
         }
     
     def _llm_classify_request(self, user_request: str) -> str:
         """Use LLM to classify ambiguous requests"""
-        system_prompt = """Classify this user request into one of four categories:
+        system_prompt = """Classify this user request into one of five categories:
 
 1. **chat** - General questions, explanations, or conversations that don't require data analysis or code execution
    Examples: "What is this model about?", "How does optimization work?", "Explain the parameters"
@@ -236,12 +694,15 @@ class SimplifiedAgent:
 4. **db_modification** - Requests to change database values or parameters
    Examples: "Change the maximum demand to 5000", "Update the cost parameter", "Set capacity to 1000"
 
-Respond with exactly one word: chat, sql_query, visualization, or db_modification"""
+5. **scenario_comparison** - Requests to compare multiple scenarios
+   Examples: "Compare Base Scenario and Test Scenario", "Show differences between scenarios", "Base Scenario vs Test Scenario"
+
+Respond with exactly one word: chat, sql_query, visualization, db_modification, or scenario_comparison"""
         
         try:
             response = self._get_llm().invoke([HumanMessage(content=f"{system_prompt}\n\nUser request: {user_request}")])
             classification = response.content.strip().lower()
-            if classification in ["chat", "sql_query", "visualization", "db_modification"]:
+            if classification in ["chat", "sql_query", "visualization", "db_modification", "scenario_comparison"]:
                 return classification
         except Exception as e:
             print(f"LLM classification error: {e}")
@@ -397,6 +858,21 @@ Generate complete Python code:"""
                 "messages": state["messages"] + [AIMessage(content="❌ No database available for the current scenario")]
             }
         
+        # Check if this is a comparison visualization
+        is_comparison = db_context.comparison_mode and db_context.multi_database_contexts
+        
+        if is_comparison:
+            # Handle comparison visualization
+            return self._handle_comparison_visualization(state)
+        else:
+            # Handle single scenario visualization
+            return self._handle_single_visualization(state)
+    
+    def _handle_single_visualization(self, state: AgentState) -> AgentState:
+        """Generate Python code for single scenario visualization"""
+        user_request = state["user_request"]
+        db_context = state["db_context"]
+        
         # Build schema context
         schema_context = self._build_schema_context(db_context.schema_info)
         
@@ -475,6 +951,324 @@ Generate complete Python code that creates an interactive Plotly visualization:"
             return {
                 **state,
                 "messages": state["messages"] + [AIMessage(content=f"❌ Error generating visualization: {str(e)}")]
+            }
+    
+    def _handle_comparison_visualization(self, state: AgentState) -> AgentState:
+        """Generate Python code for multi-scenario comparison visualization"""
+        user_request = state["user_request"]
+        db_context = state["db_context"]
+        
+        # Get scenario information
+        scenario_names = db_context.get_scenario_names()
+        all_database_paths = db_context.get_all_database_paths()
+        
+        # Get primary context for schema info and temp directory
+        primary_context = db_context.get_primary_context()
+        if not primary_context:
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content="❌ No primary scenario context available")]
+            }
+        
+        # Build schema context from primary scenario
+        schema_context = self._build_schema_context(primary_context.schema_info)
+        
+        # Create database path mapping for the code - use absolute paths
+        db_path_mapping = {}
+        for i, scenario_name in enumerate(scenario_names):
+            if i < len(all_database_paths):
+                # Use absolute paths to ensure correct database access regardless of execution directory
+                abs_db_path = all_database_paths[i]
+                db_path_mapping[scenario_name] = abs_db_path.replace('\\', '/')
+        
+        print(f"🔍 DEBUG: Database path mapping (absolute paths): {db_path_mapping}")
+        
+        # Determine chart type based on user request
+        chart_type = self._determine_comparison_chart_type(user_request)
+        
+        system_prompt = f"""Generate Python code to create an advanced comparison visualization across multiple scenarios.
+
+Scenarios to compare: {', '.join(scenario_names)}
+Database files: {', '.join([f"{name}: {path}" for name, path in db_path_mapping.items()])}
+
+Schema from primary scenario:
+{schema_context}
+
+Chart Type: {chart_type}
+
+COMPARISON CHART REQUIREMENTS:
+
+1. **Data Aggregation:**
+   - Connect to all scenario databases using the provided absolute paths
+   - Query the same data from each scenario for comparison
+   - Use the _aggregate_scenario_data method to combine data with consistent structure
+   - Handle different table structures gracefully
+
+2. **Chart Types for Comparison:**
+   - **Side-by-side bars**: Use go.Bar with barmode='group' for categorical comparisons
+   - **Grouped bars**: Use go.Bar with barmode='group' for multiple metrics
+   - **Faceted plots**: Use subplots for complex multi-metric comparisons
+   - **Line charts**: Use go.Scatter with different colors per scenario
+   - **Scatter plots**: Use go.Scatter with scenario color coding
+   - **Heatmaps**: Use go.Heatmap for matrix-style comparisons
+
+3. **Scenario Color Coding:**
+   - Use distinct colors for each scenario (e.g., ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])
+   - Add scenario names to legend
+   - Include scenario information in hover text
+
+4. **Enhanced Features:**
+   - Add scenario legends with proper labels
+   - Include scenario annotations for key differences
+   - Show percentage differences or absolute values
+   - Add trend lines or reference lines where appropriate
+   - Include statistical summaries in annotations
+
+5. **Interactive Elements:**
+   - Hover information should show scenario name, values, and differences
+   - Add buttons to toggle between scenarios
+   - Include zoom and pan capabilities
+   - Add download buttons for data
+
+CRITICAL REQUIREMENTS:
+- Use the provided absolute database paths (not just filenames, not relative paths)
+- Save HTML file in the current directory
+- Use plotly.graph_objects for interactive visualizations
+- DO NOT use fig.show() - only save as HTML file
+- DO NOT use encoding parameter in write_html() - Plotly handles encoding automatically
+- Use dynamic file naming with timestamp
+- Use fig.write_html(html_file_path) without any encoding parameter
+- IMPORTANT: Convert all pandas Series/DataFrame data to Python lists using .tolist() before plotting
+- Reset DataFrame indexes using df.reset_index(drop=True) before extracting data for plotting
+- Ensure data arrays contain actual values, not DataFrame indexes
+- Use the _aggregate_scenario_data method for data combination
+
+User request: {user_request}
+
+Generate complete Python code that creates an advanced comparison visualization:"""
+        
+        try:
+            response = self._get_llm().invoke([HumanMessage(content=system_prompt)])
+            llm_response = response.content.strip()
+            
+            # Extract code and explanation
+            code_content, explanation = self._extract_code_and_explanation(llm_response)
+            
+            # Clean up code
+            code_content = self._clean_generated_code(code_content)
+            
+            # Generate filename using scenario manager
+            filename = self.scenario_manager.generate_comparison_filename(
+                scenario_names=scenario_names,
+                comparison_type="visualization",
+                extension="py"
+            )
+            file_path = os.path.join(primary_context.temp_dir, filename)
+            
+            # Write the file with UTF-8 encoding
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(code_content)
+            
+            # Create response message with explanation
+            response_message = f"📊 Generated comparison visualization script: {filename}"
+            if explanation:
+                response_message += f"\n\n{explanation}"
+            
+            return {
+                **state,
+                "generated_files": [filename],
+                "messages": state["messages"] + [AIMessage(content=response_message)]
+            }
+            
+        except Exception as e:
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content=f"❌ Error generating comparison visualization: {str(e)}")]
+            }
+    
+    def _determine_comparison_chart_type(self, user_request: str) -> str:
+        """Determine the most appropriate chart type for comparison visualization"""
+        request_lower = user_request.lower()
+        
+        # Check for specific chart type requests
+        if any(word in request_lower for word in ["side by side", "side-by-side", "grouped bars", "grouped bar"]):
+            return "side_by_side_bars"
+        elif any(word in request_lower for word in ["faceted", "subplot", "multiple charts"]):
+            return "faceted_plots"
+        elif any(word in request_lower for word in ["scatter", "correlation", "relationship"]):
+            return "scatter_plot"
+        elif any(word in request_lower for word in ["heatmap", "matrix", "grid"]):
+            return "heatmap"
+        elif any(word in request_lower for word in ["line", "trend", "time series"]):
+            return "line_chart"
+        elif any(word in request_lower for word in ["pie", "donut", "proportion"]):
+            return "pie_chart"
+        else:
+            # Default to grouped bars for most comparisons
+            return "grouped_bars"
+    
+    def _handle_scenario_comparison(self, state: AgentState) -> AgentState:
+        """Generate Python code for multi-scenario comparison operations"""
+        print(f"🔍 DEBUG: _handle_scenario_comparison called")
+        print(f"🔍 DEBUG: State keys: {list(state.keys())}")
+        
+        user_request = state["user_request"]
+        db_context = state["db_context"]
+        comparison_scenarios = state.get("comparison_scenarios", [])
+        comparison_type = state.get("comparison_type", "analysis")
+        
+        print(f"🔍 DEBUG: User request: '{user_request}'")
+        print(f"🔍 DEBUG: DB context valid: {db_context.is_valid()}")
+        print(f"🔍 DEBUG: DB context comparison mode: {db_context.comparison_mode}")
+        print(f"🔍 DEBUG: Comparison scenarios: {comparison_scenarios}")
+        print(f"🔍 DEBUG: Comparison type: {comparison_type}")
+        
+        if not db_context.is_valid() or not db_context.comparison_mode:
+            print(f"🔍 DEBUG: Invalid database context or not in comparison mode")
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content="❌ No valid comparison database context available")]
+            }
+        
+        if len(comparison_scenarios) < 2:
+            print(f"🔍 DEBUG: Not enough scenarios for comparison: {len(comparison_scenarios)}")
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content="❌ Need at least 2 scenarios for comparison")]
+            }
+        
+        # If this is a chart or table comparison, delegate to the visualization handler
+        if comparison_type in ("chart", "table"):
+            print(f"🔍 DEBUG: Delegating to comparison visualization handler")
+            return self._handle_comparison_visualization(state)
+        
+        print(f"🔍 DEBUG: Using analysis code generation logic")
+        
+        # Otherwise, use the original code-generation logic for 'analysis' or other types
+        # Get primary context for schema info and temp directory
+        primary_context = db_context.get_primary_context()
+        if not primary_context:
+            print(f"🔍 DEBUG: No primary context available")
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content="❌ No primary scenario context available")]
+            }
+        
+        print(f"🔍 DEBUG: Primary context found - valid: {primary_context.is_valid()}")
+        
+        # Build schema context from primary scenario
+        schema_context = self._build_schema_context(primary_context.schema_info)
+        
+        # Get all database paths for comparison
+        all_database_paths = db_context.get_all_database_paths()
+        scenario_names = db_context.get_scenario_names()
+        
+        print(f"🔍 DEBUG: All database paths: {all_database_paths}")
+        print(f"🔍 DEBUG: Scenario names: {scenario_names}")
+        
+        # Create database path mapping for the code - use absolute paths
+        db_path_mapping = {}
+        for i, scenario_name in enumerate(scenario_names):
+            if i < len(all_database_paths):
+                # Use absolute paths to ensure correct database access regardless of execution directory
+                abs_db_path = all_database_paths[i]
+                db_path_mapping[scenario_name] = abs_db_path.replace('\\', '/')
+        
+        print(f"🔍 DEBUG: Database path mapping (absolute paths): {db_path_mapping}")
+        
+        # Build system prompt for analysis
+        system_prompt = f"""Generate Python code to perform analysis across multiple scenarios.
+
+Scenarios to compare: {', '.join(scenario_names)}
+Database files: {', '.join([f"{name}: {path}" for name, path in db_path_mapping.items()])}
+
+IMPORTANT: Each scenario has its own subdirectory containing a database.db file. 
+The database paths shown above are the absolute paths to each scenario's database file. 
+You MUST use these absolute paths to connect to each scenario's database. Do NOT use just 'database.db'.
+
+Schema from primary scenario:
+{schema_context}
+
+Requirements:
+1. Connect to all scenario databases using the provided absolute paths
+2. Query and analyze data from each scenario
+3. Create a comprehensive analysis that compares scenarios
+4. Generate both visualizations and summary statistics
+5. Include scenario names to distinguish data sources
+6. Save results as interactive HTML file in the current directory
+
+Key requirements:
+- Use plotly.graph_objects for creating visualizations
+- Use pandas for data manipulation and analysis
+- Create interactive charts and tables with hover effects
+- Include proper error handling with try/except blocks
+- Make outputs responsive and well-formatted
+- Add scenario names to distinguish data sources
+
+CRITICAL REQUIREMENTS:
+- Use the exact absolute database paths provided (not just filenames, not relative paths)
+- Save HTML file in the current directory
+- Use plotly.graph_objects for interactive outputs
+- DO NOT use fig.show() - only save as HTML file
+- DO NOT use encoding parameter in write_html() - Plotly handles encoding automatically
+- Use dynamic file naming with timestamp
+- Use fig.write_html(html_file_path) without any encoding parameter
+- IMPORTANT: Convert all pandas Series/DataFrame data to Python lists using .tolist() before plotting
+- Reset DataFrame indexes using df.reset_index(drop=True) before extracting data for plotting
+- Ensure data arrays contain actual values, not DataFrame indexes
+
+User request: {user_request}
+
+Generate complete Python code that performs scenario comparison analysis:"""
+        
+        try:
+            print(f"🔍 DEBUG: Calling LLM for code generation...")
+            response = self._get_llm().invoke([HumanMessage(content=system_prompt)])
+            llm_response = response.content.strip()
+            
+            print(f"🔍 DEBUG: LLM response received, extracting code...")
+            
+            # Extract code and explanation
+            code_content, explanation = self._extract_code_and_explanation(llm_response)
+            
+            # Clean up code
+            code_content = self._clean_generated_code(code_content)
+            
+            print(f"🔍 DEBUG: Code extracted and cleaned, generating filename...")
+            
+            # Generate filename using scenario manager
+            filename = self.scenario_manager.generate_comparison_filename(
+                scenario_names=comparison_scenarios,
+                comparison_type=comparison_type,
+                extension="py"
+            )
+            file_path = os.path.join(primary_context.temp_dir, filename)
+            
+            print(f"🔍 DEBUG: Writing file to: {file_path}")
+            
+            # Write the file with UTF-8 encoding
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(code_content)
+            
+            print(f"🔍 DEBUG: File written successfully")
+            
+            # Create response message with explanation
+            response_message = f"📊 Generated {comparison_type} comparison script: {filename}"
+            if explanation:
+                response_message += f"\n\n{explanation}"
+            
+            print(f"🔍 DEBUG: Returning success response")
+            return {
+                **state,
+                "generated_files": [filename],
+                "messages": state["messages"] + [AIMessage(content=response_message)]
+            }
+            
+        except Exception as e:
+            print(f"🔍 DEBUG: Error in comparison code generation: {e}")
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content=f"❌ Error generating comparison: {str(e)}")]
             }
     
     # === PRESERVED DB MODIFICATION LOGIC FROM V1 ===
@@ -1394,12 +2188,18 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
     
     def _execute_code(self, state: AgentState) -> AgentState:
         """Execute generated Python code"""
+        print(f"🔍 DEBUG: _execute_code called")
+        print(f"🔍 DEBUG: State keys: {list(state.keys())}")
+        
         generated_files = state.get("generated_files", [])
         db_context = state["db_context"]
         
-
+        print(f"🔍 DEBUG: Generated files: {generated_files}")
+        print(f"🔍 DEBUG: DB context valid: {db_context.is_valid()}")
+        print(f"🔍 DEBUG: DB context temp_dir: {db_context.temp_dir}")
         
         if not generated_files or not db_context.is_valid():
+            print(f"🔍 DEBUG: No files to execute or invalid database context")
             return {
                 **state,
                 "execution_error": "No files to execute or invalid database context"
@@ -1409,21 +2209,49 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
         filename = generated_files[-1]
         file_path = os.path.join(db_context.temp_dir, filename)
         
+        print(f"🔍 DEBUG: Executing file: {filename}")
+        print(f"🔍 DEBUG: Full file path: {file_path}")
+        
         if not os.path.exists(file_path):
+            print(f"🔍 DEBUG: Generated file not found: {file_path}")
             return {
                 **state,
                 "execution_error": f"Generated file not found: {filename}"
             }
+        
+        print(f"🔍 DEBUG: File exists, proceeding with execution")
         
         # Execute Python file
         try:
             import subprocess
             
             # Execute in the database directory so output files are created there
-            db_dir = os.path.dirname(db_context.database_path)
+            if db_context.comparison_mode and db_context.multi_database_contexts:
+                # In comparison mode, use the primary scenario's directory
+                primary_context = db_context.get_primary_context()
+                if primary_context and primary_context.database_path:
+                    db_dir = os.path.dirname(primary_context.database_path)
+                else:
+                    # Fallback to temp_dir if available
+                    db_dir = db_context.temp_dir or os.getcwd()
+            else:
+                # Single scenario mode
+                db_dir = os.path.dirname(db_context.database_path)
+            
+            # For comparison files, ensure we're executing in the correct directory
+            # Check if the file being executed is a comparison file
+            if filename and ('comparison' in filename.lower() or 'vs_' in filename.lower()):
+                # For comparison files, use the directory where the file is located
+                file_dir = os.path.dirname(file_path)
+                if file_dir and os.path.exists(file_dir):
+                    db_dir = file_dir
+                    print(f"🔍 DEBUG: Using comparison file's directory for execution: {db_dir}")
+            
+            print(f"🔍 DEBUG: Execution directory: {db_dir}")
             
             # Use the same Python executable as the current process
             python_executable = sys.executable
+            print(f"🔍 DEBUG: Python executable: {python_executable}")
             
             # Record existing files BEFORE execution to avoid picking up old files
             existing_files = set()
@@ -1431,7 +2259,9 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 for file in os.listdir(db_dir):
                     if file.endswith('.html'):
                         existing_files.add(file)
+            print(f"🔍 DEBUG: Existing HTML files before execution: {existing_files}")
             
+            print(f"🔍 DEBUG: Starting subprocess execution...")
             result = subprocess.run(
                 [python_executable, file_path],
                 cwd=db_dir,
@@ -1441,6 +2271,10 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 errors='replace',  # Replace problematic characters
                 timeout=120  # Increased timeout for slower imports
             )
+            
+            print(f"🔍 DEBUG: Subprocess completed with return code: {result.returncode}")
+            print(f"🔍 DEBUG: Subprocess stdout: {result.stdout[:200]}...")
+            print(f"🔍 DEBUG: Subprocess stderr: {result.stderr[:200]}...")
             
             if result.returncode == 0:
                 # Find ONLY newly generated output files (HTML files) in database directory
@@ -1452,6 +2286,8 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                             if file not in existing_files:
                                 output_files.append(file)
                 
+                print(f"🔍 DEBUG: Newly generated HTML files: {output_files}")
+                
                 execution_output = result.stdout
                 if output_files:
                     execution_output += f"\n\n📁 Generated files: {', '.join(output_files)}"
@@ -1461,6 +2297,7 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 # The output_files contains the HTML files generated by this request
                 current_request_files = state.get("generated_files", []) + output_files
                 
+                print(f"🔍 DEBUG: Returning success with files: {current_request_files}")
                 return {
                     **state,
                     "execution_output": execution_output,
@@ -1468,6 +2305,7 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                     "generated_files": current_request_files  # Only files from this request
                 }
             else:
+                print(f"🔍 DEBUG: Subprocess failed, returning error")
                 return {
                     **state,
                     "execution_output": result.stdout,
@@ -1475,11 +2313,13 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 }
                 
         except subprocess.TimeoutExpired:
+            print(f"🔍 DEBUG: Subprocess timed out")
             return {
                 **state,
                 "execution_error": "Execution timed out (120 seconds). The script may be importing heavy libraries or taking too long to run."
             }
         except Exception as e:
+            print(f"🔍 DEBUG: Subprocess exception: {e}")
             error_msg = f"Execution failed: {str(e)}"
             if "KeyboardInterrupt" in str(e):
                 error_msg = "Execution was interrupted. This may be due to heavy imports or long-running operations."
@@ -1605,7 +2445,12 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 "execution_output": "",
                 "execution_error": "",
                 "modification_request": None,
-                "db_modification_result": None
+                "db_modification_result": None,
+                # Initialize comparison fields
+                "comparison_scenarios": [],
+                "comparison_data": {},
+                "comparison_type": "",
+                "scenario_name_mapping": {}
             }
             
             # Run the workflow
@@ -1808,6 +2653,823 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
             sql_info["columns"][table] = list(sql_info["columns"][table])
         
         return sql_info
+
+    def _execute_multi_database_query(
+        self,
+        sql_query_template: str,
+        db_contexts: Dict[str, DatabaseContext],
+        params: Optional[Dict[str, Any]] = None
+    ) -> 'pd.DataFrame':
+        """
+        Execute the same SQL query against each scenario's database, aggregate results, and add scenario name as a column.
+        Handles schema differences gracefully (missing columns, etc.).
+
+        Args:
+            sql_query_template: SQL query string (may use named placeholders for params)
+            db_contexts: Dict mapping scenario names to DatabaseContext objects
+            params: Optional dict of parameters to use in the query
+        Returns:
+            Aggregated pandas DataFrame with scenario name as a column
+        """
+        import pandas as pd
+        results = []
+        for scenario_name, db_ctx in db_contexts.items():
+            db_path = db_ctx.database_path
+            if not db_path or not os.path.exists(db_path):
+                print(f"[WARN] Database for scenario '{scenario_name}' not found: {db_path}")
+                continue
+            try:
+                conn = sqlite3.connect(db_path)
+                # Try to execute the query, handle missing columns gracefully
+                try:
+                    if params:
+                        df = pd.read_sql_query(sql_query_template, conn, params=params)
+                    else:
+                        df = pd.read_sql_query(sql_query_template, conn)
+                    df["scenario"] = scenario_name
+                    results.append(df)
+                except Exception as e:
+                    print(f"[WARN] Query failed for scenario '{scenario_name}': {e}")
+                    # Try to get columns from the schema and adjust query if possible
+                    try:
+                        cursor = conn.execute("PRAGMA table_info(main)")
+                        schema_cols = [row[1] for row in cursor.fetchall()]
+                        print(f"[DEBUG] Columns in scenario '{scenario_name}': {schema_cols}")
+                    except Exception as e2:
+                        print(f"[ERROR] Could not fetch schema for scenario '{scenario_name}': {e2}")
+                finally:
+                    conn.close()
+            except Exception as e:
+                print(f"[ERROR] Could not connect to database for scenario '{scenario_name}': {e}")
+        if results:
+            # Union all results, aligning columns
+            df_all = pd.concat(results, axis=0, ignore_index=True, sort=True)
+            return df_all
+        else:
+            # Return empty DataFrame with scenario column
+            return pd.DataFrame(columns=["scenario"])
+    
+    def _aggregate_scenario_data(
+        self,
+        db_contexts: Dict[str, DatabaseContext],
+        table_name: str,
+        required_columns: Optional[List[str]] = None,
+        optional_columns: Optional[List[str]] = None
+    ) -> 'pd.DataFrame':
+        """
+        Combine data from multiple scenarios into a unified format with consistent column naming.
+        
+        Args:
+            db_contexts: Dict mapping scenario names to DatabaseContext objects
+            table_name: Name of the table to aggregate from each scenario
+            required_columns: List of columns that must exist in all scenarios
+            optional_columns: List of columns to include if available (will be filled with None if missing)
+            
+        Returns:
+            Aggregated pandas DataFrame with scenario_name column and consistent structure
+            
+        Raises:
+            ValueError: If required columns are missing from any scenario
+        """
+        import pandas as pd
+        
+        results = []
+        all_columns = set()
+        scenario_schemas = {}
+        
+        # First pass: collect schema information and validate required columns
+        for scenario_name, db_ctx in db_contexts.items():
+            db_path = db_ctx.database_path
+            if not db_path or not os.path.exists(db_path):
+                print(f"[WARN] Database for scenario '{scenario_name}' not found: {db_path}")
+                continue
+            
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                
+                # Check if table exists
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+                if not cursor.fetchone():
+                    print(f"[WARN] Table '{table_name}' not found in scenario '{scenario_name}'")
+                    conn.close()
+                    continue
+                
+                # Get table schema
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                columns = [row[1] for row in cursor.fetchall()]
+                scenario_schemas[scenario_name] = columns
+                all_columns.update(columns)
+                
+                # Validate required columns
+                if required_columns:
+                    missing_columns = [col for col in required_columns if col not in columns]
+                    if missing_columns:
+                        raise ValueError(f"Scenario '{scenario_name}' is missing required columns: {missing_columns}")
+                
+                conn.close()
+                
+            except Exception as e:
+                print(f"[ERROR] Error analyzing schema for scenario '{scenario_name}': {e}")
+                continue
+        
+        if not scenario_schemas:
+            return pd.DataFrame(columns=["scenario_name"])
+        
+        # Determine final column structure
+        final_columns = ["scenario_name"]
+        if required_columns:
+            final_columns.extend(required_columns)
+        if optional_columns:
+            final_columns.extend(optional_columns)
+        
+        # Add any additional columns found in any scenario
+        additional_columns = all_columns - set(required_columns or []) - set(optional_columns or [])
+        final_columns.extend(sorted(additional_columns))
+        
+        # Second pass: extract data from each scenario
+        for scenario_name, db_ctx in db_contexts.items():
+            if scenario_name not in scenario_schemas:
+                continue
+            
+            db_path = db_ctx.database_path
+            try:
+                conn = sqlite3.connect(db_path)
+                
+                # Build SELECT clause with all possible columns
+                select_columns = []
+                for col in final_columns[1:]:  # Skip scenario_name
+                    if col in scenario_schemas[scenario_name]:
+                        select_columns.append(col)
+                    else:
+                        # Column doesn't exist in this scenario, use NULL
+                        select_columns.append(f"NULL as {col}")
+                
+                if not select_columns:
+                    print(f"[WARN] No valid columns found for scenario '{scenario_name}'")
+                    conn.close()
+                    continue
+                
+                # Execute query
+                select_clause = ", ".join(select_columns)
+                query = f"SELECT {select_clause} FROM {table_name}"
+                
+                df = pd.read_sql_query(query, conn)
+                df["scenario_name"] = scenario_name
+                
+                # Reorder columns to match final structure
+                df = df[final_columns]
+                results.append(df)
+                
+                conn.close()
+                
+            except Exception as e:
+                print(f"[ERROR] Error extracting data from scenario '{scenario_name}': {e}")
+                continue
+        
+        if not results:
+            return pd.DataFrame(columns=final_columns)
+        
+        # Combine all results
+        combined_df = pd.concat(results, axis=0, ignore_index=True)
+        
+        # Validate final structure
+        if required_columns:
+            missing_in_final = [col for col in required_columns if col not in combined_df.columns]
+            if missing_in_final:
+                raise ValueError(f"Required columns missing from final aggregated data: {missing_in_final}")
+        
+        return combined_df
+    
+    def _generate_comparison_table(
+        self,
+        db_contexts: Dict[str, DatabaseContext],
+        table_name: str,
+        key_column: str,
+        value_columns: List[str],
+        highlight_thresholds: Optional[Dict[str, float]] = None
+    ) -> str:
+        """
+        Generate HTML comparison table showing metrics across scenarios with highlighting and metadata.
+        
+        Args:
+            db_contexts: Dict mapping scenario names to DatabaseContext objects
+            table_name: Name of the table to compare
+            key_column: Column to use as row identifier (e.g., 'Location', 'Hub')
+            value_columns: List of columns to compare across scenarios
+            highlight_thresholds: Dict mapping column names to percentage thresholds for highlighting
+            
+        Returns:
+            HTML string with formatted comparison table
+        """
+        import pandas as pd
+        
+        # Default highlighting thresholds
+        if highlight_thresholds is None:
+            highlight_thresholds = {
+                'default': 10.0,  # 10% change threshold
+                'high': 20.0,     # 20% change threshold
+                'critical': 50.0   # 50% change threshold
+            }
+        
+        # Aggregate data from all scenarios
+        try:
+            combined_df = self._aggregate_scenario_data(
+                db_contexts=db_contexts,
+                table_name=table_name,
+                required_columns=[key_column] + value_columns
+            )
+        except ValueError as e:
+            return f"<div class='error'>Error aggregating data: {str(e)}</div>"
+        
+        if combined_df.empty:
+            return "<div class='error'>No data available for comparison</div>"
+        
+        # Get scenario metadata
+        scenario_metadata = {}
+        for scenario_name, db_ctx in db_contexts.items():
+            if db_ctx.scenario_id and self.scenario_manager:
+                scenario = self.scenario_manager.get_scenario(db_ctx.scenario_id)
+                if scenario:
+                    scenario_metadata[scenario_name] = {
+                        'created': scenario.created_at.strftime('%Y-%m-%d %H:%M') if scenario.created_at else 'Unknown',
+                        'description': scenario.description or 'No description',
+                        'id': scenario.id
+                    }
+        
+        # Create comparison table HTML
+        html_parts = []
+        
+        # CSS Styles
+        html_parts.append("""
+        <style>
+        .comparison-table {
+            font-family: Arial, sans-serif;
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .comparison-table th, .comparison-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+        .comparison-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            color: #333;
+        }
+        .comparison-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .comparison-table tr:hover {
+            background-color: #f0f0f0;
+        }
+        .scenario-header {
+            background-color: #4CAF50 !important;
+            color: white !important;
+            font-weight: bold;
+        }
+        .key-column {
+            background-color: #e8f5e8;
+            font-weight: bold;
+            text-align: left;
+        }
+        .highlight-low {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .highlight-medium {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .highlight-high {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .highlight-critical {
+            background-color: #f8d7da;
+            color: #721c24;
+            font-weight: bold;
+        }
+        .difference {
+            font-size: 0.9em;
+            font-style: italic;
+        }
+        .percentage {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .metadata {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .metadata h3 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+        .metadata p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        .summary-stats {
+            background-color: #e9ecef;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+        .summary-stats h4 {
+            margin: 0 0 10px 0;
+            color: #495057;
+        }
+        .summary-stats ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        </style>
+        """)
+        
+        # Scenario Metadata Section
+        if scenario_metadata:
+            html_parts.append("<div class='metadata'>")
+            html_parts.append("<h3>📊 Scenario Comparison Metadata</h3>")
+            for scenario_name, metadata in scenario_metadata.items():
+                html_parts.append(f"""
+                <p><strong>{scenario_name}:</strong> Created {metadata['created']} | {metadata['description']}</p>
+                """)
+            html_parts.append("</div>")
+        
+        # Summary Statistics
+        html_parts.append("<div class='summary-stats'>")
+        html_parts.append("<h4>📈 Comparison Summary</h4>")
+        html_parts.append(f"<ul>")
+        html_parts.append(f"<li>Comparing {len(db_contexts)} scenarios</li>")
+        html_parts.append(f"<li>Analyzing {len(value_columns)} metrics: {', '.join(value_columns)}</li>")
+        html_parts.append(f"<li>Total rows: {len(combined_df)}</li>")
+        html_parts.append("</ul>")
+        html_parts.append("</div>")
+        
+        # Start table
+        html_parts.append("<table class='comparison-table'>")
+        
+        # Table header
+        header_cells = [f"<th class='key-column'>{key_column}</th>"]
+        for scenario_name in db_contexts.keys():
+            header_cells.append(f"<th class='scenario-header'>{scenario_name}</th>")
+        html_parts.append(f"<tr>{''.join(header_cells)}</tr>")
+        
+        # Get unique keys (locations, hubs, etc.)
+        unique_keys = combined_df[key_column].unique()
+        
+        # Process each row
+        for key_value in sorted(unique_keys):
+            row_data = combined_df[combined_df[key_column] == key_value]
+            
+            # Start row
+            html_parts.append(f"<tr>")
+            html_parts.append(f"<td class='key-column'>{key_value}</td>")
+            
+            # Get values for each scenario
+            scenario_values = {}
+            for scenario_name in db_contexts.keys():
+                scenario_row = row_data[row_data['scenario_name'] == scenario_name]
+                if not scenario_row.empty:
+                    scenario_values[scenario_name] = {}
+                    for col in value_columns:
+                        if col in scenario_row.columns:
+                            scenario_values[scenario_name][col] = scenario_row[col].iloc[0]
+                        else:
+                            scenario_values[scenario_name][col] = None
+                else:
+                    scenario_values[scenario_name] = {col: None for col in value_columns}
+            
+            # Calculate differences and generate cells
+            baseline_scenario = list(db_contexts.keys())[0]
+            baseline_values = scenario_values.get(baseline_scenario, {})
+            
+            for scenario_name in db_contexts.keys():
+                cell_content = []
+                
+                for col in value_columns:
+                    current_value = scenario_values[scenario_name].get(col)
+                    baseline_value = baseline_values.get(col)
+                    
+                    if current_value is not None:
+                        # Format the value
+                        if isinstance(current_value, (int, float)):
+                            formatted_value = f"{current_value:,.2f}" if current_value % 1 != 0 else f"{current_value:,.0f}"
+                        else:
+                            formatted_value = str(current_value)
+                        
+                        cell_content.append(f"<strong>{formatted_value}</strong>")
+                        
+                        # Calculate difference if we have baseline
+                        if baseline_value is not None and baseline_value != current_value:
+                            try:
+                                if baseline_value != 0:
+                                    percentage_diff = ((current_value - baseline_value) / baseline_value) * 100
+                                    abs_diff = current_value - baseline_value
+                                    
+                                    # Determine highlighting class
+                                    threshold = highlight_thresholds.get(col, highlight_thresholds['default'])
+                                    if abs(percentage_diff) >= highlight_thresholds.get('critical', 50.0):
+                                        highlight_class = "highlight-critical"
+                                    elif abs(percentage_diff) >= highlight_thresholds.get('high', 20.0):
+                                        highlight_class = "highlight-high"
+                                    elif abs(percentage_diff) >= threshold:
+                                        highlight_class = "highlight-medium"
+                                    else:
+                                        highlight_class = "highlight-low"
+                                    
+                                    diff_sign = "+" if abs_diff > 0 else ""
+                                    cell_content.append(f"<div class='difference {highlight_class}'>{diff_sign}{abs_diff:,.2f}</div>")
+                                    cell_content.append(f"<div class='percentage {highlight_class}'>{diff_sign}{percentage_diff:+.1f}%</div>")
+                                else:
+                                    cell_content.append(f"<div class='difference'>N/A</div>")
+                            except (TypeError, ValueError):
+                                cell_content.append(f"<div class='difference'>N/A</div>")
+                    else:
+                        cell_content.append("<em>N/A</em>")
+                
+                # Join cell content
+                cell_html = "<br>".join(cell_content)
+                html_parts.append(f"<td>{cell_html}</td>")
+            
+            html_parts.append("</tr>")
+        
+        # Close table
+        html_parts.append("</table>")
+        
+        # Legend
+        html_parts.append("""
+        <div style='margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 5px;'>
+        <h4>🎨 Highlighting Legend</h4>
+        <ul style='margin: 0; padding-left: 20px;'>
+        <li><span style='background-color: #fff3cd; padding: 2px 5px;'>Low</span>: Changes &lt; 10%</li>
+        <li><span style='background-color: #f8d7da; padding: 2px 5px;'>Medium</span>: Changes 10-20%</li>
+        <li><span style='background-color: #d4edda; padding: 2px 5px;'>High</span>: Changes 20-50%</li>
+        <li><span style='background-color: #f8d7da; color: #721c24; font-weight: bold; padding: 2px 5px;'>Critical</span>: Changes &gt; 50%</li>
+        </ul>
+        </div>
+        """)
+        
+        return "".join(html_parts)
+    
+    def _generate_comparison_file_path(
+        self,
+        scenario_names: List[str],
+        file_type: str,
+        extension: str = "html",
+        base_directory: Optional[str] = None
+    ) -> str:
+        """
+        Generate absolute file paths for comparison outputs using scenario manager.
+        
+        Args:
+            scenario_names: List of scenario names to include in filename
+            file_type: Type of comparison file (e.g., 'table', 'chart', 'analysis')
+            extension: File extension (default: 'html')
+            base_directory: Optional base directory (defaults to project root)
+            
+        Returns:
+            Absolute file path for the comparison output file
+        """
+        if self.scenario_manager:
+            # Use scenario manager's filename generation
+            filename = self.scenario_manager.generate_comparison_filename(
+                scenario_names=scenario_names,
+                comparison_type=file_type,
+                extension=extension
+            )
+            return self.scenario_manager.get_comparison_file_path(filename)
+        else:
+            # Fallback to manual generation if no scenario manager
+            import os
+            from datetime import datetime
+            
+            # Sanitize scenario names for file system compatibility
+            def sanitize_filename(name: str) -> str:
+                """Convert scenario name to filesystem-safe filename"""
+                # Replace problematic characters with underscores
+                import re
+                # Remove or replace characters that are problematic in filenames
+                sanitized = re.sub(r'[<>:"/\\|?*]', '_', name)
+                # Replace spaces with underscores
+                sanitized = sanitized.replace(' ', '_')
+                # Remove multiple consecutive underscores
+                sanitized = re.sub(r'_+', '_', sanitized)
+                # Remove leading/trailing underscores
+                sanitized = sanitized.strip('_')
+                # Limit length to avoid filesystem issues
+                if len(sanitized) > 50:
+                    sanitized = sanitized[:50]
+                return sanitized or 'scenario'
+            
+            # Determine base directory
+            if base_directory is None:
+                # Fallback to current working directory
+                base_directory = os.getcwd()
+            
+            # Create comparison directory
+            comparison_dir = os.path.join(base_directory, "comparisons")
+            os.makedirs(comparison_dir, exist_ok=True)
+            
+            # Generate timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create filename components
+            sanitized_names = [sanitize_filename(name) for name in scenario_names]
+            
+            # Limit number of scenario names in filename to avoid extremely long names
+            if len(sanitized_names) > 3:
+                # Use first 2 and last 1 scenario names
+                scenario_part = f"{sanitized_names[0]}_{sanitized_names[1]}_and_{len(sanitized_names)-2}_more"
+            else:
+                scenario_part = "_vs_".join(sanitized_names)
+            
+            # Generate filename
+            filename = f"comparison_{file_type}_{scenario_part}_{timestamp}.{extension}"
+            
+            # Ensure filename is not too long (some filesystems have limits)
+            max_filename_length = 200  # Conservative limit
+            if len(filename) > max_filename_length:
+                # Truncate scenario part if needed
+                available_length = max_filename_length - len(f"comparison_{file_type}_TIMESTAMP.{extension}")
+                if available_length > 20:  # Ensure we have some space for scenario names
+                    scenario_part = scenario_part[:available_length]
+                    filename = f"comparison_{file_type}_{scenario_part}_{timestamp}.{extension}"
+                else:
+                    # Fallback to generic name
+                    filename = f"comparison_{file_type}_{timestamp}.{extension}"
+            
+            # Create full path
+            file_path = os.path.join(comparison_dir, filename)
+            
+            # Ensure path is absolute and normalized
+            file_path = os.path.abspath(file_path)
+            
+            # Verify the path is valid for the current operating system
+            try:
+                # Test if we can create a file with this path
+                test_path = file_path + ".test"
+                with open(test_path, 'w') as f:
+                    f.write("test")
+                os.remove(test_path)
+            except (OSError, IOError) as e:
+                # If there's an issue, fall back to a simpler path
+                print(f"Warning: Could not create file at {file_path}: {e}")
+                fallback_filename = f"comparison_{file_type}_{timestamp}.{extension}"
+                file_path = os.path.join(comparison_dir, fallback_filename)
+                file_path = os.path.abspath(file_path)
+            
+            return file_path
+    
+    def _ensure_directory_exists(self, directory_path: str) -> str:
+        """
+        Ensure a directory exists and return the absolute path.
+        
+        Args:
+            directory_path: Path to the directory
+            
+        Returns:
+            Absolute path to the directory (created if it didn't exist)
+        """
+        import os
+        
+        # Convert to absolute path
+        abs_path = os.path.abspath(directory_path)
+        
+        # Create directory if it doesn't exist
+        os.makedirs(abs_path, exist_ok=True)
+        
+        return abs_path
+    
+    def _track_comparison_output(self, scenario_names: List[str], comparison_type: str, 
+                                output_file_path: str, description: Optional[str] = None,
+                                metadata: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Track a comparison output in the scenario manager's comparison history.
+        
+        Args:
+            scenario_names: List of scenario names used in the comparison
+            comparison_type: Type of comparison ('table', 'chart', 'analysis')
+            output_file_path: Path to the generated comparison file
+            description: Optional description of the comparison
+            metadata: Optional additional metadata
+            
+        Returns:
+            True if tracking was successful, False otherwise
+        """
+        if not self.scenario_manager:
+            return False
+        
+        try:
+            # Get scenario IDs from names
+            scenario_ids = []
+            all_scenarios = self.scenario_manager.list_scenarios()
+            scenario_name_to_id = {s.name: s.id for s in all_scenarios}
+            
+            for scenario_name in scenario_names:
+                if scenario_name in scenario_name_to_id:
+                    scenario_ids.append(scenario_name_to_id[scenario_name])
+            
+            if not scenario_ids:
+                print(f"Warning: Could not find scenario IDs for names: {scenario_names}")
+                return False
+            
+            # Get current scenario ID for created_by_scenario_id
+            current_scenario = self.scenario_manager.get_current_scenario()
+            created_by_scenario_id = current_scenario.id if current_scenario else None
+            
+            # Generate comparison name
+            comparison_name = f"Comparison of {', '.join(scenario_names)}"
+            
+            # Add to comparison history
+            self.scenario_manager.add_comparison_history(
+                comparison_name=comparison_name,
+                scenario_ids=scenario_ids,
+                scenario_names=scenario_names,
+                comparison_type=comparison_type,
+                output_file_path=output_file_path,
+                created_by_scenario_id=created_by_scenario_id,
+                description=description,
+                metadata=metadata
+            )
+            
+            print(f"✅ Tracked comparison output: {output_file_path}")
+            return True
+            
+        except Exception as e:
+            print(f"Error tracking comparison output: {e}")
+            return False
+
+    def _extract_scenarios(self, state: AgentState) -> AgentState:
+        """Extract scenario names from user request using LLM for complex pattern matching"""
+        print(f"🔍 DEBUG: _extract_scenarios called")
+        print(f"🔍 DEBUG: User request: '{state.get('user_request', '')}'")
+        
+        user_request = state.get("user_request", "")
+        if not user_request:
+            return state
+        
+        # Get all available scenarios
+        if not self.scenario_manager:
+            print(f"🔍 DEBUG: No scenario manager available")
+            return state
+        
+        all_scenarios = self.scenario_manager.list_scenarios()
+        scenario_names = [s.name for s in all_scenarios]
+        print(f"🔍 DEBUG: Available scenarios: {scenario_names}")
+        
+        # Use LLM to extract scenario names from complex requests
+        system_prompt = f"""You are an expert at identifying scenario names from user requests for a multi-scenario comparison system.
+
+Available scenarios: {scenario_names}
+
+Your task is to extract the scenario names that the user wants to compare from their request.
+
+EXAMPLES:
+- "compare base and test1" → ["Base Scenario", "test1"]
+- "compare the demand for birmingham in base and test1" → ["Base Scenario", "test1"]
+- "show differences between base scenario and test scenario" → ["Base Scenario", "test1"]
+- "compare base vs test1" → ["Base Scenario", "test1"]
+- "compare demand across base and test1" → ["Base Scenario", "test1"]
+- "compare the top 10 hubs by demand across base and test1" → ["Base Scenario", "test1"]
+- "base scenario versus test1" → ["Base Scenario", "test1"]
+- "compare base, test1, and scenario1" → ["Base Scenario", "test1", "Scenario1"]
+
+RULES:
+1. Look for scenario names that appear in the available scenarios list
+2. Use fuzzy matching - "base" should match "Base Scenario"
+3. Use substring matching - "test" should match "test1"
+4. Ignore extra words like "demand", "birmingham", "hubs", etc.
+5. Return ONLY the scenario names, not the extra context
+6. Return at least 2 scenarios for a valid comparison
+7. If you can't find at least 2 scenarios, return an empty list
+
+Respond with ONLY a JSON array of scenario names, like: ["Base Scenario", "test1"]"""
+
+        try:
+            response = self._get_llm().invoke([
+                HumanMessage(content=f"{system_prompt}\n\nUser request: {user_request}")
+            ])
+            
+            # Parse the response
+            content = response.content.strip()
+            print(f"🔍 DEBUG: LLM response: {content}")
+            
+            # Try to extract JSON array from response
+            import re
+            import json
+            
+            # Look for JSON array pattern
+            json_match = re.search(r'\[.*?\]', content)
+            if json_match:
+                try:
+                    extracted_scenarios = json.loads(json_match.group())
+                    print(f"🔍 DEBUG: Extracted scenarios from JSON: {extracted_scenarios}")
+                except json.JSONDecodeError:
+                    print(f"🔍 DEBUG: Failed to parse JSON, trying alternative extraction")
+                    extracted_scenarios = self._fallback_scenario_extraction(content, scenario_names)
+            else:
+                # Fallback: try to extract scenario names from text
+                extracted_scenarios = self._fallback_scenario_extraction(content, scenario_names)
+            
+            # Validate extracted scenarios against available scenarios
+            valid_scenarios = []
+            for extracted in extracted_scenarios:
+                best_match = self._find_best_scenario_match(extracted, scenario_names)
+                if best_match:
+                    valid_scenarios.append(best_match)
+                    print(f"🔍 DEBUG: Matched '{extracted}' to '{best_match}'")
+            
+            print(f"🔍 DEBUG: Final valid scenarios: {valid_scenarios}")
+            
+            if len(valid_scenarios) >= 2:
+                # Create comparison database context
+                db_context = self._create_comparison_database_context(valid_scenarios)
+                comparison_type = self._determine_comparison_type(user_request)
+                
+                return {
+                    **state,
+                    "comparison_scenarios": valid_scenarios,
+                    "comparison_data": {},
+                    "comparison_type": comparison_type,
+                    "scenario_name_mapping": {name: i for i, name in enumerate(valid_scenarios)},
+                    "db_context": db_context,
+                    "messages": state["messages"] + [AIMessage(content=f"🎯 Extracted scenarios: {', '.join(valid_scenarios)}")]
+                }
+            else:
+                print(f"🔍 DEBUG: Not enough valid scenarios found: {valid_scenarios}")
+                return {
+                    **state,
+                    "messages": state["messages"] + [AIMessage(content=f"❌ Could not identify at least 2 scenarios to compare. Available scenarios: {', '.join(scenario_names)}")]
+                }
+                
+        except Exception as e:
+            print(f"🔍 DEBUG: Error in scenario extraction: {e}")
+            return {
+                **state,
+                "messages": state["messages"] + [AIMessage(content=f"❌ Error extracting scenarios: {str(e)}")]
+            }
+    
+    def _fallback_scenario_extraction(self, llm_response: str, available_scenarios: List[str]) -> List[str]:
+        """Fallback method to extract scenario names from LLM response text"""
+        extracted = []
+        
+        # Look for scenario names in the response
+        for scenario in available_scenarios:
+            if scenario.lower() in llm_response.lower():
+                extracted.append(scenario)
+        
+        # Also look for partial matches
+        for scenario in available_scenarios:
+            scenario_words = scenario.lower().split()
+            for word in scenario_words:
+                if len(word) > 2 and word in llm_response.lower():
+                    if scenario not in extracted:
+                        extracted.append(scenario)
+                    break
+        
+        return extracted
+    
+    def _find_best_scenario_match(self, extracted_name: str, available_scenarios: List[str]) -> Optional[str]:
+        """Find the best matching scenario name using fuzzy matching"""
+        import difflib
+        
+        extracted_lower = extracted_name.lower()
+        
+        # Try exact match first
+        for scenario in available_scenarios:
+            if extracted_lower == scenario.lower():
+                return scenario
+        
+        # Try substring match
+        for scenario in available_scenarios:
+            if extracted_lower in scenario.lower() or scenario.lower() in extracted_lower:
+                return scenario
+        
+        # Try word-based matching
+        extracted_words = extracted_lower.split()
+        for scenario in available_scenarios:
+            scenario_words = scenario.lower().split()
+            if any(word in scenario_words for word in extracted_words):
+                return scenario
+        
+        # Try fuzzy matching
+        best_match = None
+        best_score = 0
+        for scenario in available_scenarios:
+            score = difflib.SequenceMatcher(None, extracted_lower, scenario.lower()).ratio()
+            if score > best_score and score >= 0.6:
+                best_score = score
+                best_match = scenario
+        
+        return best_match
 
 
 def create_agent_v2(ai_model: str = "openai", scenario_manager: ScenarioManager = None) -> SimplifiedAgent:

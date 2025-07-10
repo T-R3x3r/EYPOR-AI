@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { ApiService } from './api.service';
 
 export interface QueryFileGroup {
   query: string;
@@ -19,9 +20,11 @@ export interface OrganizedFiles {
 export class QueryFileOrganizerService {
   private queryGroups: Map<string, QueryFileGroup> = new Map();
   private uploadedFiles: string[] = [];
+  private lastServerStartup: string | null = null;
 
-  constructor() {
+  constructor(private apiService: ApiService) {
     this.loadFromLocalStorage();
+    this.checkServerRestart();
   }
 
   /**
@@ -310,5 +313,35 @@ export class QueryFileOrganizerService {
    */
   formatTimestamp(timestamp: number): string {
     return new Date(timestamp).toLocaleString();
+  }
+
+  /**
+   * Check if server has restarted and clear localStorage if needed
+   */
+  private checkServerRestart(): void {
+    // Get stored server startup timestamp
+    const storedStartup = localStorage.getItem('lastServerStartup');
+    
+    // Check current server startup timestamp
+    this.apiService.getServerStartupInfo().subscribe({
+      next: (response: any) => {
+        const currentStartup = response.startup_timestamp;
+        
+        // If stored timestamp is different from current, server has restarted
+        if (storedStartup && storedStartup !== currentStartup) {
+          console.log('🔄 Server restarted detected, clearing query file organizer localStorage');
+          this.clearQueryGroups();
+          this.uploadedFiles = [];
+          this.saveToLocalStorage();
+        }
+        
+        // Store current startup timestamp
+        localStorage.setItem('lastServerStartup', currentStartup);
+        this.lastServerStartup = currentStartup;
+      },
+      error: (error: any) => {
+        console.warn('Failed to check server startup info:', error);
+      }
+    });
   }
 } 
