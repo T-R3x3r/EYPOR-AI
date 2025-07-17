@@ -68,6 +68,14 @@ export class ExecutionService {
       const currentResults = this.executionResultsSubject.value;
       currentResults.push(runningResult);
       this.executionResultsSubject.next([...currentResults]);
+      
+      // Set a safety timeout to ensure executing state doesn't get stuck
+      setTimeout(() => {
+        if (this.isExecutingSubject.value) {
+          console.warn('Execution timeout - forcing executing state to false');
+          this.isExecutingSubject.next(false);
+        }
+      }, 65000); // 65 seconds (slightly longer than the 60-second API timeout)
     }
   }
 

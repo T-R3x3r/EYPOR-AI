@@ -115,6 +115,23 @@ export class QueryFileOrganizerService {
   }
 
   /**
+   * Clear all data including localStorage
+   */
+  clearAllData(): void {
+    this.queryGroups.clear();
+    this.uploadedFiles = [];
+    this.lastServerStartup = null;
+    
+    // Clear from localStorage
+    try {
+      localStorage.removeItem('queryFileOrganizer');
+      console.log('Cleared all query file organizer data from localStorage');
+    } catch (error) {
+      console.error('Failed to clear localStorage:', error);
+    }
+  }
+
+  /**
    * Clear query groups for a specific scenario
    * Note: Files are now global, so this only clears files created in that specific scenario
    */
@@ -327,13 +344,16 @@ export class QueryFileOrganizerService {
         if (this.lastServerStartup && this.lastServerStartup !== currentStartup) {
           // Server has restarted, clear old data
           console.log('Server restarted, clearing old query groups');
-          this.clearQueryGroups();
+          this.clearAllData();
         }
         this.lastServerStartup = currentStartup;
         this.saveToLocalStorage();
       },
       error: (error) => {
         console.error('Failed to check server startup:', error);
+        // If we can't reach the server, assume it's a new server and clear old data
+        console.log('Cannot reach server, clearing old data as precaution');
+        this.clearAllData();
       }
     });
   }

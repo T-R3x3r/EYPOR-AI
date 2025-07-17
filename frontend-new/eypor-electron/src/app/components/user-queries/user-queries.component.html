@@ -1,4 +1,12 @@
 <div class="user-queries">
+  <!-- Header with title and clear button -->
+  <div *ngIf="!isLoading && userQueries.length > 0" class="queries-header">
+    <h3 class="queries-title">User Queries</h3>
+    <button class="clear-data-btn-icon" (click)="confirmClearAllData()" title="Clear all query data">
+      <span class="action-icon icon-trash"></span>
+    </button>
+  </div>
+
   <div *ngIf="isLoading" class="loading">
     <div class="spinner"></div>
     <span>Loading queries...</span>
@@ -113,5 +121,16 @@
     confirmButtonClass="danger"
     (confirm)="onDeleteQueryConfirm()"
     (cancel)="onDeleteQueryCancel()">
+  </app-confirmation-dialog>
+
+  <app-confirmation-dialog
+    [isVisible]="showClearAllDataDialog"
+    title="Clear All Data"
+    [message]="getClearAllDataMessage()"
+    confirmText="Clear All"
+    cancelText="Cancel"
+    confirmButtonClass="danger"
+    (confirm)="onClearAllDataConfirm()"
+    (cancel)="onClearAllDataCancel()">
   </app-confirmation-dialog>
 </div> 

@@ -425,23 +425,29 @@ def refresh_file_list():
                 rel_path = rel_path.replace('\\', '/')
                 print(f"DEBUG: Processing scenario file: {fname} -> {rel_path}")
                 
-                if rel_path not in uploaded_files:
-                    print(f"DEBUG: Adding new scenario file: {rel_path}")
+                # FIXED: Don't add scenario files to uploaded_files to avoid execution directory confusion
+                # Only add files that are not Python files (which are the ones that get executed)
+                if rel_path not in uploaded_files and not fname.endswith('.py'):
+                    print(f"DEBUG: Adding new scenario file (non-Python): {rel_path}")
                     uploaded_files[rel_path] = abs_path
                     ai_created_files.add(rel_path)  # Mark as AI-created
-                    
-                    # Load file content for text files
-                    if fname.endswith(('.py', '.txt', '.csv', '.html', '.json', '.md')):
-                        try:
-                            with open(abs_path, 'r', encoding='utf-8') as f:
-                                file_contents[rel_path] = f.read()
-                        except Exception as e:
-                            print(f"Error reading created scenario file {rel_path}: {e}")
-                    else:
-                        # For binary files (images, etc.), just mark as available
-                        file_contents[rel_path] = f"[Binary file: {fname}]"
+                elif fname.endswith('.py'):
+                    print(f"DEBUG: Skipping Python file from uploaded_files: {rel_path}")
+                    # Still mark as AI-created but don't add to uploaded_files
+                    ai_created_files.add(rel_path)
                 else:
                     print(f"DEBUG: Scenario file already exists: {rel_path}")
+                
+                # Load file content for text files (for all files, not just uploaded ones)
+                if fname.endswith(('.py', '.txt', '.csv', '.html', '.json', '.md')):
+                    try:
+                        with open(abs_path, 'r', encoding='utf-8') as f:
+                            file_contents[rel_path] = f.read()
+                    except Exception as e:
+                        print(f"Error reading created scenario file {rel_path}: {e}")
+                else:
+                    # For binary files (images, etc.), just mark as available
+                    file_contents[rel_path] = f"[Binary file: {fname}]"
     
     print(f"DEBUG: Final uploaded_files: {list(uploaded_files.keys())}")
     print(f"DEBUG: Final ai_created_files: {list(ai_created_files)}")
@@ -912,58 +918,79 @@ async def run_file(filename: str):
             'scenario' in filename.lower() and ('vs' in filename.lower() or 'comparison' in filename.lower())
         )
         
+        # FIXED: Determine execution directory based on where the file was originally created
+        # This ensures output files are created in the same location as the source file
+        
+        # FIXED: Clean up uploaded_files to remove any scenario files that shouldn't be there
+        if current_scenario and uploaded_files:
+            scenario_dir = os.path.dirname(current_scenario.database_path)
+            print(f"DEBUG: Checking uploaded_files for scenario files in: {scenario_dir}")
+            print(f"DEBUG: Current uploaded_files: {list(uploaded_files.keys())}")
+            keys_to_remove = []
+            for key, file_path in uploaded_files.items():
+                print(f"DEBUG: Checking file: {key} -> {file_path}")
+                if file_path.startswith(scenario_dir):
+                    keys_to_remove.append(key)
+                    print(f"DEBUG: Removing scenario file from uploaded_files: {key}")
+            
+            for key in keys_to_remove:
+                uploaded_files.pop(key, None)
+            print(f"DEBUG: After cleanup, uploaded_files: {list(uploaded_files.keys())}")
+        
         # Check if this is an uploaded model file (like runall.py, model.py, etc.)
         is_uploaded_model = False
+        print(f"DEBUG: Checking if {filename} is in uploaded_files: {filename in uploaded_files}")
+        print(f"DEBUG: uploaded_files keys: {list(uploaded_files.keys())}")
         if filename in uploaded_files:
             is_uploaded_model = True
             # For uploaded model files, execute in the uploaded files directory where all dependencies are located
             execution_cwd = temp_dir  # Uploaded files directory
             print(f"DEBUG: Using uploaded files directory for model execution: {execution_cwd}")
-        elif is_comparison_file and current_scenario:
-            # For comparison files, we need to determine the correct execution directory
-            # First, try to find where the comparison file was originally created
+        else:
+            # For all other files, execute in the directory where the file was found
+            # This ensures output files are created in the same location as the source file
             file_dir = os.path.dirname(abs_path) if abs_path else None
             
             if file_dir and os.path.exists(file_dir):
-                # If the file exists in a scenario directory, use that directory
-                # This ensures output files are created in the same location as the comparison file
+                # Use the directory where the file was found
                 execution_cwd = file_dir
-                print(f"DEBUG: Using comparison file's original directory: {execution_cwd}")
-            else:
+                print(f"DEBUG: Using file's original directory: {execution_cwd}")
+            elif current_scenario:
                 # Fallback to current scenario's database directory
                 execution_cwd = os.path.dirname(current_scenario.database_path)
-                print(f"DEBUG: Using scenario execution directory for comparison file: {execution_cwd}")
-        elif current_scenario and abs_path.startswith(os.path.dirname(current_scenario.database_path)):
-            # This is a scenario file, execute in the scenario's database directory
-            execution_cwd = os.path.dirname(current_scenario.database_path)
-            print(f"DEBUG: Using scenario execution directory: {execution_cwd}")
-        elif current_scenario and filename.startswith('[') and ']' in filename:
-            # This is a scenario-prefixed file, execute in the scenario's database directory
-            execution_cwd = os.path.dirname(current_scenario.database_path)
-            print(f"DEBUG: Using scenario execution directory for prefixed file: {execution_cwd}")
-        elif current_scenario:
-            # For any file in the current scenario context, use the scenario's database directory
-            execution_cwd = os.path.dirname(current_scenario.database_path)
-            print(f"DEBUG: Using scenario execution directory for current scenario: {execution_cwd}")
-        else:
-            # Default to temp directory
-            execution_cwd = temp_dir
-            print(f"DEBUG: Using temp directory for execution: {execution_cwd}")
+                print(f"DEBUG: Using scenario execution directory as fallback: {execution_cwd}")
+            else:
+                # Default to temp directory
+                execution_cwd = temp_dir
+                print(f"DEBUG: Using temp directory for execution: {execution_cwd}")
+        
+        # FIXED: Ensure we're not incorrectly using temp directory for scenario files
+        if not is_uploaded_model and abs_path and current_scenario:
+            # Double-check that we're using the correct directory for scenario files
+            scenario_db_dir = os.path.dirname(current_scenario.database_path)
+            if abs_path.startswith(scenario_db_dir):
+                execution_cwd = scenario_db_dir
+                print(f"DEBUG: Corrected to scenario directory: {execution_cwd}")
         
         # For uploaded model files, we're already executing in the uploaded files directory
         # No need to check for shared uploaded files directory since we're using temp_dir
         
+        # OPTIMIZATION: Only scan for specific output file types we care about
         # Store file modification times before execution to detect changes
         file_mod_times_before = {}
         scan_dir = execution_cwd if execution_cwd else temp_dir
+        output_extensions = ['.png', '.jpg', '.jpeg', '.svg', '.html', '.csv', '.pdf', '.txt', '.json']
+        
         if scan_dir and os.path.exists(scan_dir):
+            # OPTIMIZATION: Only scan for files with output extensions, not all files
             for root, dirs, files in os.walk(scan_dir):
                 for file in files:
-                    abs_file_path = os.path.join(root, file)
-                    try:
-                        file_mod_times_before[abs_file_path] = os.path.getmtime(abs_file_path)
-                    except OSError:
-                        pass
+                    if any(file.lower().endswith(ext) for ext in output_extensions):
+                        abs_file_path = os.path.join(root, file)
+                        try:
+                            file_mod_times_before[abs_file_path] = os.path.getmtime(abs_file_path)
+                        except OSError:
+                            pass
         
         # Record execution start time
         import time
@@ -998,21 +1025,41 @@ async def run_file(filename: str):
             
             if current_scenario and not is_comparison_file:
                 print(f"DEBUG: current_scenario is not None, database_path: {current_scenario.database_path}")
-                current_db_path = current_scenario.database_path
-                # Convert Windows backslashes to double backslashes to avoid escape sequence issues
-                current_db_path = current_db_path.replace('\\', '\\\\')
+                
+                # FIXED: Use relative database path based on execution directory
+                # This ensures the database path is correct regardless of where the file is executed
+                if execution_cwd and os.path.exists(execution_cwd):
+                    # Calculate relative path from execution directory to database
+                    try:
+                        db_relative_path = os.path.relpath(current_scenario.database_path, execution_cwd)
+                        current_db_path = db_relative_path
+                        print(f"DEBUG: Using relative database path: {current_db_path}")
+                    except ValueError:
+                        # If relative path calculation fails, use absolute path
+                        current_db_path = current_scenario.database_path
+                        print(f"DEBUG: Using absolute database path: {current_db_path}")
+                else:
+                    # Fallback to absolute path
+                    current_db_path = current_scenario.database_path
+                    print(f"DEBUG: Using fallback absolute database path: {current_db_path}")
+                
+                # Convert Windows backslashes to forward slashes for consistency
+                current_db_path = current_db_path.replace('\\', '/')
                 
                 print(f"DEBUG: Original database path: {current_scenario.database_path}")
-                print(f"DEBUG: Converted database path: {current_db_path}")
+                print(f"DEBUG: Final database path: {current_db_path}")
                 
                 # Replace any hardcoded database paths with the current scenario's database
-                # Use double backslashes to avoid escape sequence issues
+                # Use forward slashes for consistency
                 file_content = file_content.replace('database.db', current_db_path)
                 file_content = file_content.replace('project_data.db', current_db_path)
                 file_content = file_content.replace('"database.db"', f'"{current_db_path}"')
-                file_content = file_content.replace("'database.db'", f"'{current_db_path}'")  # Use double backslashes
+                file_content = file_content.replace("'database.db'", f"'{current_db_path}'")
                 file_content = file_content.replace('"project_data.db"', f'"{current_db_path}"')
-                file_content = file_content.replace("'project_data.db'", f"'{current_db_path}'")  # Use double backslashes
+                file_content = file_content.replace("'project_data.db'", f"'{current_db_path}'")
+                
+                print(f"DEBUG: Database path injection completed")
+                print(f"DEBUG: Final database path in file: {current_db_path}")
                 
                 # For uploaded model files, also replace any relative database paths
                 if is_uploaded_model:
@@ -1064,23 +1111,18 @@ if r"{temp_dir}" not in sys.path:
                             # Insert after encoding declaration
                             file_content = file_content.replace('# -*- coding: utf-8 -*-', '# -*- coding: utf-8 -*-\n' + import_path_fix)
                         else:
-                            # Insert at the beginning
+                            # Insert at the very beginning
                             file_content = import_path_fix + file_content
-                
-                print(f"DEBUG: Injected database path: {current_db_path}")
-                print(f"DEBUG: File content after replacement (first 200 chars): {file_content[:200]}")
-            else:
-                print(f"DEBUG: current_scenario is None, skipping database path injection")
             
-            # Create a temporary file with the modified content in the backend directory
-            # This ensures dependencies (like dataprocessing.py) are available for imports
+            # Create a temporary file with the modified content
             import tempfile
-            import time
-            
-            # Create temp file in the backend directory where dependencies are located
-            backend_dir = os.path.dirname(os.path.abspath(__file__))
-            timestamp = int(time.time() * 1000)  # Unique timestamp
+            import uuid
+            timestamp = int(time.time() * 1000)
+            # Unique timestamp
             temp_filename = f"__temp_exec_{timestamp}.py"
+            # Define backend_dir if not already defined
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            print(f"DEBUG: backend_dir defined as: {backend_dir}")
             temp_file_path = os.path.join(backend_dir, temp_filename)
             
             # Write the modified content to the temp file
@@ -1094,7 +1136,12 @@ if r"{temp_dir}" not in sys.path:
             print(f"Warning: Could not modify file content: {e}")
             # Continue with original file if modification fails
         
+        # OPTIMIZATION: Reduce timeout from 300 seconds to 120 seconds for faster feedback
         # Use Popen for better process control
+        print(f"DEBUG: Executing file: {abs_path}")
+        print(f"DEBUG: Working directory: {execution_cwd}")
+        print(f"DEBUG: Current scenario: {current_scenario.name if current_scenario else 'None'}")
+        
         current_process = subprocess.Popen(
             [sys.executable, abs_path],
             cwd=execution_cwd,
@@ -1104,8 +1151,8 @@ if r"{temp_dir}" not in sys.path:
         )
         
         try:
-            # Wait for the process to complete with timeout
-            stdout, stderr = current_process.communicate(timeout=300)
+            # OPTIMIZATION: Reduce timeout from 300 seconds to 120 seconds
+            stdout, stderr = current_process.communicate(timeout=120)
             return_code = current_process.returncode
         except subprocess.TimeoutExpired:
             # Process timed out, kill it
@@ -1135,51 +1182,62 @@ if r"{temp_dir}" not in sys.path:
         code_output = result.stdout
         code_error = result.stderr
         
-        # Refresh file list to detect new files created during execution
-        refresh_file_list()
-        
+        # OPTIMIZATION: Only refresh file list if we need to detect new files
         # Detect output files (visualizations, reports, etc.) - both new and modified
         output_files = []
         try:
             # Scan for output files in the execution directory
             scan_dir = execution_cwd if execution_cwd else temp_dir
             if scan_dir and os.path.exists(scan_dir):
-                # Scan for output files in the execution directory
-                output_extensions = ['.png', '.jpg', '.jpeg', '.svg', '.html', '.csv', '.pdf', '.txt', '.json']
-                
+                # OPTIMIZATION: Use a more efficient file detection approach
                 # Get all output files in execution directory with their modification times
                 recently_modified_files = []
-                for root, dirs, files in os.walk(scan_dir):
-                    for file in files:
-                        if any(file.lower().endswith(ext) for ext in output_extensions):
-                            abs_file_path = os.path.join(root, file)
-                            rel_path = os.path.relpath(abs_file_path, scan_dir)
-                            rel_path = rel_path.replace('\\', '/')  # Normalize for web
-                            
-                            try:
-                                current_mod_time = os.path.getmtime(abs_file_path)
+                
+                # OPTIMIZATION: Only scan directories that are likely to contain output files
+                # Focus on the execution directory and immediate subdirectories
+                scan_paths = [scan_dir]
+                print(f"DEBUG: Scanning for output files in: {scan_dir}")
+                
+                # Add immediate subdirectories if they exist
+                if os.path.exists(scan_dir):
+                    for item in os.listdir(scan_dir):
+                        item_path = os.path.join(scan_dir, item)
+                        if os.path.isdir(item_path):
+                            scan_paths.append(item_path)
+                            print(f"DEBUG: Also scanning subdirectory: {item_path}")
+                
+                for scan_path in scan_paths:
+                    if os.path.exists(scan_path):
+                        for file in os.listdir(scan_path):
+                            if any(file.lower().endswith(ext) for ext in output_extensions):
+                                abs_file_path = os.path.join(scan_path, file)
+                                rel_path = os.path.relpath(abs_file_path, scan_dir)
+                                rel_path = rel_path.replace('\\', '/')  # Normalize for web
                                 
-                                # Check if file is new or was modified during execution
-                                is_new_or_modified = False
-                                if abs_file_path not in file_mod_times_before:
-                                    # New file created during execution
-                                    is_new_or_modified = True
-                                    print(f"DEBUG: New file detected: {rel_path}")
-                                elif current_mod_time > file_mod_times_before[abs_file_path]:
-                                    # Existing file modified during execution
-                                    is_new_or_modified = True
-                                    print(f"DEBUG: Modified file detected: {rel_path}")
-                                elif current_mod_time >= execution_start_time - 1:  # 1 second tolerance
-                                    # File modified around execution time (catch edge cases)
-                                    is_new_or_modified = True
-                                    print(f"DEBUG: Recently modified file detected: {rel_path}")
-                                
-                                if is_new_or_modified:
-                                    recently_modified_files.append((rel_path, abs_file_path))
+                                try:
+                                    current_mod_time = os.path.getmtime(abs_file_path)
                                     
-                            except OSError:
-                                # If we can't get mod time, include it to be safe
-                                recently_modified_files.append((rel_path, abs_file_path))
+                                    # Check if file is new or was modified during execution
+                                    is_new_or_modified = False
+                                    if abs_file_path not in file_mod_times_before:
+                                        # New file created during execution
+                                        is_new_or_modified = True
+                                        print(f"DEBUG: New file detected: {rel_path}")
+                                    elif current_mod_time > file_mod_times_before[abs_file_path]:
+                                        # Existing file modified during execution
+                                        is_new_or_modified = True
+                                        print(f"DEBUG: Modified file detected: {rel_path}")
+                                    elif current_mod_time >= execution_start_time - 1:  # 1 second tolerance
+                                        # File modified around execution time (catch edge cases)
+                                        is_new_or_modified = True
+                                        print(f"DEBUG: Recently modified file detected: {rel_path}")
+                                    
+                                    if is_new_or_modified:
+                                        recently_modified_files.append((rel_path, abs_file_path))
+                                        
+                                except OSError:
+                                    # If we can't get mod time, include it to be safe
+                                    recently_modified_files.append((rel_path, abs_file_path))
                 
                 # Create output file objects for recently modified/created files
                 for rel_path, abs_file_path in recently_modified_files:
@@ -1243,8 +1301,9 @@ if r"{temp_dir}" not in sys.path:
                 output_files=output_files
             )
         
-        # Refresh file list to ensure newly created files are tracked
-        refresh_file_list()
+        # OPTIMIZATION: Only refresh file list if we found output files
+        if output_files:
+            refresh_file_list()
         
         return {
             "stdout": result.stdout,
@@ -1255,7 +1314,7 @@ if r"{temp_dir}" not in sys.path:
         }
     
     except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=408, detail="Execution timed out")
+        raise HTTPException(status_code=408, detail="Execution timed out after 120 seconds")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Execution failed: {str(e)}")
 
@@ -2184,10 +2243,27 @@ async def action_chat(request: ActionRequest):
         # Track created files globally
         for file_path in created_files:
             ai_created_files.add(file_path)
-            # Add to uploaded_files for file management
+            # Add to uploaded_files for file management, but exclude scenario files
             abs_path = os.path.abspath(file_path)
             rel_path = os.path.relpath(abs_path)
-            uploaded_files[rel_path] = abs_path
+            
+            # FIXED: Don't add scenario files to uploaded_files to avoid execution directory confusion
+            # Check if this is a scenario file (in a scenario directory)
+            is_scenario_file = False
+            if current_scenario:
+                scenario_dir = os.path.dirname(current_scenario.database_path)
+                if abs_path.startswith(scenario_dir):
+                    is_scenario_file = True
+                    print(f"DEBUG: Not adding scenario file to uploaded_files: {rel_path}")
+            
+            # Only add to uploaded_files if it's not a scenario file
+            if not is_scenario_file:
+                uploaded_files[rel_path] = abs_path
+                print(f"DEBUG: Added to uploaded_files: {rel_path}")
+            else:
+                print(f"DEBUG: Skipped adding scenario file to uploaded_files: {rel_path}")
+        
+        print(f"DEBUG: Final uploaded_files state: {list(uploaded_files.keys())}")
         
         # Refresh file list to detect new files
         refresh_file_list()

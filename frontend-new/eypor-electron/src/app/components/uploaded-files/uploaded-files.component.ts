@@ -1,7 +1,9 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { ApiService } from '../../services/api.service';
-import { ExecutionService, ExecutionResult } from '../../services/execution.service';
+import { ExecutionService, ExecutionResult, OutputFile } from '../../services/execution.service';
 import { QueryFileOrganizerService } from '../../services/query-file-organizer.service';
+import { timeout, catchError } from 'rxjs/operators';
+import { of } from 'rxjs';
 
 interface UploadedFile {
   id: string;
@@ -152,14 +154,46 @@ export class UploadedFilesComponent implements OnInit {
   }
 
   downloadFile(file: UploadedFile): void {
-    // TODO: Implement download
-    console.log('Downloading file:', file.name);
+    if (!file.path) {
+      console.error('No file path available for download');
+      return;
+    }
+    
+    console.log('Downloading file:', file.path);
+    const downloadUrl = `http://localhost:8001/files/${encodeURIComponent(file.path)}/download`;
+    
+    // Create a temporary link and click it to trigger download
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   deleteFile(file: UploadedFile): void {
-    // TODO: Implement delete
-    console.log('Deleting file:', file.name);
-    this.uploadedFiles = this.uploadedFiles.filter(f => f.id !== file.id);
+    if (!file.path) {
+      console.error('No file path available for deletion');
+      return;
+    }
+
+    console.log('Deleting file:', file.path);
+    
+    this.apiService.deleteFile(file.path).subscribe({
+      next: (response) => {
+        console.log('File deleted successfully:', response);
+        
+        // Remove from local state
+        this.uploadedFiles = this.uploadedFiles.filter(f => f.id !== file.id);
+        
+        // Refresh the file list to ensure consistency
+        this.loadUploadedFiles();
+      },
+      error: (error) => {
+        console.error('Error deleting file:', error);
+        alert(`Error deleting file: ${error.error?.detail || error.message || 'Unknown error'}`);
+      }
+    });
   }
 
   getDeleteFileMessage(): string {
@@ -188,30 +222,56 @@ export class UploadedFilesComponent implements OnInit {
     // Set executing state
     this.executionService.setExecuting(true);
     
-    this.apiService.runFile(file.name).subscribe({
+    this.apiService.runFile(file.name).pipe(
+      timeout(150000), // 150 second timeout (increased to match backend 120s + buffer)
+      catchError(error => {
+        console.error('File execution timeout or error:', error);
+        return of({
+          stdout: '',
+          stderr: `Execution timeout or error: ${error.message || 'Unknown error'}`,
+          return_code: -1,
+          output_files: []
+        });
+      })
+    ).subscribe({
       next: (response) => {
         console.log('File execution result:', response);
         
         // Filter INFO messages from stderr and move them to stdout
         const processed = this.processExecutionResult(response);
         
-        // Process output files
-        const outputFiles = response.output_files ? response.output_files.map(filename => ({
-          filename,
-          path: filename,
-          url: `/files/${encodeURIComponent(filename)}/download`,
-          type: this.getFileType(filename.split('.').pop() || ''),
-          isVisible: false,
-          timestamp: Date.now()
-        })) : [];
+        // Use output_files directly like the old frontend
+        const rawOutputFiles = response.output_files || [];
         
-        // Create execution result
+        // Convert string filenames to OutputFile objects
+        const outputFiles: OutputFile[] = rawOutputFiles.map((filename: any) => {
+          if (typeof filename === 'string') {
+            return {
+              filename,
+              path: filename,
+              url: `/files/${encodeURIComponent(filename)}/download`,
+              type: this.getFileType(filename.split('.').pop() || ''),
+              timestamp: Date.now()
+            };
+          } else if (filename && typeof filename === 'object' && filename.filename) {
+            return {
+              filename: filename.filename,
+              path: filename.filename,
+              url: `/files/${encodeURIComponent(filename.filename)}/download`,
+              type: this.getFileType(filename.filename.split('.').pop() || ''),
+              timestamp: Date.now()
+            };
+          }
+          return null;
+        }).filter((file: OutputFile | null) => file !== null) as OutputFile[];
+        
+        // Create execution result - use output_files directly
         const executionResult: ExecutionResult = {
           command: `python ${file.name}`,
           output: processed.stdout,
           error: processed.stderr,
           returnCode: response.return_code,
-          outputFiles,
+          outputFiles: outputFiles,
           timestamp: Date.now(),
           isRunning: false
         };
@@ -221,6 +281,8 @@ export class UploadedFilesComponent implements OnInit {
         
         // Set executing to false
         this.executionService.setExecuting(false);
+        
+        console.log('Execution completed with output files:', rawOutputFiles);
       },
       error: (error) => {
         console.error('Error running file:', error);

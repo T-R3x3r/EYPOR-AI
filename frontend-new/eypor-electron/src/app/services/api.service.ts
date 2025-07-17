@@ -132,4 +132,8 @@ export class ApiService {
   getServerStartupInfo(): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/server-startup`);
   }
+
+  deleteFile(filename: string): Observable<{ message: string }> {
+    return this.http.delete<{ message: string }>(`${this.baseUrl}/files/${encodeURIComponent(filename)}`);
+  }
 } 

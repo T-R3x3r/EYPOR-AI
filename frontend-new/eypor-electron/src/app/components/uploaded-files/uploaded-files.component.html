@@ -22,7 +22,6 @@
           <span class="file-icon" [class]="getFileIconClass(file.type)"></span>
           <div class="file-details">
             <span class="file-name">{{ file.name }}</span>
-            <span class="file-meta">{{ formatFileSize(file.size) }} • {{ file.uploadedAt | date:'short' }}</span>
           </div>
         </div>
         <div class="file-actions">
