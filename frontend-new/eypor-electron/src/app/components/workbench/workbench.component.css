@@ -1,0 +1,568 @@
+/* CSS Variables for theming */
+:root {
+  /* Light theme colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --border-color: #dee2e6;
+  --accent-color: #007bff;
+  --accent-hover: #0056b3;
+  --success-color: #28a745;
+  --warning-color: #ffc107;
+  --error-color: #dc3545;
+  --sidebar-bg: #f8f9fa;
+  --header-bg: #ffffff;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme colors */
+.dark-theme {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #404040;
+  --text-primary: #ffffff;
+  --text-secondary: #b0b0b0;
+  --border-color: #404040;
+  --accent-color: #4dabf7;
+  --accent-hover: #74c0fc;
+  --success-color: #51cf66;
+  --warning-color: #ffd43b;
+  --error-color: #ff6b6b;
+  --sidebar-bg: #2d2d2d;
+  --header-bg: #1a1a1a;
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* App Container */
+.app-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header */
+.app-header {
+  height: 60px;
+  background-color: var(--header-bg);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.app-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Scenario Selector */
+.scenario-selector {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  margin: 0 40px;
+}
+
+.scenario-tabs {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+  overflow-x: auto;
+  max-width: 600px;
+}
+
+.scenario-tab {
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.scenario-tab:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.scenario-tab.active {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.new-scenario-btn {
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-scenario-btn:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.plus-icon {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* Header Right */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.theme-toggle {
+  background: none;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.theme-icon {
+  font-size: 18px;
+}
+
+/* Main Content */
+.main-content {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Left Sidebar */
+.left-sidebar {
+  width: 300px;
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.files-section,
+.queries-section {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.files-section {
+  border-bottom: 1px solid var(--border-color);
+  flex: 0 0 auto;
+}
+
+.files-section.collapsed .files-container {
+  display: none;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-header:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.collapse-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.collapse-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.collapse-icon {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.collapse-btn.collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.files-container,
+.queries-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.queries-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Center Content */
+.center-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* View Selector */
+.view-selector {
+  height: 50px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 8px;
+}
+
+.view-btn {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.view-btn:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.view-btn.active {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.content-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workbench-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Workbench scrollbar styling */
+.workbench-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.workbench-view::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.workbench-view::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.workbench-view::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+.database-view {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Code Editor View */
+.code-editor-view {
+  height: 100%;
+  width: 100%;
+}
+
+/* View Selector Updates */
+.view-selector {
+  display: flex;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.view-btn {
+  padding: 12px 20px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid transparent;
+}
+
+.view-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.view-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+  background-color: var(--bg-primary);
+}
+
+/* Right Sidebar */
+.right-sidebar {
+  width: 350px;
+  background-color: var(--sidebar-bg);
+  border-left: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+/* Resize Handles */
+.resize-handle {
+  width: 4px;
+  background-color: var(--border-color);
+  cursor: col-resize;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+.resize-handle:hover {
+  background-color: var(--accent-color);
+}
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 20px;
+  background-color: var(--text-secondary);
+  border-radius: 1px;
+}
+
+/* Icon Styles - Using Font Awesome */
+[class^="icon-"] {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  text-align: center;
+  line-height: 1;
+  font-size: 1em;
+}
+
+/* File Type Icons */
+.icon-file::before { content: "\f15b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-archive::before { content: "\f187"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-code::before { content: "\f1c9"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-python::before { content: "\f3e2"; font-family: "Font Awesome 6 Brands"; font-weight: 400; }
+.icon-r::before { content: "\f1c9"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-table::before { content: "\f0ce"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-spreadsheet::before { content: "\f1c3"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-database::before { content: "\f1c0"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-globe::before { content: "\f0ac"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-image::before { content: "\f03e"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-folder::before { content: "\f07b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-message::before { content: "\f075"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-settings::before { content: "\f013"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-chart::before { content: "\f080"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+/* Status Icons */
+.icon-check::before { content: "\f00c"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--success-color); }
+.icon-spinner::before { content: "\f021"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--accent-color); }
+.icon-x::before { content: "\f00d"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--error-color); }
+.icon-clock::before { content: "\f017"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--warning-color); }
+
+/* Action Icons */
+.icon-download::before { content: "\f019"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-trash::before { content: "\f1f8"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-eye::before { content: "\f06e"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-play::before { content: "\f04b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-stop::before { content: "\f04f"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-send::before { content: "\f1d8"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-user::before { content: "\f007"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-bot::before { content: "\f544"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-chevron-down::before { content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .left-sidebar {
+    width: 250px;
+  }
+  
+  .right-sidebar {
+    width: 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 12px;
+  }
+  
+  .scenario-selector {
+    margin: 0 20px;
+  }
+  
+  .left-sidebar {
+    width: 200px;
+  }
+  
+  .right-sidebar {
+    width: 250px;
+  }
+}
+
+/* Workbench Content Styles */
+.workbench-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.workbench-header {
+  margin-bottom: 40px;
+}
+
+.workbench-header h2 {
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.workbench-header p {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.workbench-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.placeholder-icon {
+  font-size: 64px;
+  opacity: 0.5;
+}
+
+.workbench-placeholder h3 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.workbench-placeholder p {
+  font-size: 16px;
+  color: var(--text-secondary);
+  margin: 0;
+} 

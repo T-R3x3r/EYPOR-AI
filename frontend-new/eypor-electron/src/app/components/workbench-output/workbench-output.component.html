@@ -1,0 +1,108 @@
+<div class="workbench-output">
+  <!-- Output Container -->
+  <div #outputContainer class="output-container" (scroll)="onScroll($event)">
+    <!-- No Output State -->
+    <div *ngIf="!executionResults.length" class="no-output">
+      <div class="no-output-icon icon-terminal"></div>
+      <h4>No executions yet</h4>
+      <p>Run a Python file or install requirements to see output here</p>
+    </div>
+    
+    <!-- Display all results in chronological order -->
+    <ng-container *ngFor="let result of executionResults; let i = index">
+      <!-- HTML Files (Visualizations) -->
+      <div *ngIf="hasHtmlFiles(result.outputFiles)" class="html-result">
+        <div *ngFor="let file of result.outputFiles" class="html-file-display">
+          <!-- Display HTML files directly embedded -->
+          <div *ngIf="getFileType(file.filename) === 'html'" class="html-content">
+            <div *ngIf="file.htmlContent" class="embedded-html">
+              <iframe 
+                [src]="getHtmlContentUrl(file) | safe:'url'" 
+                class="embedded-html-iframe"
+                frameborder="0"
+                scrolling="auto"
+                (load)="onIframeLoad($event)"
+                (error)="onIframeError($event)">
+              </iframe>
+            </div>
+            <div *ngIf="!file.htmlContent && !file.error" class="html-loading">
+              <p><i class="fas fa-spinner fa-spin"></i> Loading HTML content...</p>
+            </div>
+            <div *ngIf="file.error" class="html-error">
+              <p>{{ file.error }}</p>
+            </div>
+          </div>
+          
+          <!-- Display Plotly charts -->
+          <div *ngIf="getFileType(file.filename) === 'plotly-html'" class="plotly-content">
+            <div *ngIf="!file.plotlyContent && !file.error" class="chart-loading">
+              <p><i class="fas fa-spinner fa-spin"></i> Loading interactive chart...</p>
+            </div>
+            
+            <app-plotly-chart 
+              *ngIf="file.plotlyContent"
+              [htmlContent]="file.plotlyContent"
+              [fileName]="file.filename"
+              width="100%"
+              height="600px">
+            </app-plotly-chart>
+            
+            <div *ngIf="file.error" class="chart-error">
+              <p>{{ file.error }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Execution Output (Code Results) -->
+      <div *ngIf="!hasHtmlFiles(result.outputFiles)" 
+           class="execution-result" 
+           [ngClass]="getOutputClass(result)">
+        
+        <!-- Execution Header -->
+        <div class="execution-header">
+          <div class="execution-info">
+            <span class="timestamp">{{ formatTimestamp(result.timestamp) }}</span>
+            <span class="command">{{ result.command }}</span>
+            <span *ngIf="result.isRunning" class="running-indicator">
+              <span class="spinner"></span>
+              Running...
+            </span>
+          </div>
+          <div class="execution-status">
+            <button *ngIf="result.isRunning" 
+                    class="stop-btn" 
+                    (click)="stopExecution()"
+                    title="Stop execution">
+              <span class="stop-icon icon-stop"></span>
+              Stop
+            </button>
+            <span *ngIf="result.returnCode === 0 && !result.isRunning" class="status-success">
+              <span class="status-icon icon-check"></span>
+              Success
+            </span>
+            <span *ngIf="result.returnCode !== 0 && !result.isRunning" class="status-error">
+              <span class="status-icon icon-x"></span>
+              Error
+            </span>
+          </div>
+        </div>
+        
+        <!-- Execution Content -->
+        <div class="execution-content">
+          <!-- Standard Output -->
+          <div *ngIf="result.output" class="execution-output">
+            <div class="output-label">Output:</div>
+            <pre>{{ result.output }}</pre>
+          </div>
+          
+          <!-- Error Output -->
+          <div *ngIf="result.error" class="execution-error">
+            <div class="error-label">Error:</div>
+            <pre>{{ result.error }}</pre>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</div> 

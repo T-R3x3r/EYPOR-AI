@@ -1,0 +1,98 @@
+<div class="chat-interface">
+  <!-- Chat Header -->
+  <div class="chat-header">
+    <h3>Ask EYPOR</h3>
+    <button class="clear-btn" (click)="clearChat()" title="Clear chat">
+      <span class="clear-icon icon-trash"></span>
+    </button>
+  </div>
+
+  <!-- Chat Content Area -->
+  <div class="chat-content">
+    <!-- Messages Container -->
+    <div 
+      class="messages-container" 
+      [class.anchored]="isInputAnchored"
+      #messagesContainer
+      (scroll)="onScroll()">
+      
+      <div 
+        *ngFor="let message of messages" 
+        class="message"
+        [class.user-message]="message.role === 'user'"
+        [class.assistant-message]="message.role === 'assistant'">
+        
+        <!-- User Message -->
+        <div *ngIf="message.role === 'user'" class="user-message-container">
+          <div class="user-message-content">
+            {{ message.content }}
+          </div>
+        </div>
+        
+        <!-- Assistant Message -->
+        <div *ngIf="message.role === 'assistant'" class="assistant-message-content">
+          {{ message.content }}
+        </div>
+      </div>
+
+      <!-- Loading Indicator -->
+      <div *ngIf="isLoading" class="message assistant-message">
+        <div class="assistant-message-content">
+          <div class="typing-indicator">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message Input -->
+    <div class="message-input-container" [class.anchored]="isInputAnchored">
+      <div class="input-wrapper">
+        <!-- AI Model Selector (Integrated) -->
+        <div class="model-selector">
+          <button class="model-btn" (click)="toggleModelDropdown($event)" title="Select AI Model">
+            <span class="model-name">{{ selectedModel }}</span>
+          </button>
+          
+          <!-- Model Dropdown -->
+          <div class="model-dropdown" [class.show]="showModelDropdown">
+            <div 
+              *ngFor="let model of availableModels" 
+              class="model-option"
+              [class.selected]="model === selectedModel"
+              (click)="selectModel(model)">
+              <span class="model-icon icon-bot"></span>
+              <span class="model-name">{{ model }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Text Input -->
+        <div class="textarea-container">
+          <textarea
+            #messageInput
+            [(ngModel)]="currentMessage"
+            (keydown)="onKeyPress($event)"
+            (input)="onInputChange()"
+            placeholder="Ask EYPOR anything..."
+            class="message-input"
+            rows="3"
+            maxlength="1000">
+          </textarea>
+          <div class="input-buffer"></div>
+        </div>
+        
+        <!-- Send Button -->
+        <button 
+          class="send-btn"
+          [disabled]="!currentMessage.trim() || isLoading"
+          (click)="sendMessage()"
+          title="Send message">
+          <span class="send-icon icon-arrow-up"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div> 

@@ -519,17 +519,86 @@ body.dark-mode.resizing .output-display .execution-result .resize-handle .resize
   font-size: 0.9em;
 }
 
-.html-preview {
-  margin-top: 0.5rem;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+/* HTML Files Display - Clean and Direct */
+.html-result {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.html-file-display {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.html-content {
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+  margin: 0;
+  padding: 0;
 }
 
 .generated-html {
   border: none;
+  width: 100%;
+  height: 600px;
+  border-radius: 0;
+}
+
+.embedded-html {
+  width: 100%;
+  min-height: 600px;
+  border: none;
+  border-radius: 0;
   background: white;
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure embedded HTML content is properly styled */
+.embedded-html * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.plotly-content {
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  color: #666;
+}
+
+.chart-loading i {
+  margin-right: 8px;
+}
+
+.chart-error {
+  padding: 20px;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+  color: #721c24;
+  text-align: center;
+}
+
+.chart-error p {
+  margin: 0;
+  font-size: 14px;
 }
 
 .image-debug {

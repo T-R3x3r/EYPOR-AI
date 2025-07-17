@@ -1,0 +1,85 @@
+<div class="uploaded-files">
+  <div *ngIf="isLoading" class="loading">
+    <div class="spinner"></div>
+    <span>Loading files...</span>
+  </div>
+
+  <div *ngIf="!isLoading && uploadedFiles.length === 0" class="empty-state">
+    <div class="empty-icon icon-folder"></div>
+    <p>No files uploaded yet</p>
+    <small>Upload files to get started</small>
+  </div>
+
+  <div *ngIf="!isLoading && uploadedFiles.length > 0" class="files-list">
+    <div 
+      *ngFor="let file of uploadedFiles" 
+      class="file-item"
+      [class.expanded]="file.isExpanded">
+      
+      <!-- File Header (Always Visible) -->
+      <div class="file-header" (click)="toggleFile(file)">
+        <div class="file-info">
+          <span class="file-icon" [class]="getFileIconClass(file.type)"></span>
+          <div class="file-details">
+            <span class="file-name">{{ file.name }}</span>
+            <span class="file-meta">{{ formatFileSize(file.size) }} • {{ file.uploadedAt | date:'short' }}</span>
+          </div>
+        </div>
+        <div class="file-actions">
+          <button class="expand-btn" [class.expanded]="file.isExpanded">
+            <span class="expand-icon icon-chevron-down"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Expanded Content -->
+      <div *ngIf="file.isExpanded" class="file-expanded">
+        <div class="file-actions-expanded">
+          <div class="action-buttons-left">
+            <button 
+              *ngIf="file.type === 'python' || file.type === 'py'" 
+              class="action-btn view-btn" 
+              (click)="viewFile(file)">
+              <span class="action-icon icon-eye"></span>
+              View
+            </button>
+            <button 
+              *ngIf="canRunFile(file)" 
+              class="action-btn run-btn" 
+              (click)="runFile(file)">
+              <span class="action-icon icon-play"></span>
+              Run
+            </button>
+            <button 
+              *ngIf="isRequirementsFile(file)" 
+              class="action-btn install-btn" 
+              (click)="installRequirements(file)">
+              <span class="action-icon icon-download"></span>
+              Install
+            </button>
+            <button class="action-btn download-btn" (click)="downloadFile(file)">
+              <span class="action-icon icon-download"></span>
+            </button>
+          </div>
+          <div class="action-buttons-right">
+            <button class="action-btn delete-btn" (click)="confirmDeleteFile(file)">
+              <span class="action-icon icon-trash"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Dialog -->
+  <app-confirmation-dialog
+    [isVisible]="showDeleteDialog"
+    title="Delete File"
+    [message]="getDeleteFileMessage()"
+    confirmText="Delete"
+    cancelText="Cancel"
+    confirmButtonClass="danger"
+    (confirm)="onDeleteConfirm()"
+    (cancel)="onDeleteCancel()">
+  </app-confirmation-dialog>
+</div> 

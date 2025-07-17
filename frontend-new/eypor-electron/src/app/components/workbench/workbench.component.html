@@ -1,0 +1,116 @@
+<div class="app-container" [class.dark-theme]="themeService.isDarkMode">
+  <!-- Top Bar with Scenario Selector -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="app-title">{{ title }}</h1>
+    </div>
+    
+    <div class="scenario-selector">
+      <div class="scenario-tabs">
+        <div 
+          *ngFor="let scenario of scenarios" 
+          class="scenario-tab"
+          [class.active]="scenario.isActive"
+          (click)="selectScenario(scenario)">
+          {{ scenario.name }}
+        </div>
+        <button class="new-scenario-btn" (click)="createNewScenario()">
+          <span class="plus-icon">+</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="header-right">
+      <button class="theme-toggle" (click)="themeService.toggleTheme()">
+        <span class="theme-icon">{{ themeService.isDarkMode ? '☀️' : '🌙' }}</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <div class="main-content">
+    <!-- Left Sidebar - Files -->
+    <aside class="left-sidebar" #leftSidebar>
+      <!-- Uploaded Files Section -->
+      <section class="files-section">
+        <div class="section-header" (click)="toggleUploadedFiles()">
+          <h3 class="section-title">Uploaded Files</h3>
+          <button class="collapse-btn" [class.collapsed]="!showUploadedFiles">
+            <span class="collapse-icon icon-chevron-down"></span>
+          </button>
+        </div>
+        <div class="files-container" *ngIf="showUploadedFiles">
+          <app-uploaded-files (viewFileRequest)="openCodeEditor($event.filePath, $event.fileName)"></app-uploaded-files>
+        </div>
+      </section>
+
+      <!-- User Queries Section -->
+      <section class="queries-section">
+        <div class="section-header">
+          <h3 class="section-title">User Queries</h3>
+        </div>
+        <div class="queries-container">
+          <app-user-queries (viewFileRequest)="openCodeEditor($event.filePath, $event.fileName)"></app-user-queries>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Resizable Handle -->
+    <div class="resize-handle left-resize"></div>
+
+    <!-- Center Content Area -->
+    <main class="center-content">
+      <!-- View Selector -->
+      <div class="view-selector">
+        <button 
+          class="view-btn"
+          [class.active]="activeView === 'workbench'"
+          (click)="switchView('workbench')">
+          Workbench
+        </button>
+        <button 
+          class="view-btn"
+          [class.active]="activeView === 'database'"
+          (click)="switchView('database')">
+          Database
+        </button>
+        <button 
+          class="view-btn"
+          [class.active]="activeView === 'code-editor'"
+          (click)="switchView('code-editor')"
+          *ngIf="showCodeEditor">
+          Code Editor
+        </button>
+      </div>
+
+      <!-- Content Area -->
+      <div class="content-area">
+        <!-- Workbench View -->
+        <div *ngIf="activeView === 'workbench'" class="workbench-view">
+          <app-workbench-output #workbenchOutput></app-workbench-output>
+        </div>
+
+        <!-- Database View -->
+        <div *ngIf="activeView === 'database'" class="database-view">
+          <app-database-view></app-database-view>
+        </div>
+
+        <!-- Code Editor View -->
+        <div *ngIf="activeView === 'code-editor'" class="code-editor-view">
+          <app-code-editor 
+            #codeEditor
+            (closeEditor)="closeCodeEditor()">
+          </app-code-editor>
+        </div>
+      </div>
+    </main>
+
+    <!-- Resizable Handle -->
+    <div class="resize-handle right-resize"></div>
+
+    <!-- Right Sidebar - Chat -->
+    <aside class="right-sidebar" #rightSidebar>
+      <app-chat-interface (filesCreated)="onFilesCreated()"></app-chat-interface>
+    </aside>
+  </div>
+</div> 

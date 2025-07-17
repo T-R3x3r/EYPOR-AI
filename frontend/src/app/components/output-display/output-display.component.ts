@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, HostListener, ChangeDetectorRef } from '@angular/core';
 import { ExecutionService, ExecutionResult } from '../../services/execution.service';
 import { ScenarioService } from '../../services/scenario.service';
 import { ApiService } from '../../services/api.service';
@@ -15,6 +15,7 @@ interface OutputFile {
   timestamp: number;
   error?: string;
   plotlyContent?: string; // Add field for plotly HTML content
+  htmlContent?: string; // Add field for regular HTML content
 }
 
 interface LocalExecutionResult {
@@ -58,7 +59,8 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     private executionService: ExecutionService,
     private scenarioService: ScenarioService,
     private apiService: ApiService,
-    private http: HttpClient
+    private http: HttpClient,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
@@ -524,10 +526,15 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     // Filter out non-plotly files if they appear to be from SQL queries
     latestFiles = this.filterSQLQueryFiles(latestFiles);
 
-    // Auto-load plotly content for plotly-html files
-    latestFiles.forEach(file => {
+      // Auto-load content for HTML files (both plotly and regular HTML)
+  latestFiles.forEach(file => {
+    if (file.type === 'plotly-html') {
       this.autoLoadPlotlyContent(file);
-    });
+    } else if (file.type === 'html') {
+      // Load HTML content directly for embedding
+      this.loadHtmlContent(file);
+    }
+  });
 
     return latestFiles;
   }
@@ -556,9 +563,10 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
 
     if (hasSQLQueryPattern) {
       console.log('OutputDisplayComponent: SQL query detected, filtering files');
-      // For SQL queries, only show plotly HTML files and images
+      // For SQL queries, show HTML files (both plotly and regular) and images
       const filteredFiles = files.filter(file => 
         file.type === 'plotly-html' || 
+        file.type === 'html' ||
         file.type === 'image'
       );
       console.log('OutputDisplayComponent: Filtered to', filteredFiles.length, 'files');
@@ -591,7 +599,13 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     if (['png', 'jpg', 'jpeg', 'svg'].includes(extension)) {
       type = 'image';
     } else if (['html', 'htm'].includes(extension)) {
-      type = 'plotly-html'; // All HTML files are treated as interactive content
+      // Check if it's a Plotly chart or regular HTML
+      // Only detect as plotly if it explicitly contains plotly in the name
+      if (filename.toLowerCase().includes('plotly')) {
+        type = 'plotly-html';
+      } else {
+        type = 'html'; // Regular HTML files (including charts from AI agent)
+      }
     } else if (extension === 'csv') {
       type = 'csv';
     } else if (extension === 'pdf') {
@@ -606,6 +620,8 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     
     if (fileType === 'plotly-html') {
       return 'fa-chart-line';
+    } else if (fileType === 'html') {
+      return 'fa-file-code';
     }
     
     switch (extension) {
@@ -618,7 +634,7 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
       case 'csv':
         return 'fa-table';
       case 'html':
-        return 'fa-code';
+        return 'fa-file-code';
       case 'pdf':
         return 'fa-file-pdf';
       default:
@@ -663,20 +679,6 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
     this.fileTypeCache.clear(); // Clear file type cache as well
   }
 
-  toggleImageVisibility(file: OutputFile) {
-    file.isVisible = !file.isVisible;
-  }
-
-  togglePlotlyVisibility(file: OutputFile) {
-    file.isVisible = !file.isVisible;
-    if (file.isVisible && !file.plotlyContent) {
-      this.loadPlotlyContent(file);
-    }
-    
-    // Store the updated state persistently
-    // This logic is removed as per the edit hint to remove persistentExecutionResults
-  }
-
   // Auto-load plotly content when plotly-html files are first detected
   private autoLoadPlotlyContent(file: OutputFile) {
     if (file.type === 'plotly-html' && !file.plotlyContent && !file.error) {
@@ -686,6 +688,32 @@ export class OutputDisplayComponent implements OnInit, OnDestroy, AfterViewCheck
         this.loadPlotlyContent(file);
       }, 100);
     }
+  }
+
+  // Load HTML content directly for embedding
+  private loadHtmlContent(file: OutputFile) {
+    if (file.type === 'html' && !file.htmlContent && !file.error) {
+      console.log('Loading HTML content for:', file.filename);
+      this.http.get(this.getFileDownloadUrl(file), { responseType: 'text' })
+        .subscribe({
+          next: (content) => {
+            console.log('Successfully loaded HTML content, length:', content.length);
+            file.htmlContent = content;
+            // Force change detection
+            this.cdr.detectChanges();
+          },
+          error: (error) => {
+            console.error('Error loading HTML content:', error);
+            file.error = 'Failed to load HTML content';
+          }
+        });
+    }
+  }
+
+  // Helper method to check if files contain HTML files
+  hasHtmlFiles(files: OutputFile[] | undefined): boolean {
+    if (!files || files.length === 0) return false;
+    return files.some(file => file.type === 'html' || file.type === 'plotly-html');
   }
 
   private loadPlotlyContent(file: OutputFile) {

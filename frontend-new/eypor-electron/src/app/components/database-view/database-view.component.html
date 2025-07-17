@@ -1,0 +1,91 @@
+<div class="database-view">
+  <!-- Header -->
+  <div class="database-header">
+    <h3>Database Tables</h3>
+    <button 
+      class="whitelist-toggle" 
+      [class.active]="whitelistMode"
+      (click)="toggleWhitelistMode()">
+      <span class="toggle-icon">🔒</span>
+      Whitelist Mode
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
+    <div class="spinner"></div>
+    <span>Loading database...</span>
+  </div>
+
+  <!-- Database Content -->
+  <div *ngIf="!isLoading" class="database-content">
+    <!-- Tables List -->
+    <div class="tables-section">
+      <h4 class="section-title">Tables ({{ tables.length }})</h4>
+      <div class="tables-list">
+        <div 
+          *ngFor="let table of tables" 
+          class="table-item"
+          [class.selected]="selectedTable?.name === table.name"
+          [class.whitelisted]="table.isWhitelisted"
+          (click)="selectTable(table)">
+          
+          <div class="table-info">
+            <span class="table-icon">{{ getTableIcon(table.isWhitelisted) }}</span>
+            <div class="table-details">
+              <span class="table-name">{{ table.name }}</span>
+              <span class="table-meta">{{ table.rowCount }} rows • {{ table.columns.length }} columns</span>
+            </div>
+          </div>
+          
+          <div *ngIf="whitelistMode" class="table-actions">
+            <button 
+              class="whitelist-btn"
+              [class.whitelisted]="table.isWhitelisted"
+              (click)="toggleWhitelist(table); $event.stopPropagation()">
+              {{ table.isWhitelisted ? 'Remove' : 'Add' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Details -->
+    <div *ngIf="selectedTable" class="table-details">
+      <div class="details-header">
+        <h4>{{ selectedTable.name }}</h4>
+        <span class="row-count">{{ selectedTable.rowCount }} rows</span>
+      </div>
+      
+      <div class="columns-section">
+        <h5>Columns</h5>
+        <div class="columns-list">
+          <div 
+            *ngFor="let column of selectedTable.columns" 
+            class="column-item">
+            <div class="column-info">
+              <span class="column-name">{{ column.name }}</span>
+              <span 
+                class="column-type"
+                [style.background-color]="getColumnTypeColor(column.type)">
+                {{ column.type }}
+              </span>
+            </div>
+            <div class="column-meta">
+              <span class="nullable" [class.nullable-true]="column.nullable">
+                {{ column.nullable ? 'NULL' : 'NOT NULL' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- No Table Selected -->
+    <div *ngIf="!selectedTable" class="no-selection">
+      <div class="no-selection-icon">📊</div>
+      <h4>Select a Table</h4>
+      <p>Choose a table from the list to view its details</p>
+    </div>
+  </div>
+</div> 

@@ -1,0 +1,193 @@
+.plotly-chart-container {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-color, #ffffff);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.plotly-chart-container:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.plotly-chart {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+}
+
+/* Ensure plotly charts are responsive */
+.plotly-chart :deep(.plotly) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.plotly-chart :deep(.svg-container) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Loading state */
+.plotly-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  z-index: 10;
+}
+
+.plotly-loading p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary, #666666);
+}
+
+/* Error state */
+.plotly-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-secondary, #666666);
+  text-align: center;
+}
+
+.plotly-error mat-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: var(--error-color, #f44336);
+}
+
+.plotly-error p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Dark theme support */
+[data-theme="dark"] .plotly-chart-container {
+  --border-color: #444444;
+  --surface-color: #1e1e1e;
+  --text-secondary: #aaaaaa;
+  --error-color: #ff6b6b;
+  border-color: #444444;
+  background: #1e1e1e;
+}
+
+[data-theme="dark"] .plotly-loading p,
+[data-theme="dark"] .plotly-error p {
+  color: #aaaaaa;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .plotly-chart-container {
+    min-height: 250px;
+    border-radius: 4px;
+  }
+  
+  .plotly-chart {
+    min-height: 250px;
+  }
+  
+  .plotly-error mat-icon {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (max-width: 480px) {
+  .plotly-chart-container {
+    min-height: 200px;
+    margin: 0 -8px; /* Extend to screen edges on very small screens */
+    border-radius: 0;
+  }
+  
+  .plotly-chart {
+    min-height: 200px;
+  }
+}
+
+/* Override plotly mode bar styling for better integration */
+.plotly-chart :deep(.modebar) {
+  background: transparent !important;
+  border: none !important;
+}
+
+.plotly-chart :deep(.modebar-btn) {
+  background: var(--surface-color, #ffffff) !important;
+  border: 1px solid var(--border-color, #e0e0e0) !important;
+  border-radius: 4px !important;
+  margin-right: 4px !important;
+}
+
+.plotly-chart :deep(.modebar-btn:hover) {
+  background: var(--hover-color, #f5f5f5) !important;
+}
+
+[data-theme="dark"] .plotly-chart :deep(.modebar-btn) {
+  background: #2d2d2d !important;
+  border-color: #555555 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .plotly-chart :deep(.modebar-btn:hover) {
+  background: #3d3d3d !important;
+}
+
+/* Ensure proper aspect ratio maintenance */
+.plotly-chart-container.aspect-ratio-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+.plotly-chart-container.aspect-ratio-4-3 {
+  aspect-ratio: 4 / 3;
+}
+
+.plotly-chart-container.aspect-ratio-1-1 {
+  aspect-ratio: 1 / 1;
+}
+
+/* Full screen mode support */
+.plotly-chart-container.fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Animation for smooth transitions */
+.plotly-chart-container {
+  transition: width 0.3s ease, height 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Print styles */
+@media print {
+  .plotly-chart-container {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #000000;
+  }
+  
+  .plotly-loading,
+  .plotly-error {
+    display: none;
+  }
+} 

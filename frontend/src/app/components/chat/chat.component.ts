@@ -223,9 +223,14 @@ Ready to analyze your data?`,
               commandType = 'Execution Error';
             }
             
-            // Only show execution result if there's actual output/error or output files
-            const hasContent = response.execution_output || response.execution_error || 
-                             (response.output_files && response.output_files.length > 0);
+            // Check if we have HTML files - if so, only show those, not execution output
+            const hasHtmlFiles = (response.generated_files || []).some((filename: string) => 
+              filename.toLowerCase().endsWith('.html')
+            );
+            
+            // Only show execution result if there's actual output/error AND no HTML files
+            const hasContent = (response.execution_output || response.execution_error || 
+                             (response.output_files && response.output_files.length > 0)) && !hasHtmlFiles;
             
             if (hasContent) {
               // Convert generated files to output files format for execution service
@@ -250,6 +255,26 @@ Ready to analyze your data?`,
               
               this.executionService.emitExecutionResult(executionResult);
               console.log('Emitted execution result with output files:', outputFiles);
+            } else if (hasHtmlFiles) {
+              // If we have HTML files, emit them directly without execution output
+              const outputFiles = (response.generated_files || []).map((filename: string) => ({
+                filename: filename,
+                path: filename,
+                url: `/files/${filename}`,
+                type: this.getFileType(filename),
+                timestamp: Date.now()
+              }));
+              
+              const executionResult = {
+                command: 'HTML Generation',
+                output: '',
+                error: '',
+                returnCode: 0,
+                outputFiles: outputFiles
+              };
+              
+              this.executionService.emitExecutionResult(executionResult);
+              console.log('Emitted HTML files directly:', outputFiles);
             }
           }
           
@@ -338,16 +363,8 @@ Please check your connection and try again.`,
   }
 
   formatContent(content: string): string {
-    // Convert markdown-style formatting to HTML
-    let formatted = content;
-    
-    // Convert **bold** to <strong>bold</strong>
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // Convert line breaks to <br> tags
-    formatted = formatted.replace(/\n/g, '<br>');
-    
-    return formatted;
+    // Simple formatting like the old frontend - just preserve line breaks
+    return content.replace(/\n/g, '<br>');
   }
 
   scrollToBottom() {

@@ -111,6 +111,9 @@ converted_files = set()  # Track files that have been converted to SQL
 code_output = ""
 code_error = ""
 
+# Global variable to track running processes
+current_process = None
+
 # Database handling
 current_database_path = None
 
@@ -814,6 +817,7 @@ async def update_file(filename: str, request: FileEditRequest):
 
 @app.post("/run")
 async def run_file(filename: str):
+    global current_process
     """Run a Python file with dynamic database path injection for cross-scenario compatibility"""
     global code_output, code_error
     
@@ -1090,13 +1094,32 @@ if r"{temp_dir}" not in sys.path:
             print(f"Warning: Could not modify file content: {e}")
             # Continue with original file if modification fails
         
-        result = subprocess.run(
+        # Use Popen for better process control
+        current_process = subprocess.Popen(
             [sys.executable, abs_path],
             cwd=execution_cwd,
-            capture_output=True,
-            text=True,
-            timeout=300
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
         )
+        
+        try:
+            # Wait for the process to complete with timeout
+            stdout, stderr = current_process.communicate(timeout=300)
+            return_code = current_process.returncode
+        except subprocess.TimeoutExpired:
+            # Process timed out, kill it
+            current_process.kill()
+            stdout, stderr = current_process.communicate()
+            return_code = -1
+        finally:
+            current_process = None
+        
+        result = type('Result', (), {
+            'stdout': stdout,
+            'stderr': stderr,
+            'returncode': return_code
+        })()
         
         # Clean up temporary file if it was created
         if temp_file_path and temp_file_path != uploaded_files.get(filename, ''):
@@ -1235,6 +1258,23 @@ if r"{temp_dir}" not in sys.path:
         raise HTTPException(status_code=408, detail="Execution timed out")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Execution failed: {str(e)}")
+
+@app.post("/stop-execution")
+async def stop_execution():
+    """Stop the currently running execution"""
+    global current_process
+    
+    if current_process is None:
+        raise HTTPException(status_code=400, detail="No execution is currently running")
+    
+    try:
+        # Kill the process
+        current_process.kill()
+        current_process.communicate()  # Clean up
+        current_process = None
+        return {"message": "Execution stopped successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop execution: {str(e)}")
 
 @app.post("/install")
 async def install_requirements(filename: str):

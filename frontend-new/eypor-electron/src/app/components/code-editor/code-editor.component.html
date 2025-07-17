@@ -1,0 +1,86 @@
+<div class="code-editor">
+  <!-- Editor Header with Tabs -->
+  <div class="editor-header">
+    <!-- File Tabs -->
+    <div class="file-tabs">
+      <div 
+        *ngFor="let file of openFiles" 
+        class="file-tab"
+        [class.active]="file.id === activeTabId"
+        (click)="switchTab(file.id)">
+        <span class="file-icon" [class]="getFileExtension(file.fileName) === 'py' ? 'icon-python' : 'icon-code'"></span>
+        <span class="file-name">{{ file.fileName }}</span>
+        <span *ngIf="file.isModified" class="modified-indicator">●</span>
+        <button class="close-tab-btn" (click)="closeTab(file.id)" title="Close tab">
+          <span class="close-icon icon-x"></span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Editor Actions -->
+    <div class="editor-actions">
+      <button 
+        class="action-btn save-btn" 
+        (click)="saveFile(getActiveFile()!)" 
+        [disabled]="!getActiveFile() || !getActiveFile()!.isModified"
+        title="Save file">
+        <span class="action-icon icon-download"></span>
+        Save
+      </button>
+      <button class="action-btn close-btn" (click)="closeCodeEditor()" title="Close editor">
+        <span class="action-icon icon-x"></span>
+        Close
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="getActiveFile()?.isLoading" class="loading-state">
+    <div class="spinner"></div>
+    <span>Loading file...</span>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="getActiveFile()?.error" class="error-state">
+    <div class="error-icon icon-x"></div>
+    <span>{{ getActiveFile()?.error }}</span>
+  </div>
+
+  <!-- Save Message -->
+  <div *ngIf="getActiveFile()?.saveMessage" class="save-message" [class.success]="getActiveFile()?.saveMessage?.includes('successfully')">
+    {{ getActiveFile()?.saveMessage }}
+  </div>
+
+  <!-- Code Editor -->
+  <div *ngIf="getActiveFile() && !getActiveFile()?.isLoading && !getActiveFile()?.error" class="editor-container">
+    <!-- Line Numbers and Code -->
+    <div class="code-container">
+      <div class="line-numbers">
+        <div 
+          *ngFor="let lineNum of getActiveFile()?.lineNumbers" 
+          class="line-number"
+          [attr.data-line]="lineNum">
+          {{ lineNum }}
+        </div>
+      </div>
+      
+      <div class="code-area">
+        <textarea 
+          class="code-input"
+          [value]="getActiveFile()?.content"
+          (input)="onCodeChange($event, getActiveFile()!)"
+          spellcheck="false"
+          placeholder="Loading code..."
+          #codeTextarea>
+        </textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- No File Open State -->
+  <div *ngIf="!getActiveFile() && openFiles.length === 0" class="no-file-state">
+    <div class="no-file-icon icon-file"></div>
+    <h3>No files open</h3>
+    <p>Click "View" on any file to open it in the editor</p>
+  </div>
+</div> 

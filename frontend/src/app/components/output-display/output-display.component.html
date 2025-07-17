@@ -1,35 +1,52 @@
 <div class="output-display">
-  <div class="output-header">
-    <div class="header-content">
-      <h4>Execution Output</h4>
-      <div *ngIf="currentScenario" class="scenario-context">
-        <span class="scenario-label">Scenario:</span>
-        <span class="scenario-name">{{ getScenarioDisplayName() }}</span>
-        <span class="scenario-status" [class]="getScenarioStatus()">
-          {{ getScenarioStatus() }}
-        </span>
-      </div>
-    </div>
-    <div class="header-actions">
-      <div *ngIf="isLoadingHistory" class="loading-indicator">
-        <i class="fas fa-spinner fa-spin"></i>
-        <span>Loading history...</span>
-      </div>
-      <button class="clear-all-btn" (click)="clearOutput()">
-        <i class="fas fa-trash"></i> Clear All
-      </button>
-    </div>
-  </div>
-  
   <div #outputContainer class="output-container" (scroll)="onScroll($event)">
     <div *ngIf="!executionResults.length" class="no-output">
       <p>No executions yet. Run a Python file or install requirements to see output here.</p>
     </div>
     
-    <div *ngFor="let result of executionResults; let i = index" 
-         class="execution-result" 
-         [ngClass]="getOutputClass(result)"
-         [style.height.px]="result.height || 'auto'">
+    <!-- Only show HTML files directly, no containers or headers -->
+    <ng-container *ngFor="let result of executionResults; let i = index">
+      <div *ngIf="hasHtmlFiles(result.outputFiles)" class="html-result">
+        <div *ngFor="let file of result.outputFiles" class="html-file-display">
+          <!-- Display HTML files directly embedded -->
+          <div *ngIf="file.type === 'html'" class="html-content">
+            <div *ngIf="file.htmlContent" [innerHTML]="file.htmlContent | safe" class="embedded-html"></div>
+            <div *ngIf="!file.htmlContent && !file.error" class="html-loading">
+              <p><i class="fas fa-spinner fa-spin"></i> Loading HTML content...</p>
+            </div>
+            <div *ngIf="file.error" class="html-error">
+              <p>{{ file.error }}</p>
+            </div>
+          </div>
+          
+          <!-- Display Plotly charts -->
+          <div *ngIf="file.type === 'plotly-html'" class="plotly-content">
+            <div *ngIf="!file.plotlyContent && !file.error" class="chart-loading">
+              <p><i class="fas fa-spinner fa-spin"></i> Loading interactive chart...</p>
+            </div>
+            
+            <app-plotly-chart 
+              *ngIf="file.plotlyContent"
+              [htmlContent]="file.plotlyContent"
+              [fileName]="file.filename"
+              width="100%"
+              height="600px">
+            </app-plotly-chart>
+            
+            <div *ngIf="file.error" class="chart-error">
+              <p>{{ file.error }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+    
+    <!-- Show execution output only when no HTML files -->
+    <ng-container *ngFor="let result of executionResults; let i = index">
+      <div *ngIf="!hasHtmlFiles(result.outputFiles)" 
+           class="execution-result" 
+           [ngClass]="getOutputClass(result)"
+           [style.height.px]="result.height || 'auto'">
       
       <div class="execution-header">
         <span class="timestamp">{{ formatTimestamp(result.timestamp) }}</span>
@@ -45,94 +62,6 @@
         <div *ngIf="result.error" class="execution-error">
           <pre>{{ result.error }}</pre>
         </div>
-        
-        <!-- Display generated files (only when not running and files exist) -->
-        <div *ngIf="!result.isRunning && result.outputFiles && result.outputFiles.length > 0" class="output-files">
-          <h5>Generated Files ({{ result.outputFiles.length }}):</h5>
-          <div *ngIf="result.outputFiles.length > 0" class="file-list">
-            <div *ngFor="let file of result.outputFiles" class="output-file">
-              <div class="file-info">
-                <i class="fas" [ngClass]="getFileIcon(file.filename)"></i>
-                <span class="file-name">{{ file.filename }}</span>
-                
-                <div class="file-actions">
-                  <!-- View button for images -->
-                  <button *ngIf="file.type === 'image'" 
-                          class="action-btn view-btn" 
-                          (click)="toggleImageVisibility(file)">
-                    {{ file.isVisible ? 'Hide' : 'View' }}
-                  </button>
-                  
-                  <!-- View button for plotly charts -->
-                  <button *ngIf="file.type === 'plotly-html'" 
-                          class="action-btn view-btn chart-btn" 
-                          (click)="togglePlotlyVisibility(file)">
-                    {{ file.isVisible ? 'Hide Chart' : 'View Chart' }}
-                  </button>
-                  
-                  <!-- Download link -->
-                  <a [href]="getFileDownloadUrl(file)" 
-                     target="_blank" 
-                     class="download-link">
-                    <i class="fas fa-download"></i> Download
-                  </a>
-                </div>
-              </div>
-              
-              <!-- Display images -->
-              <div *ngIf="file.type === 'image' && file.isVisible" 
-                   class="image-preview">
-                <div class="image-status">
-                  <p>Status: <span id="status-{{ file.filename }}">Loading...</span></p>
-                  <p class="debug-info">Path: {{ file.path }}</p>
-                  <p class="debug-info">URL: {{ getFileDownloadUrl(file) }}</p>
-                </div>
-                
-                <img [src]="getFileDownloadUrl(file)" 
-                     [alt]="file.filename" 
-                     class="generated-image"
-                     (click)="maximizeImage(file)"
-                     (load)="onImageLoad(file)"
-                     (error)="onImageError(file, $event)"
-                     onerror="this.style.display='none'" />
-                
-                <div *ngIf="file.error" class="image-error">
-                  <p>Error loading image. Please check the file path and permissions.</p>
-                </div>
-              </div>
-              
-              <!-- Display Plotly charts -->
-              <div *ngIf="file.type === 'plotly-html' && file.isVisible" class="plotly-preview">
-                <div *ngIf="!file.plotlyContent && !file.error" class="chart-loading">
-                  <p><i class="fas fa-spinner fa-spin"></i> Loading interactive chart...</p>
-                </div>
-                
-                <app-plotly-chart 
-                  *ngIf="file.plotlyContent"
-                  [htmlContent]="file.plotlyContent"
-                  [fileName]="file.filename"
-                  width="100%"
-                  height="500px">
-                </app-plotly-chart>
-                
-                <div *ngIf="file.error" class="chart-error">
-                  <p>{{ file.error }}</p>
-                </div>
-              </div>
-              
-              <!-- Display regular HTML files -->
-              <div *ngIf="file.type === 'html'" class="html-preview">
-                <iframe [src]="getFileDownloadUrl(file) | safe" 
-                        [title]="file.filename" 
-                        class="generated-html" 
-                        width="100%" 
-                        height="400px"
-                        frameborder="0">
-                </iframe>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       
       <!-- Resize handle -->
@@ -142,19 +71,6 @@
         <div class="resize-bar"></div>
       </div>
     </div>
+    </ng-container>
   </div>
-
-  <!-- Maximized Image Overlay -->
-  <div *ngIf="maximizedImage" 
-       class="maximized-image-overlay"
-       (click)="handleOverlayClick($event)">
-    <div class="maximized-image-container">
-      <button class="close-button" (click)="closeMaximizedImage()">×</button>
-      <img [src]="getFileDownloadUrl(maximizedImage)" 
-           [alt]="maximizedImage.filename"
-           class="maximized-image"
-           (click)="$event.stopPropagation()" />
-    </div>
-  </div>
-
 </div> 

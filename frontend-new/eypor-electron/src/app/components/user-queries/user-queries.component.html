@@ -1,0 +1,117 @@
+<div class="user-queries">
+  <div *ngIf="isLoading" class="loading">
+    <div class="spinner"></div>
+    <span>Loading queries...</span>
+  </div>
+
+  <div *ngIf="!isLoading && userQueries.length === 0" class="empty-state">
+    <div class="empty-icon icon-message"></div>
+    <p>No queries yet</p>
+    <small>Start chatting to see your queries here</small>
+  </div>
+
+  <div *ngIf="!isLoading && userQueries.length > 0" class="queries-list">
+    <div 
+      *ngFor="let query of userQueries" 
+      class="query-item"
+      [class.expanded]="query.isExpanded">
+      
+      <!-- Query Container with seamless expansion -->
+      <div class="query-container">
+        <!-- Query Header (Always Visible) -->
+        <div class="query-header" (click)="toggleQuery(query)">
+          <div class="query-info">
+            <span class="status-icon" [class]="getStatusIconClass(query.status)"></span>
+            <div class="query-details">
+              <span class="query-text">{{ query.query }}</span>
+              <span class="query-meta">{{ query.timestamp | date:'short' }} • {{ query.generatedFiles.length }} files</span>
+            </div>
+          </div>
+          <div class="query-actions">
+            <button class="query-delete-btn" (click)="confirmDeleteQuery(query)" title="Delete query">
+              <span class="action-icon icon-trash"></span>
+            </button>
+            <button class="expand-btn" [class.expanded]="query.isExpanded">
+              <span class="expand-icon icon-chevron-down"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Expanded Content -->
+        <div *ngIf="query.isExpanded" class="query-expanded">
+          <div class="files-section">
+            <h4 class="files-title">Generated Files</h4>
+            <div class="files-list">
+              <div 
+                *ngFor="let file of query.generatedFiles" 
+                class="generated-file">
+                <div class="file-info">
+                  <span class="file-icon" [class]="getFileIconClass(file.type)"></span>
+                  <div class="file-details">
+                    <span class="file-name">{{ file.name }}</span>
+                  </div>
+                </div>
+                <div class="file-actions">
+                  <div class="action-buttons-left">
+                    <button 
+                      *ngIf="file.type === 'html'" 
+                      class="action-btn view-btn" 
+                      (click)="viewFile(file)">
+                      <span class="action-icon icon-eye"></span>
+                      View
+                    </button>
+                    <button 
+                      *ngIf="file.type === 'python' || file.type === 'py'" 
+                      class="action-btn view-btn" 
+                      (click)="viewFile(file)">
+                      <span class="action-icon icon-eye"></span>
+                      View
+                    </button>
+                    <button 
+                      *ngIf="canRunFile(file)" 
+                      class="action-btn run-btn" 
+                      (click)="runFile(file)">
+                      <span class="action-icon icon-play"></span>
+                      Run
+                    </button>
+                    <button class="action-btn download-btn" (click)="downloadFile(file)">
+                      <span class="action-icon icon-download"></span>
+                    </button>
+                  </div>
+                  <div class="action-buttons-right">
+                    <button class="action-btn delete-btn" (click)="confirmDeleteFile(file)">
+                      <span class="action-icon icon-trash"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirmation Dialogs -->
+  <app-confirmation-dialog
+    [isVisible]="showDeleteFileDialog"
+    title="Delete File"
+    [message]="getDeleteFileMessage()"
+    confirmText="Delete"
+    cancelText="Cancel"
+    confirmButtonClass="danger"
+    (confirm)="onDeleteFileConfirm()"
+    (cancel)="onDeleteFileCancel()">
+  </app-confirmation-dialog>
+
+  <app-confirmation-dialog
+    [isVisible]="showDeleteQueryDialog"
+    title="Delete Query"
+    [message]="getDeleteQueryMessage()"
+    confirmText="Delete"
+    cancelText="Cancel"
+    confirmButtonClass="danger"
+    (confirm)="onDeleteQueryConfirm()"
+    (cancel)="onDeleteQueryCancel()">
+  </app-confirmation-dialog>
+</div> 

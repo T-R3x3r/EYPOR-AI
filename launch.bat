@@ -15,8 +15,8 @@ if not exist "backend" (
     exit /b 1
 )
 
-if not exist "frontend" (
-    echo ERROR: frontend directory not found!
+if not exist "frontend-new" (
+    echo ERROR: frontend-new directory not found!
     echo Please run this script from the EY Project root directory
     pause
     exit /b 1
@@ -69,13 +69,13 @@ if !errorlevel! neq 0 (
     echo OK - Backend is running on port 8001
 )
 
-echo [3/4] Starting frontend server...
+echo [3/4] Starting new frontend server...
 
 :: Set Node.js options for compatibility
 set NODE_OPTIONS=--openssl-legacy-provider --no-deprecation
 
-:: Start frontend
-start "EY Frontend" cmd /k "cd frontend && ng serve --host 0.0.0.0 --port 4200 --open"
+:: Start new frontend
+start "EY New Frontend" cmd /k "cd frontend-new\eypor-electron && ng serve --host 0.0.0.0 --port 4200 --open"
 
 echo Waiting for frontend to initialize...
 timeout /t 10 /nobreak >nul
@@ -99,13 +99,18 @@ echo ========================================
 echo  EY Project Successfully Launched!
 echo ========================================
 echo.
-echo Frontend: http://localhost:4200
-echo Backend:  http://localhost:8001
-echo API Docs: http://localhost:8001/docs
+echo New Frontend: http://localhost:4200
+echo Backend:       http://localhost:8001
+echo API Docs:      http://localhost:8001/docs
 echo.
 echo Both servers are running in separate windows.
 echo To stop everything, simply close both server windows
 echo or run this script again (it will restart everything).
+echo.
+echo The new frontend includes:
+echo - File selection and upload page
+echo - Workbench with integrated components
+echo - Improved UI/UX design
 echo.
 echo Press any key to close this launcher window...
 pause >nul 

@@ -1,0 +1,311 @@
+.uploaded-files {
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Icon Styles - Using Font Awesome */
+[class^="icon-"] {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  text-align: center;
+  line-height: 1;
+  font-size: 1em;
+}
+
+/* File Type Icons */
+.icon-file::before { content: "\f15b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-archive::before { content: "\f187"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-code::before { content: "\f1c9"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-python::before { content: "\f3e2"; font-family: "Font Awesome 6 Brands"; font-weight: 400; }
+.icon-r::before { content: "\f1c9"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-table::before { content: "\f0ce"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-spreadsheet::before { content: "\f1c3"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-database::before { content: "\f1c0"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-globe::before { content: "\f0ac"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-image::before { content: "\f03e"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-folder::before { content: "\f07b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-message::before { content: "\f075"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-settings::before { content: "\f013"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-chart::before { content: "\f080"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+/* Status Icons */
+.icon-check::before { content: "\f00c"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--success-color); }
+.icon-spinner::before { content: "\f021"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--accent-color); }
+.icon-x::before { content: "\f00d"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--error-color); }
+.icon-clock::before { content: "\f017"; font-family: "Font Awesome 6 Free"; font-weight: 900; color: var(--warning-color); }
+
+/* Action Icons */
+.icon-download::before { content: "\f019"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-trash::before { content: "\f1f8"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-eye::before { content: "\f06e"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-play::before { content: "\f04b"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-send::before { content: "\f1d8"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-user::before { content: "\f007"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-bot::before { content: "\f544"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+.icon-chevron-down::before { content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900; }
+
+/* Loading State */
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border-color);
+  border-top: 2px solid var(--accent-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-state p {
+  margin: 0 0 8px 0;
+  font-weight: 500;
+}
+
+.empty-state small {
+  opacity: 0.7;
+}
+
+/* Files List */
+.files-list {
+  padding: 8px 0;
+}
+
+.file-item {
+  margin-bottom: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.file-item:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.file-item.expanded {
+  background-color: var(--bg-tertiary);
+}
+
+/* File Header */
+.file-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.file-header:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.file-icon {
+  font-size: 20px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.file-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.file-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+}
+
+.expand-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.expand-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.expand-icon {
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.expand-btn.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+/* Expanded Content */
+.file-expanded {
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.file-actions-expanded {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.action-buttons-left {
+  display: flex;
+  gap: 4px;
+}
+
+.action-buttons-right {
+  display: flex;
+  gap: 4px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.view-btn {
+  background-color: var(--accent-color);
+  color: white;
+}
+
+.view-btn:hover {
+  background-color: var(--accent-hover);
+}
+
+.run-btn {
+  background-color: var(--success-color);
+  color: white;
+}
+
+.run-btn:hover {
+  background-color: #218838;
+}
+
+.install-btn {
+  background-color: var(--warning-color);
+  color: white;
+}
+
+.install-btn:hover {
+  background-color: #e0a800;
+}
+
+.download-btn {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.download-btn:hover {
+  background-color: var(--bg-secondary);
+}
+
+.delete-btn {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.delete-btn:hover {
+  background-color: var(--error-color);
+  color: white;
+}
+
+.action-icon {
+  font-size: 14px;
+}
+
+/* File Preview */
+.file-preview {
+  padding: 16px;
+}
+
+.preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  background-color: var(--bg-tertiary);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.preview-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.preview-text {
+  font-size: 12px;
+  opacity: 0.7;
+} 
