@@ -38,9 +38,11 @@ import { CodeEditorComponent } from './components/code-editor/code-editor.compon
 import { ConfirmationDialogComponent } from './components/confirmation-dialog/confirmation-dialog.component';
 import { WorkbenchOutputComponent } from './components/workbench-output/workbench-output.component';
 import { PlotlyChartComponent } from './components/plotly-chart/plotly-chart.component';
+import { CreateScenarioDialogComponent } from './components/create-scenario-dialog/create-scenario-dialog.component';
 
 // Services
 import { DatabaseService } from './services/database.service';
+import { ScenarioAwareExecutionService } from './services/scenario-aware-execution.service';
 
 // Pipes
 import { SafePipe } from './pipes/safe.pipe';
@@ -61,6 +63,7 @@ import { AppRoutingModule } from './app-routing.module';
     ConfirmationDialogComponent,
     WorkbenchOutputComponent,
     PlotlyChartComponent,
+    CreateScenarioDialogComponent,
     SafePipe
   ],
   imports: [
@@ -93,7 +96,7 @@ import { AppRoutingModule } from './app-routing.module';
     MatExpansionModule,
     MatDividerModule
   ],
-  providers: [DatabaseService],
+  providers: [DatabaseService, ScenarioAwareExecutionService],
   bootstrap: [AppComponent]
 })
 export class AppModule { } 

@@ -10,11 +10,20 @@
         <div 
           *ngFor="let scenario of scenarios" 
           class="scenario-tab"
-          [class.active]="scenario.isActive"
+          [class.active]="isCurrentScenario(scenario)"
+          [class.base-scenario]="scenario.is_base_scenario"
+          [title]="getScenarioTooltip(scenario)"
           (click)="selectScenario(scenario)">
-          {{ scenario.name }}
+          <span class="scenario-name">{{ scenario.name }}</span>
+          
+          <!-- Scenario type indicator -->
+          <span *ngIf="scenario.is_base_scenario" class="scenario-type base">Base</span>
+          <span *ngIf="!scenario.is_base_scenario && scenario.parent_scenario_id" class="scenario-type branch">Branch</span>
+          
+          <!-- Active indicator -->
+          <div *ngIf="isCurrentScenario(scenario)" class="active-indicator"></div>
         </div>
-        <button class="new-scenario-btn" (click)="createNewScenario()">
+        <button class="new-scenario-btn" (click)="createNewScenario()" title="Create new scenario">
           <span class="plus-icon">+</span>
         </button>
       </div>
@@ -113,4 +122,10 @@
       <app-chat-interface (filesCreated)="onFilesCreated()"></app-chat-interface>
     </aside>
   </div>
+
+  <!-- Create Scenario Dialog -->
+  <app-create-scenario-dialog 
+    *ngIf="showCreateDialog"
+    (dialogClosed)="onCreateDialogClosed()">
+  </app-create-scenario-dialog>
 </div> 

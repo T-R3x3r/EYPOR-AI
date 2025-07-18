@@ -1,6 +1,6 @@
 import { Component, OnInit, ViewChild, ElementRef, AfterViewChecked, HostListener, Output, EventEmitter } from '@angular/core';
 import { ApiService } from '../../services/api.service';
-import { ExecutionService } from '../../services/execution.service';
+import { ScenarioAwareExecutionService } from '../../services/scenario-aware-execution.service';
 import { QueryFileOrganizerService } from '../../services/query-file-organizer.service';
 
 interface ChatMessage {
@@ -34,7 +34,7 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked {
 
   constructor(
     private apiService: ApiService,
-    private executionService: ExecutionService,
+    private executionService: ScenarioAwareExecutionService,
     private queryFileOrganizer: QueryFileOrganizerService
   ) {}
 
@@ -180,7 +180,8 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked {
                 error: response.execution_error || '',
                 returnCode: response.execution_error ? 1 : 0,
                 outputFiles: outputFiles,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                scenarioId: 0 // Will be set by the service
               };
               
               this.executionService.emitExecutionResult(executionResult);

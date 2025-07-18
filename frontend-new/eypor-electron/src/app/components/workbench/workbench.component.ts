@@ -1,15 +1,18 @@
-import { Component, OnInit, ViewChild, ElementRef, HostListener, AfterViewInit } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, HostListener, AfterViewInit, OnDestroy } from '@angular/core';
+import { Subject, takeUntil } from 'rxjs';
 import { ThemeService } from '../../services/theme.service';
 import { ApiService } from '../../services/api.service';
 import { DatabaseService } from '../../services/database.service';
+import { ScenarioService } from '../../services/scenario.service';
 import { WorkbenchOutputComponent } from '../workbench-output/workbench-output.component';
+import { Scenario } from '../../models/scenario.model';
 
 @Component({
   selector: 'app-workbench',
   templateUrl: './workbench.component.html',
   styleUrls: ['./workbench.component.css']
 })
-export class WorkbenchComponent implements OnInit, AfterViewInit {
+export class WorkbenchComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('leftSidebar') leftSidebar!: ElementRef;
   @ViewChild('rightSidebar') rightSidebar!: ElementRef;
   @ViewChild('codeEditor') codeEditor!: any;
@@ -17,30 +20,54 @@ export class WorkbenchComponent implements OnInit, AfterViewInit {
 
   title = 'EYPOR';
   activeView: 'workbench' | 'database' | 'code-editor' = 'workbench';
-  scenarios: any[] = [];
-  currentScenario: any = null;
+  scenarios: Scenario[] = [];
+  currentScenario: Scenario | null = null;
   showUploadedFiles = true;
   isResizing = false;
   resizeSide = '';
+  showCreateDialog = false;
   
   // Code Editor properties
   showCodeEditor = false;
   pendingFileToOpen: { filePath: string; fileName: string } | null = null;
 
+  private destroy$ = new Subject<void>();
+
   constructor(
     public themeService: ThemeService,
     private apiService: ApiService,
-    private databaseService: DatabaseService
+    private databaseService: DatabaseService,
+    private scenarioService: ScenarioService
   ) {}
 
   ngOnInit(): void {
     try {
-      // Initialize the application
-      this.loadScenarios();
+      // Subscribe to scenarios from scenario service
+      this.scenarioService.scenariosList$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(scenarios => {
+          this.scenarios = scenarios;
+        });
+
+      // Subscribe to current scenario
+      this.scenarioService.currentScenario$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(scenario => {
+          this.currentScenario = scenario;
+          if (scenario) {
+            this.databaseService.setCurrentScenario(scenario);
+          }
+        });
+
       console.log('Workbench component initialized');
     } catch (error) {
       console.error('Error initializing workbench:', error);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   ngAfterViewInit(): void {
@@ -51,45 +78,52 @@ export class WorkbenchComponent implements OnInit, AfterViewInit {
     }
   }
 
-  loadScenarios(): void {
+  // Scenario management methods
+  createNewScenario(): void {
+    this.showCreateDialog = true;
+  }
+
+  onCreateDialogClosed(): void {
+    this.showCreateDialog = false;
+  }
+
+  selectScenario(scenario: Scenario): void {
     try {
-      // Load scenarios from API
-      this.apiService.getScenarios().subscribe({
-        next: (scenarios: any[]) => {
-          console.log('Scenarios loaded from API:', scenarios);
-          
-          // Convert API response to component format
-          this.scenarios = scenarios.map((scenario: any) => ({
-            id: scenario.id,
-            name: scenario.name,
-            isActive: scenario.is_base_scenario || false, // Base scenario should be active by default
-            description: scenario.description,
-            database_path: scenario.database_path,
-            is_base_scenario: scenario.is_base_scenario,
-            parent_scenario_id: scenario.parent_scenario_id
-          }));
-          
-          // Set current scenario to base scenario or first scenario
-          this.currentScenario = this.scenarios.find(s => s.isActive) || this.scenarios[0];
-          
-          // Update database service with current scenario
-          if (this.currentScenario) {
-            this.databaseService.setCurrentScenario(this.currentScenario);
-          }
-          
-          console.log('Scenarios processed:', this.scenarios.length);
-          console.log('Current scenario:', this.currentScenario);
+      this.scenarioService.switchScenario(scenario.id).subscribe({
+        next: () => {
+          console.log('Switched to scenario:', scenario.name);
         },
-        error: (error: any) => {
-          console.error('Error loading scenarios:', error);
-          this.scenarios = [];
-          this.currentScenario = null;
+        error: (error) => {
+          console.error('Error switching scenario:', error);
         }
       });
     } catch (error) {
-      console.error('Error loading scenarios:', error);
-      this.scenarios = [];
+      console.error('Error selecting scenario:', error);
     }
+  }
+
+  isCurrentScenario(scenario: Scenario): boolean {
+    return this.currentScenario?.id === scenario.id;
+  }
+
+  getScenarioTooltip(scenario: Scenario): string {
+    const parts = [
+      `Name: ${scenario.name}`,
+      `Created: ${new Date(scenario.created_at).toLocaleString()}`,
+      `Modified: ${new Date(scenario.modified_at).toLocaleString()}`
+    ];
+    
+    if (scenario.description) {
+      parts.push(`Description: ${scenario.description}`);
+    }
+    
+    if (scenario.is_base_scenario) {
+      parts.push('Type: Base Scenario');
+    } else if (scenario.parent_scenario_id) {
+      parts.push(`Type: Branch from Scenario ${scenario.parent_scenario_id}`);
+    }
+    
+    return parts.join('\n');
   }
 
   toggleUploadedFiles(): void {
@@ -132,29 +166,7 @@ export class WorkbenchComponent implements OnInit, AfterViewInit {
     this.pendingFileToOpen = null;
   }
 
-  createNewScenario(): void {
-    try {
-      // TODO: Implement scenario creation
-      console.log('Create new scenario');
-    } catch (error) {
-      console.error('Error creating scenario:', error);
-    }
-  }
 
-  selectScenario(scenario: any): void {
-    try {
-      this.scenarios.forEach(s => s.isActive = false);
-      scenario.isActive = true;
-      this.currentScenario = scenario;
-      
-      // Update database service with new scenario
-      this.databaseService.setCurrentScenario(scenario);
-      
-      console.log('Selected scenario:', scenario.name);
-    } catch (error) {
-      console.error('Error selecting scenario:', error);
-    }
-  }
 
   @HostListener('mousedown', ['$event'])
   onMouseDown(event: MouseEvent): void {

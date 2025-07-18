@@ -1,7 +1,7 @@
 import { Component, OnInit, Output, EventEmitter } from '@angular/core';
 import { QueryFileOrganizerService, QueryFileGroup } from '../../services/query-file-organizer.service';
 import { ApiService } from '../../services/api.service';
-import { ExecutionService, ExecutionResult, OutputFile } from '../../services/execution.service';
+import { ScenarioAwareExecutionService, ExecutionResult, OutputFile } from '../../services/scenario-aware-execution.service';
 import { timeout, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
 
@@ -44,7 +44,7 @@ export class UserQueriesComponent implements OnInit {
   constructor(
     private queryFileOrganizer: QueryFileOrganizerService,
     private apiService: ApiService,
-    private executionService: ExecutionService
+    private executionService: ScenarioAwareExecutionService
   ) {}
 
   ngOnInit(): void {
@@ -382,7 +382,8 @@ export class UserQueriesComponent implements OnInit {
           returnCode: response.return_code,
           outputFiles: outputFiles,
           timestamp: Date.now(),
-          isRunning: false
+          isRunning: false,
+          scenarioId: 0 // Will be set by the service
         };
         
         // Emit the result to the workbench
@@ -437,7 +438,8 @@ export class UserQueriesComponent implements OnInit {
           returnCode: -1,
           outputFiles: [],
           timestamp: Date.now(),
-          isRunning: false
+          isRunning: false,
+          scenarioId: 0 // Will be set by the service
         };
         
         this.executionService.emitExecutionResult(executionResult);

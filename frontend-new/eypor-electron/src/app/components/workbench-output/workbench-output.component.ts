@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy, ViewChild, ElementRef, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { ExecutionService, ExecutionResult, OutputFile } from '../../services/execution.service';
+import { ScenarioAwareExecutionService, ExecutionResult, OutputFile } from '../../services/scenario-aware-execution.service';
 import { HttpClient } from '@angular/common/http';
 import { timeout, catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
@@ -22,7 +22,7 @@ export class WorkbenchOutputComponent implements OnInit, OnDestroy, AfterViewChe
   private fileTypeLogCache: Set<string> = new Set();
 
   constructor(
-    private executionService: ExecutionService,
+    private executionService: ScenarioAwareExecutionService,
     private http: HttpClient,
     private cdr: ChangeDetectorRef
   ) {}
