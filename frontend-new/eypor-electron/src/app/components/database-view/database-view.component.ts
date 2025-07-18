@@ -99,6 +99,15 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
   currentSortDirection: 'asc' | 'desc' | '' = '';
   sortedData: any[] = [];
 
+  // Virtual scrolling properties
+  public virtualData: any[] = [];
+  private rowHeight = 40; // Height of each row in pixels
+  private scrollTop = 0;
+  private containerHeight = 400; // Default container height
+  private startIndex = 0;
+  private endIndex = 0;
+  public totalHeight = 0;
+
   private subscriptions: Subscription[] = [];
 
   constructor(
@@ -110,6 +119,13 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
     this.loadDatabaseInfo();
     this.setupSearch();
     this.setupTableSearch();
+    
+    // Add window resize listener for virtual scrolling
+    window.addEventListener('resize', () => {
+      if (this.selectedTable) {
+        this.updateContainerHeight();
+      }
+    });
     
     // Subscribe to database changes
     const changesSub = this.databaseService.changes$.subscribe(changes => {
@@ -195,6 +211,13 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnDestroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
+    
+    // Remove window resize listener
+    window.removeEventListener('resize', () => {
+      if (this.selectedTable) {
+        this.updateContainerHeight();
+      }
+    });
   }
 
   // Load scenario-specific query history
@@ -408,7 +431,13 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
       // Apply current sorting if any
       if (this.currentSortColumn && this.currentSortDirection) {
         this.applySorting();
+      } else {
+        // Initialize virtual scroll
+        this.updateVirtualScroll();
       }
+
+      // Update container height for virtual scrolling
+      this.updateContainerHeight();
       
       console.log('Table data processed:', {
         totalRows: this.totalRows,
@@ -700,24 +729,26 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
       // No filter, show all data
       this.sortedData = [...this.tableData.data];
       this.filteredRows = this.tableData.data.length;
-      return;
-    }
-
-    const lowerCaseFilter = filterValue.toLowerCase();
-    this.sortedData = this.tableData.data.filter(row => {
-      // Search across all columns
-      return this.displayedColumns.some(column => {
-        const value = row[column];
-        if (value === null || value === undefined) return false;
-        return String(value).toLowerCase().includes(lowerCaseFilter);
+    } else {
+      const lowerCaseFilter = filterValue.toLowerCase();
+      this.sortedData = this.tableData.data.filter(row => {
+        // Search across all columns
+        return this.displayedColumns.some(column => {
+          const value = row[column];
+          if (value === null || value === undefined) return false;
+          return String(value).toLowerCase().includes(lowerCaseFilter);
+        });
       });
-    });
-    
-    this.filteredRows = this.sortedData.length;
+      
+      this.filteredRows = this.sortedData.length;
+    }
     
     // Apply current sorting if any
     if (this.currentSortColumn && this.currentSortDirection) {
       this.applySorting();
+    } else {
+      // Update virtual scroll after filtering
+      this.updateVirtualScroll();
     }
   }
 
@@ -1068,36 +1099,38 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
     if (!this.currentSortColumn || !this.currentSortDirection) {
       // No sorting, use original data
       this.sortedData = [...this.tableData.data];
-      return;
+    } else {
+      this.sortedData = [...this.tableData.data].sort((a, b) => {
+        const aVal = a[this.currentSortColumn];
+        const bVal = b[this.currentSortColumn];
+
+        // Handle null/undefined values - put them at the end
+        if (aVal === null || aVal === undefined) return 1;
+        if (bVal === null || bVal === undefined) return -1;
+
+        // Try to compare as numbers first
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        
+        // If both are valid numbers, compare numerically
+        if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) {
+          return this.currentSortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+
+        // Otherwise, compare as strings
+        const aStr = String(aVal).toLowerCase();
+        const bStr = String(bVal).toLowerCase();
+
+        if (this.currentSortDirection === 'asc') {
+          return aStr.localeCompare(bStr);
+        } else {
+          return bStr.localeCompare(aStr);
+        }
+      });
     }
 
-    this.sortedData = [...this.tableData.data].sort((a, b) => {
-      const aVal = a[this.currentSortColumn];
-      const bVal = b[this.currentSortColumn];
-
-      // Handle null/undefined values - put them at the end
-      if (aVal === null || aVal === undefined) return 1;
-      if (bVal === null || bVal === undefined) return -1;
-
-      // Try to compare as numbers first
-      const aNum = Number(aVal);
-      const bNum = Number(bVal);
-      
-      // If both are valid numbers, compare numerically
-      if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) {
-        return this.currentSortDirection === 'asc' ? aNum - bNum : bNum - aNum;
-      }
-
-      // Otherwise, compare as strings
-      const aStr = String(aVal).toLowerCase();
-      const bStr = String(bVal).toLowerCase();
-
-      if (this.currentSortDirection === 'asc') {
-        return aStr.localeCompare(bStr);
-      } else {
-        return bStr.localeCompare(aStr);
-      }
-    });
+    // Update virtual scroll after sorting
+    this.updateVirtualScroll();
   }
 
   getSortIcon(columnName: string): string {
@@ -1116,6 +1149,61 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
 
   isNewlyAddedRow(rowIndex: number): boolean {
     return rowIndex === this.newlyAddedRowIndex;
+  }
+
+  // Virtual scrolling methods
+  private updateVirtualScroll(): void {
+    if (!this.sortedData || this.sortedData.length === 0) {
+      this.virtualData = [];
+      this.totalHeight = 0;
+      return;
+    }
+
+    this.totalHeight = this.sortedData.length * this.rowHeight;
+    this.startIndex = Math.floor(this.scrollTop / this.rowHeight);
+    
+    // Calculate visible rows based on container height
+    const visibleRowCount = Math.ceil(this.containerHeight / this.rowHeight);
+    this.endIndex = Math.min(
+      this.startIndex + visibleRowCount + 10, // Add 10 for smooth scrolling
+      this.sortedData.length
+    );
+
+    this.virtualData = this.sortedData.slice(this.startIndex, this.endIndex);
+  }
+
+  onTableScroll(event: any): void {
+    this.scrollTop = event.target.scrollTop;
+    // Use requestAnimationFrame for better performance
+    requestAnimationFrame(() => {
+      this.updateVirtualScroll();
+    });
+  }
+
+  private updateContainerHeight(): void {
+    // Get the table wrapper element and calculate its height
+    setTimeout(() => {
+      const tableWrapper = document.querySelector('.table-wrapper') as HTMLElement;
+      if (tableWrapper) {
+        this.containerHeight = tableWrapper.clientHeight - 60; // Subtract header height
+        this.updateVirtualScroll();
+      }
+    }, 100);
+  }
+
+  public getVirtualRowIndex(displayIndex: number): number {
+    return this.startIndex + displayIndex;
+  }
+
+  public getVirtualRowStyle(index: number): any {
+    const actualIndex = this.startIndex + index;
+    return {
+      height: this.rowHeight + 'px',
+      position: 'absolute',
+      top: (actualIndex * this.rowHeight) + 'px',
+      left: '0',
+      right: '0'
+    };
   }
 
   // Backend API calls

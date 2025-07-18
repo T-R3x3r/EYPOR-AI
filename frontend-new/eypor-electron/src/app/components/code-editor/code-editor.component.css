@@ -315,6 +315,7 @@
   flex: 1;
   display: flex;
   overflow: hidden;
+  height: 100%;
 }
 
 /* Line Numbers */
@@ -326,6 +327,13 @@
   overflow-x: hidden;
   flex-shrink: 0;
   padding: 8px 0;
+  height: 100%;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.line-numbers::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .line-number {
@@ -344,6 +352,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
+  height: 100%;
 }
 
 .code-input {

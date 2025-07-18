@@ -55,7 +55,7 @@
   <div *ngIf="getActiveFile() && !getActiveFile()?.isLoading && !getActiveFile()?.error" class="editor-container">
     <!-- Line Numbers and Code -->
     <div class="code-container">
-      <div class="line-numbers">
+      <div class="line-numbers" #lineNumbersContainer (scroll)="onLineNumbersScroll($event)">
         <div 
           *ngFor="let lineNum of getActiveFile()?.lineNumbers" 
           class="line-number"
@@ -69,6 +69,7 @@
           class="code-input"
           [value]="getActiveFile()?.content"
           (input)="onCodeChange($event, getActiveFile()!)"
+          (scroll)="onCodeScroll($event)"
           spellcheck="false"
           placeholder="Loading code..."
           #codeTextarea>

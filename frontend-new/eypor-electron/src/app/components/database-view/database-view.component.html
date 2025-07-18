@@ -121,7 +121,7 @@
 
         <!-- Table Data -->
         <div *ngIf="selectedTable && !loadingTableData" class="table-data-container">
-          <div class="table-wrapper">
+          <div class="table-wrapper" (scroll)="onTableScroll($event)">
             <table class="data-table">
               <!-- Header Row -->
               <thead>
@@ -146,33 +146,34 @@
                 </tr>
               </thead>
               
-              <!-- Data Rows -->
-              <tbody>
+              <!-- Virtual Scrolling Container -->
+              <tbody class="virtual-scroll-container" [style.height.px]="totalHeight">
                 <tr 
-                  *ngFor="let row of sortedData; let rowIndex = index" 
-                  class="data-row"
-                  [class.newly-added-row]="isNewlyAddedRow(rowIndex)"
-                  (contextmenu)="onRowRightClick($event, row, rowIndex)">
+                  *ngFor="let row of virtualData; let displayIndex = index" 
+                  class="data-row virtual-row"
+                  [class.newly-added-row]="isNewlyAddedRow(getVirtualRowIndex(displayIndex))"
+                  [ngStyle]="getVirtualRowStyle(displayIndex)"
+                  (contextmenu)="onRowRightClick($event, row, getVirtualRowIndex(displayIndex))">
                   
                   <td 
                     *ngFor="let column of displayedColumns" 
                     class="data-cell"
-                    [class.highlighted]="isCellHighlighted(selectedTable, column, rowIndex)"
-                    (contextmenu)="onCellRightClick($event, row, column, rowIndex)"
-                    (dblclick)="startCellEditWithRow(row, rowIndex, column)">
+                    [class.highlighted]="isCellHighlighted(selectedTable, column, getVirtualRowIndex(displayIndex))"
+                    (contextmenu)="onCellRightClick($event, row, column, getVirtualRowIndex(displayIndex))"
+                    (dblclick)="startCellEditWithRow(row, getVirtualRowIndex(displayIndex), column)">
                     
                     <!-- Edit mode -->
                     <div *ngIf="isCellEditingWithRow(row, column)" class="cell-edit-mode">
                       <input type="text" 
                              [ngModel]="getCellValueWithRow(row, column)"
                              (ngModelChange)="updateCellValueWithRow(row, column, $event)"
-                             (keyup.enter)="saveCellEditWithRow(row, rowIndex, column)"
+                             (keyup.enter)="saveCellEditWithRow(row, getVirtualRowIndex(displayIndex), column)"
                              (keyup.escape)="cancelCellEditWithRow(row, column)"
-                             (blur)="saveCellEditWithRow(row, rowIndex, column)"
+                             (blur)="saveCellEditWithRow(row, getVirtualRowIndex(displayIndex), column)"
                              class="cell-input"
                              #cellInput>
                       <div class="cell-edit-actions">
-                        <button (click)="saveCellEditWithRow(row, rowIndex, column)" class="save-btn" title="Save">✓</button>
+                        <button (click)="saveCellEditWithRow(row, getVirtualRowIndex(displayIndex), column)" class="save-btn" title="Save">✓</button>
                         <button (click)="cancelCellEditWithRow(row, column)" class="cancel-btn" title="Cancel">✗</button>
                       </div>
                     </div>

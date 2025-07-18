@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { ApiService, FileContentResponse } from '../../services/api.service';
 
 interface OpenFile {
@@ -27,6 +27,9 @@ export class CodeEditorComponent implements OnInit, OnDestroy {
   activeTabId: string = '';
   isLoading = false;
   error: string = '';
+  
+  @ViewChild('lineNumbersContainer', { static: false }) lineNumbersContainer!: ElementRef;
+  @ViewChild('codeTextarea', { static: false }) codeTextarea!: ElementRef;
 
   constructor(private apiService: ApiService) {}
 
@@ -163,5 +166,19 @@ export class CodeEditorComponent implements OnInit, OnDestroy {
   // Method to be called from parent component to open new files
   openNewFile(filePath: string, fileName: string): void {
     this.openFile(filePath, fileName);
+  }
+
+  // Synchronize line numbers scroll with code scroll
+  onCodeScroll(event: any): void {
+    if (this.lineNumbersContainer) {
+      this.lineNumbersContainer.nativeElement.scrollTop = event.target.scrollTop;
+    }
+  }
+
+  // Synchronize code scroll with line numbers scroll
+  onLineNumbersScroll(event: any): void {
+    if (this.codeTextarea) {
+      this.codeTextarea.nativeElement.scrollTop = event.target.scrollTop;
+    }
   }
 } 
