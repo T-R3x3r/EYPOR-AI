@@ -6,7 +6,7 @@
     </div>
     
     <div class="scenario-selector">
-      <div class="scenario-tabs">
+      <div class="scenario-tabs" [class.expanded]="scenarios.length > 1">
         <div 
           *ngFor="let scenario of scenarios" 
           class="scenario-tab"
