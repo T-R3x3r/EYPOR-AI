@@ -46,6 +46,7 @@ log/
 outputs/
 temp/
 .temp/
+scenarios/
 
 # OS specific
 .DS_Store
