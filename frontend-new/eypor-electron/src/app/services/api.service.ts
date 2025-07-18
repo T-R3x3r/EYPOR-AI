@@ -47,6 +47,63 @@ export interface FileContentResponse {
   content: string;
 }
 
+// Database-related interfaces
+export interface DatabaseInfo {
+  tables: DatabaseTable[];
+  total_tables: number;
+  database_path: string;
+  table_mappings: any;
+}
+
+export interface DatabaseTable {
+  name: string;
+  columns: DatabaseColumn[];
+  row_count: number;
+  sample_data: any[];
+}
+
+export interface DatabaseColumn {
+  name: string;
+  type: string;
+}
+
+export interface SQLResult {
+  success: boolean;
+  question: string;
+  sql: string;
+  result: any[];
+  columns: string[];
+  row_count: number;
+  error?: string;
+  explanation?: string;
+  visualization_code?: string;
+  is_general_response?: boolean;
+}
+
+export interface WhitelistResponse {
+  whitelist: string[];
+  available_tables: string[];
+  total_whitelisted: number;
+  total_available: number;
+}
+
+export interface WhitelistUpdateResponse {
+  message: string;
+  whitelist: string[];
+  total_whitelisted: number;
+}
+
+export interface UpdateDataRequest {
+  table_name: string;
+  updates: any;
+  condition?: string;
+}
+
+export interface InsertDataRequest {
+  table_name: string;
+  data: any;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -135,5 +192,69 @@ export class ApiService {
 
   deleteFile(filename: string): Observable<{ message: string }> {
     return this.http.delete<{ message: string }>(`${this.baseUrl}/files/${encodeURIComponent(filename)}`);
+  }
+
+  // Database-related methods
+  executeSQL(sql: string): Observable<SQLResult> {
+    const formData = new FormData();
+    formData.append('sql', sql);
+    return this.http.post<SQLResult>(`${this.baseUrl}/sql/execute`, formData);
+  }
+
+  getDatabaseInfo(): Observable<DatabaseInfo> {
+    return this.http.get<DatabaseInfo>(`${this.baseUrl}/database/info`);
+  }
+
+  getDetailedDatabaseInfo(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/database/detailed-info`);
+  }
+
+  downloadDatabase(): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/database/download`, { responseType: 'blob' });
+  }
+
+  exportDatabase(format: string): Observable<Blob> {
+    return this.http.get(`${this.baseUrl}/database/export/${format}`, { responseType: 'blob' });
+  }
+
+  getDatabaseWhitelist(): Observable<WhitelistResponse> {
+    return this.http.get<WhitelistResponse>(`${this.baseUrl}/database/whitelist`);
+  }
+
+  updateDatabaseWhitelist(tables: string[]): Observable<WhitelistUpdateResponse> {
+    return this.http.post<WhitelistUpdateResponse>(`${this.baseUrl}/database/whitelist`, { tables });
+  }
+
+  updateData(request: UpdateDataRequest): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/database/update`, request);
+  }
+
+  insertData(request: InsertDataRequest): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/database/insert`, request);
+  }
+
+  // Scenario-related methods
+  getCurrentScenario(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/scenarios/current`);
+  }
+
+  activateScenario(scenarioId: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/scenarios/${scenarioId}/activate`, {});
+  }
+
+  createScenario(request: any): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/scenarios/create`, request);
+  }
+
+  updateScenario(scenarioId: number, request: any): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/scenarios/${scenarioId}`, request);
+  }
+
+  deleteScenario(scenarioId: number): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/scenarios/${scenarioId}`);
+  }
+
+  getScenario(scenarioId: number): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/scenarios/${scenarioId}`);
   }
 } 

@@ -1,91 +1,317 @@
-<div class="database-view">
+<div class="database-view-container" (click)="hideContextMenu()">
   <!-- Header -->
-  <div class="database-header">
-    <h3>Database Tables</h3>
-    <button 
-      class="whitelist-toggle" 
-      [class.active]="whitelistMode"
-      (click)="toggleWhitelistMode()">
-      <span class="toggle-icon">🔒</span>
-      Whitelist Mode
-    </button>
+  <div class="section-header">
+    <div class="header-content">
+      <div *ngIf="currentScenario" class="scenario-context">
+        <span class="scenario-label">Scenario:</span>
+        <span class="scenario-name">{{ getScenarioDisplayName() }}</span>
+        <span class="scenario-status" [class]="getScenarioStatus()">
+          {{ getScenarioStatus() }}
+        </span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div *ngIf="isLoadingScenario" class="loading-indicator">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Loading scenario...</span>
+      </div>
+      <button class="toggle-modifications-btn" 
+              [class.active]="showTableModifications"
+              (click)="toggleTableModifications()" 
+              title="Toggle Whitelist Modifications">
+        <i class="fas fa-shield-alt"></i>
+        Whitelist Modifications
+      </button>
+      <button class="refresh-btn" (click)="refreshDatabaseInfo(); testDatabaseConnection()" [disabled]="isRefreshing">
+        <i class="fas fa-sync-alt" [class.fa-spin]="isRefreshing"></i>
+        Refresh
+      </button>
+    </div>
   </div>
 
   <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-state">
-    <div class="spinner"></div>
-    <span>Loading database...</span>
+  <div *ngIf="isLoading" class="loading-container">
+    <div class="loading-spinner"></div>
+    <p>Loading database information...</p>
+  </div>
+
+  <!-- No Database State -->
+  <div *ngIf="!isLoading && !databaseInfo" class="no-database-container">
+    <i class="fas fa-database no-database-icon"></i>
+    <div class="no-database-title">No Database Available</div>
+    <p>To use the database view, you need to upload CSV or Excel files first.</p>
+    <div class="upload-instructions">
+      <p><strong>How to create a database:</strong></p>
+      <ol>
+        <li>Go to the <strong>Workbench</strong> tab</li>
+        <li>Upload CSV or Excel files using the file upload component</li>
+        <li>The system will automatically convert your files to a SQLite database</li>
+        <li>Return to the <strong>Database</strong> tab to view and edit your data</li>
+      </ol>
+    </div>
   </div>
 
   <!-- Database Content -->
-  <div *ngIf="!isLoading" class="database-content">
-    <!-- Tables List -->
-    <div class="tables-section">
-      <h4 class="section-title">Tables ({{ tables.length }})</h4>
-      <div class="tables-list">
-        <div 
-          *ngFor="let table of tables" 
-          class="table-item"
-          [class.selected]="selectedTable?.name === table.name"
-          [class.whitelisted]="table.isWhitelisted"
-          (click)="selectTable(table)">
-          
-          <div class="table-info">
-            <span class="table-icon">{{ getTableIcon(table.isWhitelisted) }}</span>
-            <div class="table-details">
-              <span class="table-name">{{ table.name }}</span>
-              <span class="table-meta">{{ table.rowCount }} rows • {{ table.columns.length }} columns</span>
-            </div>
-          </div>
-          
-          <div *ngIf="whitelistMode" class="table-actions">
+  <div *ngIf="!isLoading && databaseInfo" class="database-content">
+    <!-- Main Database Interface -->
+    <div class="database-interface">
+      <!-- Left Panel - Tables List -->
+      <div class="tables-panel">
+        <div class="tables-header">
+          <div class="search-container">
+            <input 
+              type="text" 
+              placeholder="Search tables..."
+              class="search-input"
+              [formControl]="globalSearchControl">
             <button 
-              class="whitelist-btn"
-              [class.whitelisted]="table.isWhitelisted"
-              (click)="toggleWhitelist(table); $event.stopPropagation()">
-              {{ table.isWhitelisted ? 'Remove' : 'Add' }}
+              *ngIf="globalSearchControl.value" 
+              class="clear-search-btn"
+              (click)="clearSearch()">
+              <i class="fas fa-times"></i>
             </button>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Table Details -->
-    <div *ngIf="selectedTable" class="table-details">
-      <div class="details-header">
-        <h4>{{ selectedTable.name }}</h4>
-        <span class="row-count">{{ selectedTable.rowCount }} rows</span>
-      </div>
-      
-      <div class="columns-section">
-        <h5>Columns</h5>
-        <div class="columns-list">
+        
+        <div class="tables-list">
           <div 
-            *ngFor="let column of selectedTable.columns" 
-            class="column-item">
-            <div class="column-info">
-              <span class="column-name">{{ column.name }}</span>
-              <span 
-                class="column-type"
-                [style.background-color]="getColumnTypeColor(column.type)">
-                {{ column.type }}
-              </span>
-            </div>
-            <div class="column-meta">
-              <span class="nullable" [class.nullable-true]="column.nullable">
-                {{ column.nullable ? 'NULL' : 'NOT NULL' }}
-              </span>
+            *ngFor="let table of filteredTables" 
+            class="table-item"
+            [class.selected]="selectedTable === table.name"
+            [class.whitelisted]="isTableWhitelisted(table.name)"
+            [class.show-modifications]="showTableModifications"
+            (click)="showTableModifications ? toggleTableWhitelist(table.name) : selectTable(table)">
+            
+            <div class="table-info">
+              <span class="table-icon" *ngIf="showTableModifications">{{ getTableIcon(isTableWhitelisted(table.name)) }}</span>
+              <div class="table-details">
+                <span class="table-name">{{ table.name }}</span>
+                <span class="table-meta">{{ table.row_count }} rows • {{ table.columns?.length || 0 }} columns</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Right Panel - Table Data -->
+      <div class="table-data-panel">
+        <!-- Table Header -->
+        <div *ngIf="selectedTable" class="table-header">
+          <div class="table-title">
+            <h4>{{ selectedTable }}</h4>
+            <span class="row-count">{{ filteredRows }} of {{ totalRows }} rows</span>
+          </div>
+          
+          <div class="table-actions">
+            <div class="table-search-container">
+              <input 
+                type="text" 
+                placeholder="Search table..."
+                class="table-search-input"
+                [formControl]="tableSearchControl">
+              <button 
+                *ngIf="tableSearchControl.value" 
+                class="clear-table-search-btn"
+                (click)="clearTableSearch()">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table Data -->
+        <div *ngIf="selectedTable && !loadingTableData" class="table-data-container">
+          <div class="table-wrapper">
+            <table class="data-table">
+              <!-- Header Row -->
+              <thead>
+                <tr>
+                  <th 
+                    *ngFor="let column of displayedColumns" 
+                    class="column-header"
+                    (click)="sortColumn(column)"
+                    (contextmenu)="onColumnRightClick($event, column)">
+                    <div class="header-content">
+                      <div class="header-title">
+                        <span class="column-name">{{ column }}</span>
+                        <div class="sort-icon" [class]="getSortIcon(column)"></div>
+                      </div>
+                      <span 
+                        class="column-type"
+                        [style.background-color]="getColumnTypeColor(getColumnType(column))">
+                        {{ getColumnType(column) }}
+                      </span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              
+              <!-- Data Rows -->
+              <tbody>
+                <tr 
+                  *ngFor="let row of sortedData; let rowIndex = index" 
+                  class="data-row"
+                  [class.newly-added-row]="isNewlyAddedRow(rowIndex)"
+                  (contextmenu)="onRowRightClick($event, row, rowIndex)">
+                  
+                  <td 
+                    *ngFor="let column of displayedColumns" 
+                    class="data-cell"
+                    [class.highlighted]="isCellHighlighted(selectedTable, column, rowIndex)"
+                    (contextmenu)="onCellRightClick($event, row, column, rowIndex)"
+                    (dblclick)="startCellEditWithRow(row, rowIndex, column)">
+                    
+                    <!-- Edit mode -->
+                    <div *ngIf="isCellEditingWithRow(row, column)" class="cell-edit-mode">
+                      <input type="text" 
+                             [ngModel]="getCellValueWithRow(row, column)"
+                             (ngModelChange)="updateCellValueWithRow(row, column, $event)"
+                             (keyup.enter)="saveCellEditWithRow(row, rowIndex, column)"
+                             (keyup.escape)="cancelCellEditWithRow(row, column)"
+                             (blur)="saveCellEditWithRow(row, rowIndex, column)"
+                             class="cell-input"
+                             #cellInput>
+                      <div class="cell-edit-actions">
+                        <button (click)="saveCellEditWithRow(row, rowIndex, column)" class="save-btn" title="Save">✓</button>
+                        <button (click)="cancelCellEditWithRow(row, column)" class="cancel-btn" title="Cancel">✗</button>
+                      </div>
+                    </div>
+                    
+                    <!-- View mode -->
+                    <div *ngIf="!isCellEditingWithRow(row, column)" 
+                         class="cell-content" 
+                         [title]="formatCellValue(row[column])">
+                      {{ formatCellValue(row[column]) }}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Loading Table Data -->
+        <div *ngIf="loadingTableData" class="loading-table">
+          <div class="loading-spinner"></div>
+          <span>Loading table data...</span>
+        </div>
+
+        <!-- No Data in Selected Table -->
+        <div *ngIf="selectedTable && !loadingTableData && totalRows === 0" class="no-selection">
+          <p>The selected table "{{ selectedTable }}" appears to be empty or data could not be loaded.</p>
+        </div>
+
+        <!-- No Table Selected -->
+        <div *ngIf="!selectedTable && !loadingTableData" class="no-selection">
+          <div class="no-selection-icon">📊</div>
+          <h4>Select a Table</h4>
+          <p>Choose a table from the list to view its data</p>
+        </div>
+      </div>
     </div>
 
-    <!-- No Table Selected -->
-    <div *ngIf="!selectedTable" class="no-selection">
-      <div class="no-selection-icon">📊</div>
-      <h4>Select a Table</h4>
-      <p>Choose a table from the list to view its details</p>
+    <!-- Context Menu -->
+    <div *ngIf="showContextMenu" 
+         class="context-menu"
+         [style.left.px]="contextMenuX"
+         [style.top.px]="contextMenuY"
+         (click)="$event.stopPropagation()">
+      
+      <!-- Column context menu -->
+      <div *ngIf="contextMenuType === 'column'" class="context-menu-content">
+        <div class="context-menu-header">Column: {{ selectedColumnName }}</div>
+        <button class="context-menu-item" (click)="addColumn()">
+          <i class="fas fa-plus"></i> Add Column
+        </button>
+        <button class="context-menu-item delete" (click)="deleteColumn()">
+          <i class="fas fa-trash"></i> Delete Column
+        </button>
+      </div>
+
+      <!-- Row context menu -->
+      <div *ngIf="contextMenuType === 'row'" class="context-menu-content">
+        <div class="context-menu-header">Row {{ selectedRowIndex + 1 }}</div>
+        <button class="context-menu-item" (click)="addRow()">
+          <i class="fas fa-plus"></i> Add Row
+        </button>
+        <button class="context-menu-item delete" (click)="deleteRow()">
+          <i class="fas fa-trash"></i> Delete Row
+        </button>
+      </div>
+
+      <!-- Cell context menu -->
+      <div *ngIf="contextMenuType === 'cell'" class="context-menu-content">
+        <div class="context-menu-header">{{ selectedColumnName }}</div>
+        <button class="context-menu-item" (click)="startCellEditFromContext()">
+          <i class="fas fa-edit"></i> Edit Cell
+        </button>
+        <button class="context-menu-item" (click)="addRow()">
+          <i class="fas fa-plus"></i> Add Row
+        </button>
+        <button class="context-menu-item" (click)="addColumn()">
+          <i class="fas fa-plus"></i> Add Column
+        </button>
+      </div>
     </div>
   </div>
+
+  <!-- Column Dialog -->
+  <div *ngIf="showColumnDialog" class="dialog-overlay" (click)="closeColumnDialog()">
+    <div class="dialog-content" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <h3>Add New Column</h3>
+        <button class="dialog-close-btn" (click)="closeColumnDialog()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="dialog-body">
+        <div class="form-group">
+          <label for="columnName">Column Name:</label>
+          <input 
+            type="text" 
+            id="columnName"
+            [(ngModel)]="newColumnName"
+            placeholder="Enter column name"
+            class="form-input"
+            (keyup.enter)="confirmAddColumn()"
+            autofocus>
+        </div>
+      </div>
+      
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" (click)="closeColumnDialog()">Cancel</button>
+        <button 
+          class="btn" 
+          (click)="confirmAddColumn()"
+          [disabled]="!newColumnName.trim()">
+          Add Column
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Column Confirmation Dialog -->
+  <app-confirmation-dialog
+    [isVisible]="showDeleteColumnDialog"
+    title="Delete Column"
+    [message]="getDeleteColumnMessage()"
+    confirmText="Delete"
+    cancelText="Cancel"
+    confirmButtonClass="danger"
+    (confirm)="confirmDeleteColumn()"
+    (cancel)="cancelDeleteColumn()">
+  </app-confirmation-dialog>
+
+  <!-- Delete Row Confirmation Dialog -->
+  <app-confirmation-dialog
+    [isVisible]="showDeleteRowDialog"
+    title="Delete Row"
+    [message]="getDeleteRowMessage()"
+    confirmText="Delete"
+    cancelText="Cancel"
+    confirmButtonClass="danger"
+    (confirm)="confirmDeleteRow()"
+    (cancel)="cancelDeleteRow()">
+  </app-confirmation-dialog>
 </div> 

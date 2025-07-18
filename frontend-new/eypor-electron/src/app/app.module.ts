@@ -39,6 +39,9 @@ import { ConfirmationDialogComponent } from './components/confirmation-dialog/co
 import { WorkbenchOutputComponent } from './components/workbench-output/workbench-output.component';
 import { PlotlyChartComponent } from './components/plotly-chart/plotly-chart.component';
 
+// Services
+import { DatabaseService } from './services/database.service';
+
 // Pipes
 import { SafePipe } from './pipes/safe.pipe';
 
@@ -90,7 +93,7 @@ import { AppRoutingModule } from './app-routing.module';
     MatExpansionModule,
     MatDividerModule
   ],
-  providers: [],
+  providers: [DatabaseService],
   bootstrap: [AppComponent]
 })
 export class AppModule { } 

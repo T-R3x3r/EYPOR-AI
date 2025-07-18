@@ -1,6 +1,7 @@
 import { Component, OnInit, ViewChild, ElementRef, HostListener, AfterViewInit } from '@angular/core';
 import { ThemeService } from '../../services/theme.service';
 import { ApiService } from '../../services/api.service';
+import { DatabaseService } from '../../services/database.service';
 import { WorkbenchOutputComponent } from '../workbench-output/workbench-output.component';
 
 @Component({
@@ -28,7 +29,8 @@ export class WorkbenchComponent implements OnInit, AfterViewInit {
 
   constructor(
     public themeService: ThemeService,
-    private apiService: ApiService
+    private apiService: ApiService,
+    private databaseService: DatabaseService
   ) {}
 
   ngOnInit(): void {
@@ -62,11 +64,18 @@ export class WorkbenchComponent implements OnInit, AfterViewInit {
             name: scenario.name,
             isActive: scenario.is_base_scenario || false, // Base scenario should be active by default
             description: scenario.description,
-            database_path: scenario.database_path
+            database_path: scenario.database_path,
+            is_base_scenario: scenario.is_base_scenario,
+            parent_scenario_id: scenario.parent_scenario_id
           }));
           
           // Set current scenario to base scenario or first scenario
           this.currentScenario = this.scenarios.find(s => s.isActive) || this.scenarios[0];
+          
+          // Update database service with current scenario
+          if (this.currentScenario) {
+            this.databaseService.setCurrentScenario(this.currentScenario);
+          }
           
           console.log('Scenarios processed:', this.scenarios.length);
           console.log('Current scenario:', this.currentScenario);
@@ -137,6 +146,10 @@ export class WorkbenchComponent implements OnInit, AfterViewInit {
       this.scenarios.forEach(s => s.isActive = false);
       scenario.isActive = true;
       this.currentScenario = scenario;
+      
+      // Update database service with new scenario
+      this.databaseService.setCurrentScenario(scenario);
+      
       console.log('Selected scenario:', scenario.name);
     } catch (error) {
       console.error('Error selecting scenario:', error);
