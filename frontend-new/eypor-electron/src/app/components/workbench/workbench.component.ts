@@ -117,13 +117,16 @@ export class WorkbenchComponent implements OnInit, AfterViewInit, OnDestroy {
       parts.push(`Description: ${scenario.description}`);
     }
     
-    if (scenario.is_base_scenario) {
-      parts.push('Type: Base Scenario');
-    } else if (scenario.parent_scenario_id) {
-      parts.push(`Type: Branch from Scenario ${scenario.parent_scenario_id}`);
-    }
+    // Use the new scenario type detection logic
+    const scenarioType = this.scenarioService.getScenarioTypeDisplay(scenario);
+    parts.push(`Type: ${scenarioType} Scenario`);
     
     return parts.join('\n');
+  }
+
+  // Helper method to get scenario type for template
+  getScenarioType(scenario: Scenario): string {
+    return this.scenarioService.getScenarioTypeDisplay(scenario);
   }
 
   toggleUploadedFiles(): void {

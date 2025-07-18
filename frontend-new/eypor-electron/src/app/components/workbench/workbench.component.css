@@ -142,6 +142,11 @@ body {
   color: white;
 }
 
+.scenario-type.custom {
+  background-color: var(--accent-color);
+  color: white;
+}
+
 .scenario-type.branch {
   background-color: var(--warning-color);
   color: var(--text-primary);

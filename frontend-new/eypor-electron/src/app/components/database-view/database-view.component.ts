@@ -4,6 +4,7 @@ import { Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { ApiService, DatabaseInfo, SQLResult, WhitelistResponse, WhitelistUpdateResponse } from '../../services/api.service';
 import { DatabaseService, DatabaseChange } from '../../services/database.service';
+import { ScenarioService } from '../../services/scenario.service';
 
 interface TableColumn {
   name: string;
@@ -112,7 +113,8 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
 
   constructor(
     private apiService: ApiService,
-    private databaseService: DatabaseService
+    private databaseService: DatabaseService,
+    private scenarioService: ScenarioService
   ) {}
 
   ngOnInit(): void {
@@ -260,7 +262,9 @@ export class DatabaseViewComponent implements OnInit, OnDestroy, AfterViewInit {
 
   getScenarioStatus(): string {
     if (!this.currentScenario) return 'No Scenario';
-    return this.currentScenario.is_base_scenario ? 'Base' : 'Branch';
+    
+    // Use the injected scenario service to get the scenario type
+    return this.scenarioService.getScenarioTypeDisplay(this.currentScenario);
   }
 
   setupSearch(): void {

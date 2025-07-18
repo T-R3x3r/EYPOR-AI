@@ -66,6 +66,16 @@ export class ScenarioService {
           // If this is the first scenario, set it as current
           if (currentList.length === 0) {
             this.setCurrentScenario(scenario);
+          } else if (!this.currentScenario) {
+            // If no current scenario is set, try to set the base scenario
+            const updatedList = [...currentList, scenario];
+            const baseScenario = updatedList.find(s => s.is_base_scenario);
+            if (baseScenario) {
+              this.setCurrentScenario(baseScenario);
+            } else {
+              // If no base scenario exists, set the first scenario
+              this.setCurrentScenario(updatedList[0]);
+            }
           }
           
           observer.next(scenario);
@@ -256,6 +266,10 @@ export class ScenarioService {
       const scenario = this.scenariosList.find(s => s.id === scenarioId);
       if (scenario) {
         this.currentScenarioSubject.next(scenario);
+      } else {
+        // If stored scenario doesn't exist, clear the storage
+        console.log('Stored scenario not found, clearing storage');
+        localStorage.removeItem('currentScenarioId');
       }
     }
   }
@@ -269,7 +283,22 @@ export class ScenarioService {
   }
 
   private loadScenarios(): void {
-    this.getScenarios().subscribe();
+    this.getScenarios().subscribe({
+      next: (scenarios: Scenario[]) => {
+        // If no current scenario is set, try to set the base scenario as current
+        if (!this.currentScenario && scenarios.length > 0) {
+          const baseScenario = scenarios.find(s => s.is_base_scenario);
+          if (baseScenario) {
+            console.log('Setting base scenario as current:', baseScenario.name);
+            this.setCurrentScenario(baseScenario);
+          } else {
+            // If no base scenario exists, set the first scenario as current
+            console.log('Setting first scenario as current:', scenarios[0].name);
+            this.setCurrentScenario(scenarios[0]);
+          }
+        }
+      }
+    });
   }
 
   // Utility Methods
@@ -305,5 +334,40 @@ export class ScenarioService {
     
     // Cache the scenario
     this.scenarioCache.set(scenario.id, scenario);
+  }
+
+  // New method to determine scenario type display
+  getScenarioTypeDisplay(scenario: Scenario): 'Base' | 'Custom' | 'Branch' {
+    // If it's a branch (has parent_scenario_id), always show "Branch"
+    if (scenario.parent_scenario_id) {
+      return 'Branch';
+    }
+    
+    // If it's a base scenario, check if it has been modified
+    if (scenario.is_base_scenario) {
+      // Compare created_at and modified_at to determine if scenario has been modified
+      const createdDate = new Date(scenario.created_at);
+      const modifiedDate = new Date(scenario.modified_at);
+      
+      // If modified_at is significantly different from created_at, it's been modified
+      const timeDifference = Math.abs(modifiedDate.getTime() - createdDate.getTime());
+      const oneMinute = 60 * 1000; // 1 minute in milliseconds
+      
+      if (timeDifference > oneMinute) {
+        return 'Custom';
+      } else {
+        return 'Base';
+      }
+    }
+    
+    // For non-base scenarios without parent, default to "Custom"
+    return 'Custom';
+  }
+
+  // Helper method to get scenario type for current scenario
+  getCurrentScenarioType(): 'Base' | 'Custom' | 'Branch' {
+    const currentScenario = this.currentScenario;
+    if (!currentScenario) return 'Base';
+    return this.getScenarioTypeDisplay(currentScenario);
   }
 } 

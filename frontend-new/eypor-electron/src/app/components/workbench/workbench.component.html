@@ -17,8 +17,9 @@
           <span class="scenario-name">{{ scenario.name }}</span>
           
           <!-- Scenario type indicator -->
-          <span *ngIf="scenario.is_base_scenario" class="scenario-type base">Base</span>
-          <span *ngIf="!scenario.is_base_scenario && scenario.parent_scenario_id" class="scenario-type branch">Branch</span>
+          <span *ngIf="getScenarioType(scenario) === 'Base'" class="scenario-type base">Base</span>
+          <span *ngIf="getScenarioType(scenario) === 'Custom'" class="scenario-type custom">Custom</span>
+          <span *ngIf="getScenarioType(scenario) === 'Branch'" class="scenario-type branch">Branch</span>
           
           <!-- Active indicator -->
           <div *ngIf="isCurrentScenario(scenario)" class="active-indicator"></div>
