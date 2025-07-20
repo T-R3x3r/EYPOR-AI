@@ -18,6 +18,11 @@ import random
 import json
 import glob
 import re
+import uuid
+import hashlib
+import tempfile
+import subprocess
+import traceback
 from typing import Dict, List, Any, Optional, Tuple, Literal, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass
@@ -34,6 +39,35 @@ from scenario_manager import ScenarioManager
 if TYPE_CHECKING:
     import pandas as pd
 
+# Model configuration
+AVAILABLE_MODELS = {
+    "GPT-4.1": "gpt-4.1-2025-04-14",
+    "o4-mini": "o4-mini-2025-04-16", 
+    "GPT-4o": "gpt-4o-2024-08-06",
+    "o3": "o3-2025-04-16",
+    "ChatGPT-4o": "chatgpt-4o-latest"
+}
+
+DEFAULT_MODEL = "GPT-4.1"
+
+# Global model selection (can be changed via API)
+current_langgraph_model = DEFAULT_MODEL
+
+def set_langgraph_model(model_name: str) -> bool:
+    """Set the model for LangGraph agent v2"""
+    global current_langgraph_model
+    if model_name in AVAILABLE_MODELS:
+        current_langgraph_model = model_name
+        return True
+    return False
+
+def get_langgraph_model() -> str:
+    """Get the current model for LangGraph agent v2"""
+    return current_langgraph_model
+
+def get_available_models() -> Dict[str, str]:
+    """Get all available models"""
+    return AVAILABLE_MODELS.copy()
 
 @dataclass
 class DatabaseContext:
@@ -100,7 +134,7 @@ class AgentState(TypedDict):
     """Simplified state for the agent workflow"""
     messages: Annotated[List[BaseMessage], add_messages]
     user_request: str
-    request_type: str  # 'chat', 'sql_query', 'visualization', 'db_modification', 'scenario_comparison'
+    request_type: str  # 'chat', 'sql_query', 'visualization', 'db_modification', 'scenario_comparison', 'file_edit'
     db_context: DatabaseContext
     
     # Execution results
@@ -117,6 +151,28 @@ class AgentState(TypedDict):
     comparison_data: Dict[str, Any]  # aggregated data from multiple scenarios
     comparison_type: str  # type of comparison ('table', 'chart', 'analysis')
     scenario_name_mapping: Dict[str, int]  # map scenario names to IDs
+    
+    # Edit mode specific fields
+    edit_mode: bool = False
+    editing_file_path: Optional[str] = None
+    original_file_content: Optional[str] = None
+    file_modification_history: List[Dict[str, Any]] = []
+    
+    # Enhanced query tracking
+    query_file_mappings: Dict[str, List[str]] = {}  # query_id -> [file_paths]
+    current_query_context: Optional[Dict[str, Any]] = None
+    
+    def is_valid(self) -> bool:
+        """Check if state is valid and usable"""
+        return (
+            self.messages and self.user_request and self.request_type and self.db_context and
+            self.generated_files and self.execution_output and self.execution_error and
+            self.modification_request and self.db_modification_result and
+            self.comparison_scenarios and self.comparison_data and self.comparison_type and
+            self.scenario_name_mapping and
+            self.edit_mode is not None and self.editing_file_path is not None and self.original_file_content is not None and
+            self.file_modification_history and self.query_file_mappings and self.current_query_context
+        )
 
 
 class SimplifiedAgent:
@@ -153,8 +209,13 @@ class SimplifiedAgent:
                 if not api_key:
                     raise ValueError("OPENAI_API_KEY not found in environment variables. Please check your EY.env file.")
                 
+                # Get the current model from global configuration
+                model_name = get_langgraph_model()
+                model_id = AVAILABLE_MODELS.get(model_name, AVAILABLE_MODELS[DEFAULT_MODEL])
+                
                 print(f"DEBUG: Using OpenAI API key: {api_key[:10]}...")
-                self.llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
+                print(f"DEBUG: Using model: {model_name} ({model_id})")
+                self.llm = ChatOpenAI(model=model_id, temperature=0.1)
             else:
                 raise ValueError(f"Unsupported AI model: {self.ai_model}")
         return self.llm
@@ -170,6 +231,7 @@ class SimplifiedAgent:
         workflow.add_node("handle_sql_query", self._handle_sql_query)
         workflow.add_node("handle_visualization", self._handle_visualization)
         workflow.add_node("handle_scenario_comparison", self._handle_scenario_comparison)
+        workflow.add_node("handle_file_edit", self._handle_file_edit)  # New node for file editing
         workflow.add_node("prepare_db_modification", self._prepare_db_modification)
         workflow.add_node("execute_db_modification", self._execute_db_modification)
         workflow.add_node("execute_code", self._execute_code)
@@ -187,6 +249,7 @@ class SimplifiedAgent:
                 "sql_query": "handle_sql_query", 
                 "visualization": "handle_visualization",
                 "scenario_comparison": "extract_scenarios",  # Route to scenario extraction first
+                "file_edit": "handle_file_edit",  # Route to file editing
                 "db_modification": "prepare_db_modification"
             }
         )
@@ -198,6 +261,9 @@ class SimplifiedAgent:
         workflow.add_edge("handle_sql_query", "execute_code")
         workflow.add_edge("handle_visualization", "execute_code")
         workflow.add_edge("execute_code", "respond")
+        
+        # File editing goes to code execution then response
+        workflow.add_edge("handle_file_edit", "execute_code")
         
         # Scenario comparison workflow: extract scenarios -> handle comparison -> execute code
         workflow.add_edge("extract_scenarios", "handle_scenario_comparison")
@@ -598,6 +664,29 @@ class SimplifiedAgent:
                     break
         
         print(f"🔍 DEBUG: User request: '{user_request}'")
+        
+        # Check for edit mode first
+        if self._detect_edit_mode(user_request):
+            print(f"🔍 DEBUG: Edit mode detected, classifying as file_edit")
+            request_type = "file_edit"
+            
+            # Get database context for current scenario
+            db_context = self._get_database_context()
+            
+            return {
+                **state,
+                "user_request": user_request,
+                "request_type": request_type,
+                "db_context": db_context,
+                "messages": state["messages"] + [AIMessage(content=f"🎯 Request classified as: {request_type}")],
+                # Initialize edit mode fields
+                "edit_mode": True,
+                "editing_file_path": None,
+                "original_file_content": None,
+                "file_modification_history": [],
+                "query_file_mappings": {},
+                "current_query_context": None
+            }
         
         # Check for comparison keywords to identify comparison requests
         comparison_keywords = [
@@ -2221,6 +2310,16 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
         
         print(f"🔍 DEBUG: File exists, proceeding with execution")
         
+        # Check if this is an edit operation
+        is_edit_operation = state.get("request_type") == "file_edit"
+        editing_file_path = state.get("editing_file_path")
+        
+        if is_edit_operation and editing_file_path:
+            print(f"🔍 DEBUG: This is an edit operation for file: {editing_file_path}")
+            # Get the original query for the edited file
+            original_query = self._get_query_for_file(editing_file_path)
+            print(f"🔍 DEBUG: Original query for edited file: {original_query}")
+        
         # Execute Python file
         try:
             import subprocess
@@ -2291,6 +2390,22 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 execution_output = result.stdout
                 if output_files:
                     execution_output += f"\n\n📁 Generated files: {', '.join(output_files)}"
+                
+                # Handle file tracking based on operation type
+                if is_edit_operation and editing_file_path and original_query:
+                    # For edit operations, associate new HTML files with the original query
+                    print(f"🔍 DEBUG: Associating {len(output_files)} HTML files with original query")
+                    for html_file in output_files:
+                        # Generate a query ID for the original query
+                        original_query_id = self._generate_query_id(original_query)
+                        # Store the mapping between the original query and the new HTML file
+                        self._store_query_file_mapping(
+                            original_query_id, 
+                            html_file, 
+                            original_query, 
+                            db_context.scenario_id if db_context else None
+                        )
+                        print(f"🔍 DEBUG: Associated {html_file} with original query: {original_query}")
                 
                 # Only return files generated in this specific request
                 # The state.get("generated_files", []) contains the Python file from this request
@@ -2450,7 +2565,15 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 "comparison_scenarios": [],
                 "comparison_data": {},
                 "comparison_type": "",
-                "scenario_name_mapping": {}
+                "scenario_name_mapping": {},
+                # Initialize edit mode fields
+                "edit_mode": False,
+                "editing_file_path": None,
+                "original_file_content": None,
+                "file_modification_history": [],
+                # Initialize enhanced query tracking
+                "query_file_mappings": {},
+                "current_query_context": None
             }
             
             # Run the workflow
@@ -2468,7 +2591,22 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
             execution_output = final_state.get("execution_output", "")
             execution_error = final_state.get("execution_error", "")
             
-
+            # Check if this was an edit operation
+            is_edit_operation = final_state.get("request_type") == "file_edit"
+            
+            # If this was an edit operation, modify the response to indicate it
+            if is_edit_operation and generated_files:
+                # Add edit indicator to the response
+                edit_indicator = "\n\n[EDIT_OPERATION]"
+                response += edit_indicator
+                
+                # Also add the original file path for reference
+                editing_file_path = final_state.get("editing_file_path")
+                if editing_file_path:
+                    response += f"\n[EDITED_FILE: {editing_file_path}]"
+                
+                # Clear the editing_file_path after using it
+                final_state["editing_file_path"] = None
             
             return response, generated_files, execution_output, execution_error
             
@@ -3439,37 +3577,504 @@ Respond with ONLY a JSON array of scenario names, like: ["Base Scenario", "test1
     
     def _find_best_scenario_match(self, extracted_name: str, available_scenarios: List[str]) -> Optional[str]:
         """Find the best matching scenario name using fuzzy matching"""
-        import difflib
+        if not available_scenarios:
+            return None
         
-        extracted_lower = extracted_name.lower()
-        
-        # Try exact match first
-        for scenario in available_scenarios:
-            if extracted_lower == scenario.lower():
-                return scenario
-        
-        # Try substring match
-        for scenario in available_scenarios:
-            if extracted_lower in scenario.lower() or scenario.lower() in extracted_lower:
-                return scenario
-        
-        # Try word-based matching
-        extracted_words = extracted_lower.split()
-        for scenario in available_scenarios:
-            scenario_words = scenario.lower().split()
-            if any(word in scenario_words for word in extracted_words):
-                return scenario
-        
-        # Try fuzzy matching
+        # Simple fuzzy matching - find the scenario with the most common characters
         best_match = None
         best_score = 0
-        for scenario in available_scenarios:
-            score = difflib.SequenceMatcher(None, extracted_lower, scenario.lower()).ratio()
-            if score > best_score and score >= 0.6:
-                best_score = score
-                best_match = scenario
         
-        return best_match
+        for scenario_name in available_scenarios:
+            # Calculate similarity score
+            score = 0
+            extracted_lower = extracted_name.lower()
+            scenario_lower = scenario_name.lower()
+            
+            # Check for exact substring match
+            if extracted_lower in scenario_lower or scenario_lower in extracted_lower:
+                score += 10
+            
+            # Check for common characters
+            common_chars = set(extracted_lower) & set(scenario_lower)
+            score += len(common_chars)
+            
+            # Bonus for length similarity
+            length_diff = abs(len(extracted_lower) - len(scenario_lower))
+            score += max(0, 5 - length_diff)
+            
+            if score > best_score:
+                best_score = score
+                best_match = scenario_name
+        
+        return best_match if best_score >= 3 else None
+
+    def _detect_edit_mode(self, user_request: str) -> bool:
+        """Detect if user is in edit mode based on request context"""
+        edit_indicators = [
+            "edit", "modify", "change", "update", "fix", "improve", "add", "remove",
+            "edit mode", "modify file", "change code", "update script"
+        ]
+        
+        request_lower = user_request.lower()
+        return any(indicator in request_lower for indicator in edit_indicators)
+    
+    def _load_file_for_editing(self, file_path: str, db_context: Optional[DatabaseContext] = None) -> str:
+        """Load file content for editing with full context"""
+        try:
+            # Resolve the actual file path
+            actual_file_path = self._resolve_file_path(file_path, db_context)
+            
+            with open(actual_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            print(f"Loaded file for editing: {actual_file_path} ({len(content)} characters)")
+            return content
+            
+        except Exception as e:
+            print(f"Error loading file {file_path}: {e}")
+            raise
+    
+    def _save_file_modification(self, file_path: str, new_content: str, 
+                               modification_query: str, query_id: str, 
+                               db_context: Optional[DatabaseContext] = None) -> bool:
+        """Save modified file and track changes"""
+        try:
+            # Resolve the actual file path
+            actual_file_path = self._resolve_file_path(file_path, db_context)
+            
+            # Create backup of original file
+            backup_path = f"{actual_file_path}.backup"
+            if os.path.exists(actual_file_path):
+                import shutil
+                shutil.copy2(actual_file_path, backup_path)
+            
+            # Write new content
+            with open(actual_file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            
+            # Track modification in database
+            self._track_file_modification(file_path, query_id, modification_query, 
+                                        self._hash_content(new_content), db_context)
+            
+            print(f"Successfully modified file: {actual_file_path}")
+            return True
+        except Exception as e:
+            print(f"Error saving file modification {file_path}: {e}")
+            return False
+    
+    def _get_file_modification_context(self, file_path: str, db_context: Optional[DatabaseContext] = None) -> Dict[str, Any]:
+        """Get context for file modification"""
+        context = {
+            'file_path': file_path,  # Include file path for context
+            'database_schema': 'No schema available',
+            'modification_history': []
+        }
+        
+        # Get database schema if available
+        if db_context and db_context.schema_info:
+            context['database_schema'] = self._build_schema_context(db_context.schema_info)
+        
+        # Get modification history
+        try:
+            context['modification_history'] = self._get_file_modification_history(file_path)
+        except Exception as e:
+            print(f"Error getting modification history: {e}")
+        
+        return context
+    
+    def _validate_file_modification(self, original_content: str, 
+                                   new_content: str, file_path: str) -> Dict[str, Any]:
+        """Validate file modifications for safety and correctness"""
+        validation_result = {
+            "is_valid": True,
+            "warnings": [],
+            "errors": []
+        }
+        
+        # Check for basic syntax issues in Python files
+        if file_path.endswith('.py'):
+            try:
+                compile(new_content, '<string>', 'exec')
+            except SyntaxError as e:
+                validation_result["is_valid"] = False
+                validation_result["errors"].append(f"Python syntax error: {e}")
+        
+        # Check for significant changes
+        if len(new_content) < len(original_content) * 0.5:
+            validation_result["warnings"].append("File content significantly reduced - please verify")
+        
+        # Check for potential security issues
+        dangerous_patterns = [
+            "import os", "import sys", "subprocess", "eval(", "exec(",
+            "open(", "file(", "__import__"
+        ]
+        
+        for pattern in dangerous_patterns:
+            if pattern in new_content and pattern not in original_content:
+                validation_result["warnings"].append(f"Added potentially dangerous pattern: {pattern}")
+        
+        return validation_result
+    
+    def _track_file_modification(self, file_path: str, query_id: str, 
+                                modification_query: str, new_content_hash: str,
+                                db_context: Optional[DatabaseContext] = None):
+        """Track file modification in the database"""
+        try:
+            import sqlite3
+            metadata_db_path = os.path.join(os.path.dirname(__file__), "metadata.db")
+            conn = sqlite3.connect(metadata_db_path)
+            cursor = conn.cursor()
+            
+            # Get previous content hash
+            cursor.execute('''
+                SELECT file_content_hash FROM query_file_mappings 
+                WHERE file_path = ? ORDER BY last_modified_timestamp DESC LIMIT 1
+            ''', (file_path,))
+            result = cursor.fetchone()
+            previous_hash = result[0] if result else None
+            
+            # Get scenario ID from db_context if available
+            scenario_id = db_context.scenario_id if db_context else None
+            
+            # Insert modification history
+            cursor.execute('''
+                INSERT INTO file_modification_history 
+                (file_path, query_id, modification_query, previous_content_hash, 
+                 new_content_hash, scenario_id, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (file_path, query_id, modification_query, previous_hash, 
+                  new_content_hash, scenario_id, int(time.time())))
+            
+            # Update query_file_mappings
+            cursor.execute('''
+                UPDATE query_file_mappings 
+                SET last_modified_timestamp = ?, file_content_hash = ?
+                WHERE file_path = ?
+            ''', (int(time.time()), new_content_hash, file_path))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error tracking file modification: {e}")
+    
+    def _get_file_modification_history(self, file_path: str) -> List[Dict[str, Any]]:
+        """Get modification history for a file"""
+        try:
+            import sqlite3
+            metadata_db_path = os.path.join(os.path.dirname(__file__), "metadata.db")
+            conn = sqlite3.connect(metadata_db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT modification_query, timestamp, query_id
+                FROM file_modification_history 
+                WHERE file_path = ? 
+                ORDER BY timestamp DESC 
+                LIMIT 10
+            ''', (file_path,))
+            
+            history = []
+            for row in cursor.fetchall():
+                history.append({
+                    "modification_query": row[0],
+                    "timestamp": row[1],
+                    "query_id": row[2]
+                })
+            
+            conn.close()
+            return history
+        except Exception as e:
+            print(f"Error getting file modification history: {e}")
+            return []
+    
+    def _hash_content(self, content: str) -> str:
+        """Generate hash for file content"""
+        import hashlib
+        return hashlib.md5(content.encode('utf-8')).hexdigest()
+    
+    def _store_query_file_mapping(self, query_id: str, file_path: str, 
+                                 original_query: str, scenario_id: Optional[int] = None):
+        """Store mapping between query and generated file"""
+        try:
+            import sqlite3
+            metadata_db_path = os.path.join(os.path.dirname(__file__), "metadata.db")
+            conn = sqlite3.connect(metadata_db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO query_file_mappings 
+                (query_id, original_query, file_path, scenario_id, 
+                 created_timestamp, last_modified_timestamp, file_content_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (query_id, original_query, file_path, scenario_id, 
+                  int(time.time()), int(time.time()), self._hash_content("")))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error storing query file mapping: {e}")
+    
+    def _get_files_for_query(self, query_id: str) -> List[str]:
+        """Get all files generated by a specific query"""
+        try:
+            import sqlite3
+            metadata_db_path = os.path.join(os.path.dirname(__file__), "metadata.db")
+            conn = sqlite3.connect(metadata_db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT file_path FROM query_file_mappings 
+                WHERE query_id = ?
+            ''', (query_id,))
+            
+            files = [row[0] for row in cursor.fetchall()]
+            conn.close()
+            return files
+        except Exception as e:
+            print(f"Error getting files for query: {e}")
+            return []
+    
+    def _get_query_for_file(self, file_path: str) -> Optional[str]:
+        """Get original query for a file"""
+        try:
+            import sqlite3
+            metadata_db_path = os.path.join(os.path.dirname(__file__), "metadata.db")
+            conn = sqlite3.connect(metadata_db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT original_query FROM query_file_mappings 
+                WHERE file_path = ? 
+                ORDER BY created_timestamp DESC 
+                LIMIT 1
+            ''', (file_path,))
+            
+            result = cursor.fetchone()
+            conn.close()
+            return result[0] if result else None
+        except Exception as e:
+            print(f"Error getting query for file: {e}")
+            return None
+
+    def _handle_file_edit(self, state: AgentState) -> AgentState:
+        """Handle file editing requests"""
+        print(f"Handling file edit request: {state['user_request']}")
+        
+        try:
+            # Set edit mode
+            state['edit_mode'] = True
+            
+            # Extract file path from context or request
+            file_path = state.get('editing_file_path')
+            if not file_path:
+                # Try to extract file path from the request
+                # This is a simplified approach - in practice, the file path would be passed from the frontend
+                file_path = self._extract_file_path_from_request(state['user_request'])
+                state['editing_file_path'] = file_path
+            
+            if not file_path:
+                state['execution_error'] = "No file specified for editing"
+                return state
+            
+            # Get database context from state
+            db_context = state.get('db_context')
+            
+            # Load original file content
+            original_content = self._load_file_for_editing(file_path, db_context)
+            state['original_file_content'] = original_content
+            
+            # Get modification context
+            modification_context = self._get_file_modification_context(file_path, db_context)
+            
+            # Generate modification prompt for the LLM
+            modification_prompt = self._build_modification_prompt(
+                state['user_request'], 
+                original_content, 
+                modification_context
+            )
+            
+            # Get LLM response for modification
+            llm = self._get_llm()
+            response = llm.invoke(modification_prompt)
+            
+            # Extract modified content from response
+            modified_content = self._extract_modified_content(response.content, original_content)
+            
+            # Validate modification
+            validation_result = self._validate_file_modification(original_content, modified_content, file_path)
+            if not validation_result['is_valid']:
+                state['execution_error'] = f"File modification validation failed: {'; '.join(validation_result['errors'])}"
+                return state
+            
+            # Save modification
+            query_id = self._generate_query_id(state['user_request'])
+            success = self._save_file_modification(file_path, modified_content, state['user_request'], query_id, db_context)
+            
+            if success:
+                # Store query-file mapping
+                self._store_query_file_mapping(query_id, file_path, state['user_request'], db_context.scenario_id if db_context else None)
+                
+                # Set up for execution - don't create new files, just prepare the modified file for execution
+                state['execution_output'] = f"Successfully modified file: {file_path}"
+                state['generated_files'] = [file_path]  # Use the existing file path, don't create new files
+                state['execution_error'] = ""
+                
+                # Prepare the modified file for execution by setting it as the file to execute
+                # The execute_code node will handle running the modified file
+                print(f"✅ File modified successfully: {file_path}")
+                print(f"✅ File prepared for execution")
+                
+            else:
+                state['execution_error'] = f"Failed to save modification to file: {file_path}"
+            
+        except Exception as e:
+            state['execution_error'] = f"Error in file editing: {str(e)}"
+            print(f"Error in file editing: {e}")
+        
+        # Exit edit mode but preserve editing_file_path for response generation
+        state['edit_mode'] = False
+        # Don't clear editing_file_path here - it's needed for response generation
+        state['original_file_content'] = None
+        
+        return state
+    
+    def _extract_file_path_from_request(self, user_request: str) -> Optional[str]:
+        """Extract file path from user request"""
+        import re
+        
+        # Look for file path patterns
+        patterns = [
+            r'Edit file ([^\s:]+\.(py|sql|txt|html)):',  # "Edit file filename.py: message"
+            r'file[:\s]+([^\s]+\.(py|sql|txt|html))',   # "file: filename.py"
+            r'edit[:\s]+([^\s]+\.(py|sql|txt|html))',   # "edit: filename.py"
+            r'modify[:\s]+([^\s]+\.(py|sql|txt|html))'  # "modify: filename.py"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, user_request, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        
+        return None
+    
+    def _build_modification_prompt(self, user_request: str, original_content: str, 
+                                  modification_context: Dict[str, Any]) -> str:
+        """Build prompt for file modification"""
+        # Get the original query that created this file
+        file_path = modification_context.get('file_path', '')
+        original_query = self._get_query_for_file(file_path) if file_path else None
+        
+        prompt = f"""
+You are an AI assistant that modifies existing files based on user requests.
+
+ORIGINAL USER QUERY (that created this file):
+{original_query if original_query else "Unknown - file was created without query tracking"}
+
+ORIGINAL FILE CONTENT:
+{original_content}
+
+DATABASE SCHEMA CONTEXT:
+{modification_context.get('database_schema', 'No schema available')}
+
+MODIFICATION HISTORY:
+{self._format_modification_history(modification_context.get('modification_history', []))}
+
+CURRENT EDIT REQUEST: {user_request}
+
+INSTRUCTIONS:
+1. Analyze the original file content and the user's request
+2. Consider the ORIGINAL USER QUERY that created this file - maintain the original intent
+3. Modify the file according to the user's request while preserving the original purpose
+4. Maintain the existing structure and functionality
+5. Only make the requested changes
+6. Return ONLY the complete modified file content
+7. Do not include explanations or comments about the changes
+
+MODIFIED FILE CONTENT:
+"""
+        return prompt
+    
+    def _extract_modified_content(self, llm_response: str, original_content: str) -> str:
+        """Extract modified content from LLM response"""
+        # Remove any markdown formatting
+        content = llm_response.strip()
+        if content.startswith('```'):
+            # Remove code block markers
+            lines = content.split('\n')
+            if len(lines) > 2:
+                content = '\n'.join(lines[1:-1])
+        
+        # If the response is too different from original, return original
+        if len(content) < len(original_content) * 0.5:
+            print("Warning: Generated content is too short, returning original")
+            return original_content
+        
+        return content
+    
+    def _format_modification_history(self, history: List[Dict[str, Any]]) -> str:
+        """Format modification history for prompt"""
+        if not history:
+            return "No previous modifications"
+        
+        formatted = []
+        for entry in history[:5]:  # Show last 5 modifications
+            timestamp = datetime.fromtimestamp(entry['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+            formatted.append(f"- {timestamp}: {entry['modification_query']}")
+        
+        return '\n'.join(formatted)
+    
+    def _generate_query_id(self, query: str) -> str:
+        """Generate unique query ID"""
+        import hashlib
+        import time
+        return hashlib.md5(f"{query}_{time.time()}".encode()).hexdigest()[:16]
+
+    def _resolve_file_path(self, file_path: str, db_context: Optional[DatabaseContext] = None) -> str:
+        """Resolve file path to actual file location"""
+        print(f"🔍 DEBUG: Resolving file path: {file_path}")
+        
+        # If file_path is just a filename, try to find it in the current scenario directory
+        if not os.path.isabs(file_path) and not os.path.dirname(file_path):
+            print(f"🔍 DEBUG: File path is relative, searching for: {file_path}")
+            
+            # Try to find the file in the current scenario's temp directory
+            if db_context and db_context.temp_dir:
+                full_path = os.path.join(db_context.temp_dir, file_path)
+                print(f"🔍 DEBUG: Checking temp_dir: {full_path}")
+                if os.path.exists(full_path):
+                    print(f"🔍 DEBUG: Found file in temp_dir: {full_path}")
+                    return full_path
+            
+            # Try to find the file in the scenario directories (database directories)
+            if hasattr(self, 'scenario_manager') and self.scenario_manager:
+                scenarios = self.scenario_manager.list_scenarios()
+                print(f"🔍 DEBUG: Searching {len(scenarios)} scenarios")
+                for scenario in scenarios:
+                    if scenario.database_path:
+                        # Files are stored in the same directory as the database
+                        scenario_dir = os.path.dirname(scenario.database_path)
+                        full_path = os.path.join(scenario_dir, file_path)
+                        print(f"🔍 DEBUG: Checking scenario {scenario.name}: {full_path}")
+                        if os.path.exists(full_path):
+                            print(f"🔍 DEBUG: Found file in scenario {scenario.name}: {full_path}")
+                            return full_path
+                        
+                        # Also check if the file is in the scenario's temp directory
+                        if hasattr(scenario, 'temp_dir') and scenario.temp_dir:
+                            temp_full_path = os.path.join(scenario.temp_dir, file_path)
+                            print(f"🔍 DEBUG: Checking scenario temp_dir {scenario.name}: {temp_full_path}")
+                            if os.path.exists(temp_full_path):
+                                print(f"🔍 DEBUG: Found file in scenario temp_dir {scenario.name}: {temp_full_path}")
+                                return temp_full_path
+        
+        # If file_path is already a full path, return it
+        if os.path.exists(file_path):
+            print(f"🔍 DEBUG: File exists at full path: {file_path}")
+            return file_path
+        
+        # If we get here, the file wasn't found
+        print(f"🔍 DEBUG: File not found: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
 
 
 def create_agent_v2(ai_model: str = "openai", scenario_manager: ScenarioManager = None) -> SimplifiedAgent:

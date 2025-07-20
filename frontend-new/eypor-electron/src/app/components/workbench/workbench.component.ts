@@ -32,6 +32,7 @@ export class WorkbenchComponent implements OnInit, AfterViewInit, OnDestroy {
   pendingFileToOpen: { filePath: string; fileName: string } | null = null;
 
   private destroy$ = new Subject<void>();
+  private openFileHandler: ((event: any) => void) | null = null;
 
   constructor(
     public themeService: ThemeService,
@@ -59,6 +60,13 @@ export class WorkbenchComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         });
 
+      // Listen for file opening events from chat interface
+      this.openFileHandler = (event: any) => {
+        const { filePath, fileName } = event.detail;
+        this.openCodeEditor(filePath, fileName);
+      };
+      window.addEventListener('openFileInEditor', this.openFileHandler);
+
       console.log('Workbench component initialized');
     } catch (error) {
       console.error('Error initializing workbench:', error);
@@ -68,6 +76,11 @@ export class WorkbenchComponent implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    
+    // Remove event listener
+    if (this.openFileHandler) {
+      window.removeEventListener('openFileInEditor', this.openFileHandler);
+    }
   }
 
   ngAfterViewInit(): void {

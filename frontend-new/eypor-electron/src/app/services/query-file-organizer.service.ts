@@ -99,6 +99,59 @@ export class QueryFileOrganizerService {
   }
 
   /**
+   * Add query-file mapping to track which files were created by which queries
+   */
+  addQueryFileMapping(queryId: string, filePath: string, scenarioId?: number): void {
+    // Store mapping in localStorage for now (in a real implementation, this would be in the backend)
+    const mappings = this.getQueryFileMappings();
+    mappings.push({
+      queryId,
+      filePath,
+      scenarioId,
+      timestamp: Date.now()
+    });
+    
+    // Keep only the last 100 mappings to prevent localStorage bloat
+    if (mappings.length > 100) {
+      mappings.splice(0, mappings.length - 100);
+    }
+    
+    localStorage.setItem('queryFileMappings', JSON.stringify(mappings));
+  }
+
+  /**
+   * Get files for a specific query
+   */
+  getFilesForQuery(queryId: string): string[] {
+    const mappings = this.getQueryFileMappings();
+    return mappings
+      .filter(mapping => mapping.queryId === queryId)
+      .map(mapping => mapping.filePath);
+  }
+
+  /**
+   * Get original query for a file
+   */
+  getQueryForFile(filePath: string): string | null {
+    const mappings = this.getQueryFileMappings();
+    const mapping = mappings.find(m => m.filePath === filePath);
+    return mapping ? mapping.queryId : null;
+  }
+
+  /**
+   * Get all query-file mappings
+   */
+  getQueryFileMappings(): Array<{queryId: string, filePath: string, scenarioId?: number, timestamp: number}> {
+    try {
+      const stored = localStorage.getItem('queryFileMappings');
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Error getting query file mappings:', error);
+      return [];
+    }
+  }
+
+  /**
    * Remove a query group and its files
    */
   removeQueryGroup(queryId: string): void {
@@ -222,7 +275,7 @@ export class QueryFileOrganizerService {
   }
 
   /**
-   * Find a query group that contains a specific file
+   * Find query group by file name
    */
   findQueryGroupByFile(fileName: string): QueryFileGroup | null {
     for (const group of this.queryGroups.values()) {

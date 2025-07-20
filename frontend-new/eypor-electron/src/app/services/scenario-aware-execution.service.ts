@@ -25,6 +25,8 @@ export interface ExecutionResult {
   timestamp: number;
   isRunning?: boolean;
   scenarioId: number;
+  isEditOperation?: boolean;
+  editedFile?: string;
 }
 
 export interface ScenarioExecutionCache {

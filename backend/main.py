@@ -21,7 +21,7 @@ import shutil
 import pandas as pd
 import glob
 import sqlite3
-from langgraph_agent_v2 import SimplifiedAgent, create_agent_v2
+from langgraph_agent_v2 import SimplifiedAgent, create_agent_v2, set_langgraph_model, get_langgraph_model, get_available_models
 
 # Scenario Manager imports and initialization
 from scenario_manager import ScenarioManager, Scenario, AnalysisFile, ExecutionHistory, ScenarioState
@@ -1550,6 +1550,42 @@ async def get_current_ai():
             "openai": openai_client is not None,
             "gemini": genai_configured
         }
+    }
+
+# LangGraph Model Management Endpoints
+class LangGraphModelRequest(BaseModel):
+    model: str
+
+@app.post("/langgraph/switch-model")
+async def switch_langgraph_model(request: LangGraphModelRequest):
+    """Switch the LangGraph agent v2 model"""
+    success = set_langgraph_model(request.model)
+    if success:
+        return {
+            "message": f"Switched LangGraph agent to {request.model}",
+            "current_model": get_langgraph_model(),
+            "success": True
+        }
+    else:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid model: {request.model}. Available models: {list(get_available_models().keys())}"
+        )
+
+@app.get("/langgraph/current-model")
+async def get_langgraph_current_model():
+    """Get the currently selected LangGraph model"""
+    return {
+        "current_model": get_langgraph_model(),
+        "available_models": get_available_models()
+    }
+
+@app.get("/langgraph/available-models")
+async def get_langgraph_available_models():
+    """Get all available LangGraph models"""
+    return {
+        "available_models": get_available_models(),
+        "default_model": "GPT-4.1"
     }
 
 @app.post("/langgraph-chat")
@@ -3253,8 +3289,344 @@ async def get_server_startup_info():
     """Get server startup information for frontend localStorage clearing"""
     return {
         "startup_timestamp": server_startup_timestamp,
-        "server_restarted": True
+        "server_time": datetime.now().isoformat()
     }
+
+# Database schema for query-file mappings and file modification history
+def initialize_query_file_database():
+    """Initialize database tables for query-file mappings and modification history"""
+    try:
+        # Connect to the metadata database
+        metadata_db_path = os.path.join(project_root, "metadata.db")
+        conn = sqlite3.connect(metadata_db_path)
+        cursor = conn.cursor()
+        
+        # Create query_file_mappings table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS query_file_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_id TEXT NOT NULL,
+                original_query TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                scenario_id INTEGER,
+                created_timestamp INTEGER NOT NULL,
+                last_modified_timestamp INTEGER NOT NULL,
+                file_content_hash TEXT,
+                UNIQUE(query_id, file_path)
+            )
+        ''')
+        
+        # Create file_modification_history table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS file_modification_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT NOT NULL,
+                query_id TEXT NOT NULL,
+                modification_query TEXT NOT NULL,
+                previous_content_hash TEXT,
+                new_content_hash TEXT,
+                scenario_id INTEGER,
+                timestamp INTEGER NOT NULL
+            )
+        ''')
+        
+        # Create indexes for better performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_query_file_mappings_query_id ON query_file_mappings(query_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_query_file_mappings_file_path ON query_file_mappings(file_path)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_file_modification_history_file_path ON file_modification_history(file_path)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_file_modification_history_timestamp ON file_modification_history(timestamp)')
+        
+        conn.commit()
+        conn.close()
+        print("✅ Query file mapping database initialized successfully")
+    except Exception as e:
+        print(f"❌ Error initializing query file mapping database: {e}")
+
+# Initialize the database on startup
+initialize_query_file_database()
+
+# File editing endpoints
+@app.get("/api/files/{file_path:path}/content")
+async def get_file_content(file_path: str):
+    """Get file content for editing"""
+    try:
+        # Validate file path to prevent directory traversal
+        if ".." in file_path or file_path.startswith("/"):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+        
+        # Use the same logic as the working /files endpoint
+        # First check if file is in uploaded_files
+        if file_path in uploaded_files:
+            content = read_file_content(uploaded_files[file_path])
+            return {
+                "file_path": file_path,
+                "content": content,
+                "size": len(content)
+            }
+        
+        # Check if it's a scenario-prefixed file (e.g., "[Base Scenario] file.py")
+        if file_path.startswith('[') and ']' in file_path:
+            scenario_name = file_path[1:file_path.find(']')]
+            actual_filename = file_path[file_path.find(']') + 2:]  # Skip "] "
+            
+            # Find the scenario by name
+            all_scenarios = scenario_manager.list_scenarios()
+            for scenario in all_scenarios:
+                if scenario.name == scenario_name:
+                    scenario_dir = os.path.dirname(scenario.database_path)
+                    scenario_file_path = os.path.join(scenario_dir, actual_filename)
+                    if os.path.exists(scenario_file_path):
+                        content = read_file_content(scenario_file_path)
+                        return {
+                            "file_path": file_path,
+                            "content": content,
+                            "size": len(content)
+                        }
+                    break
+        
+        # Search ALL scenario directories for the file (cross-scenario compatibility)
+        all_scenarios = scenario_manager.list_scenarios()
+        
+        for scenario in all_scenarios:
+            # Look in the database directory (where both Python and HTML files are stored)
+            db_dir = os.path.dirname(scenario.database_path)
+            scenario_file_path = os.path.join(db_dir, file_path)
+            if os.path.exists(scenario_file_path):
+                content = read_file_content(scenario_file_path)
+                return {
+                    "file_path": file_path,
+                    "content": content,
+                    "size": len(content)
+                }
+            
+            # Also check in the old scenario directory for backward compatibility
+            old_scenario_dir = os.path.join(scenario_manager.scenarios_dir, f"scenario_{scenario.id}")
+            scenario_file_path = os.path.join(old_scenario_dir, file_path)
+            if os.path.exists(scenario_file_path):
+                content = read_file_content(scenario_file_path)
+                return {
+                    "file_path": file_path,
+                    "content": content,
+                    "size": len(content)
+                }
+        
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading file: {str(e)}")
+
+@app.put("/api/files/{file_path:path}/content")
+async def update_file_content(file_path: str, request: dict):
+    """Update file content with modification tracking"""
+    try:
+        # Validate file path to prevent directory traversal
+        if ".." in file_path or file_path.startswith("/"):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+        
+        # Use the same logic as the working /files endpoint to find the file
+        found_path = None
+        
+        # First check if file is in uploaded_files
+        if file_path in uploaded_files:
+            found_path = uploaded_files[file_path]
+        
+        # Check if it's a scenario-prefixed file (e.g., "[Base Scenario] file.py")
+        if not found_path and file_path.startswith('[') and ']' in file_path:
+            scenario_name = file_path[1:file_path.find(']')]
+            actual_filename = file_path[file_path.find(']') + 2:]  # Skip "] "
+            
+            # Find the scenario by name
+            all_scenarios = scenario_manager.list_scenarios()
+            for scenario in all_scenarios:
+                if scenario.name == scenario_name:
+                    scenario_dir = os.path.dirname(scenario.database_path)
+                    scenario_file_path = os.path.join(scenario_dir, actual_filename)
+                    if os.path.exists(scenario_file_path):
+                        found_path = scenario_file_path
+                        break
+        
+        # Search ALL scenario directories for the file (cross-scenario compatibility)
+        if not found_path:
+            all_scenarios = scenario_manager.list_scenarios()
+            
+            for scenario in all_scenarios:
+                # Look in the database directory (where both Python and HTML files are stored)
+                db_dir = os.path.dirname(scenario.database_path)
+                scenario_file_path = os.path.join(db_dir, file_path)
+                if os.path.exists(scenario_file_path):
+                    found_path = scenario_file_path
+                    break
+                
+                # Also check in the old scenario directory for backward compatibility
+                old_scenario_dir = os.path.join(scenario_manager.scenarios_dir, f"scenario_{scenario.id}")
+                scenario_file_path = os.path.join(old_scenario_dir, file_path)
+                if os.path.exists(scenario_file_path):
+                    found_path = scenario_file_path
+                    break
+        
+        if not found_path:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Only allow editing of text files
+        allowed_extensions = ['.py', '.sql', '.txt', '.html', '.md', '.json']
+        if not any(found_path.endswith(ext) for ext in allowed_extensions):
+            raise HTTPException(status_code=400, detail="File type not supported for editing")
+        
+        new_content = request.get("content")
+        modification_query = request.get("modification_query", "")
+        query_id = request.get("query_id", "")
+        
+        if new_content is None:
+            raise HTTPException(status_code=400, detail="Content is required")
+        
+        # Create backup
+        backup_path = f"{found_path}.backup"
+        import shutil
+        shutil.copy2(found_path, backup_path)
+        
+        # Write new content
+        with open(found_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        # Track modification in database
+        try:
+            import sqlite3
+            metadata_db_path = os.path.join(project_root, "metadata.db")
+            conn = sqlite3.connect(metadata_db_path)
+            cursor = conn.cursor()
+            
+            # Get previous content hash
+            cursor.execute('''
+                SELECT file_content_hash FROM query_file_mappings 
+                WHERE file_path = ? ORDER BY last_modified_timestamp DESC LIMIT 1
+            ''', (file_path,))
+            result = cursor.fetchone()
+            previous_hash = result[0] if result else None
+            
+            # Generate new content hash
+            import hashlib
+            new_content_hash = hashlib.md5(new_content.encode('utf-8')).hexdigest()
+            
+            # Insert modification history
+            cursor.execute('''
+                INSERT INTO file_modification_history 
+                (file_path, query_id, modification_query, previous_content_hash, 
+                 new_content_hash, scenario_id, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (file_path, query_id, modification_query, previous_hash, 
+                  new_content_hash, scenario_manager.get_current_scenario_id(), int(time.time())))
+            
+            # Update query_file_mappings
+            cursor.execute('''
+                UPDATE query_file_mappings 
+                SET last_modified_timestamp = ?, file_content_hash = ?
+                WHERE file_path = ?
+            ''', (int(time.time()), new_content_hash, file_path))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print(f"Error tracking file modification: {e}")
+        
+        return {
+            "file_path": file_path,
+            "success": True,
+            "message": "File updated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating file: {str(e)}")
+
+@app.get("/api/query/{query_id}/files")
+async def get_query_files(query_id: str):
+    """Get all files generated by a specific query"""
+    try:
+        import sqlite3
+        metadata_db_path = os.path.join(project_root, "metadata.db")
+        conn = sqlite3.connect(metadata_db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT file_path, original_query, created_timestamp, last_modified_timestamp
+            FROM query_file_mappings 
+            WHERE query_id = ?
+        ''', (query_id,))
+        
+        files = []
+        for row in cursor.fetchall():
+            files.append({
+                "file_path": row[0],
+                "original_query": row[1],
+                "created_timestamp": row[2],
+                "last_modified_timestamp": row[3]
+            })
+        
+        conn.close()
+        return {"query_id": query_id, "files": files}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting query files: {str(e)}")
+
+@app.get("/api/files/{file_path:path}/history")
+async def get_file_modification_history(file_path: str):
+    """Get modification history for a file"""
+    try:
+        import sqlite3
+        metadata_db_path = os.path.join(project_root, "metadata.db")
+        conn = sqlite3.connect(metadata_db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT modification_query, timestamp, query_id, scenario_id
+            FROM file_modification_history 
+            WHERE file_path = ? 
+            ORDER BY timestamp DESC 
+            LIMIT 20
+        ''', (file_path,))
+        
+        history = []
+        for row in cursor.fetchall():
+            history.append({
+                "modification_query": row[0],
+                "timestamp": row[1],
+                "query_id": row[2],
+                "scenario_id": row[3]
+            })
+        
+        conn.close()
+        return {"file_path": file_path, "history": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting file history: {str(e)}")
+
+@app.get("/api/query-file-mappings")
+async def get_query_file_mappings():
+    """Get all query-file mappings"""
+    try:
+        import sqlite3
+        metadata_db_path = os.path.join(project_root, "metadata.db")
+        conn = sqlite3.connect(metadata_db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT query_id, original_query, file_path, scenario_id, 
+                   created_timestamp, last_modified_timestamp
+            FROM query_file_mappings 
+            ORDER BY created_timestamp DESC
+        ''')
+        
+        mappings = []
+        for row in cursor.fetchall():
+            mappings.append({
+                "query_id": row[0],
+                "original_query": row[1],
+                "file_path": row[2],
+                "scenario_id": row[3],
+                "created_timestamp": row[4],
+                "last_modified_timestamp": row[5]
+            })
+        
+        conn.close()
+        return {"mappings": mappings}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error getting query file mappings: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

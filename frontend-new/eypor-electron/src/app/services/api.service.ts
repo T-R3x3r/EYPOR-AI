@@ -170,6 +170,19 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/action-chat-v2`, payload);
   }
 
+  // LangGraph Model Management
+  switchLangGraphModel(model: string): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/langgraph/switch-model`, { model });
+  }
+
+  getLangGraphCurrentModel(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/langgraph/current-model`);
+  }
+
+  getLangGraphAvailableModels(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/langgraph/available-models`);
+  }
+
   getActionTypes(): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/action-types`);
   }
@@ -256,5 +269,30 @@ export class ApiService {
 
   getScenario(scenarioId: number): Observable<any> {
     return this.http.get<any>(`${this.baseUrl}/scenarios/${scenarioId}`);
+  }
+
+  // File editing methods
+  getFileContentForEditing(filePath: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/files/${encodeURIComponent(filePath)}/content`);
+  }
+
+  updateFileContent(filePath: string, content: string, modificationQuery: string, queryId: string): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/api/files/${encodeURIComponent(filePath)}/content`, {
+      content,
+      modification_query: modificationQuery,
+      query_id: queryId
+    });
+  }
+
+  getQueryFiles(queryId: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/query/${encodeURIComponent(queryId)}/files`);
+  }
+
+  getFileModificationHistory(filePath: string): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/files/${encodeURIComponent(filePath)}/history`);
+  }
+
+  getQueryFileMappings(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/query-file-mappings`);
   }
 } 

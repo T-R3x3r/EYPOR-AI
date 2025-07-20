@@ -20,7 +20,9 @@
         *ngFor="let message of messages" 
         class="message"
         [class.user-message]="message.role === 'user'"
-        [class.assistant-message]="message.role === 'assistant'">
+        [class.assistant-message]="message.role === 'assistant'"
+        [class.editable-message]="message.hasGeneratedFiles"
+        (contextmenu)="onMessageRightClick(message, $event)">
         
         <!-- User Message -->
         <div *ngIf="message.role === 'user'" class="user-message-container">
@@ -32,6 +34,11 @@
         <!-- Assistant Message -->
         <div *ngIf="message.role === 'assistant'" class="assistant-message-content">
           {{ message.content }}
+          <!-- File indicator for messages with generated files -->
+          <div *ngIf="message.hasGeneratedFiles && message.generatedFiles" class="file-indicator">
+            <i class="fas fa-file-code"></i>
+            <span>{{ message.generatedFiles.length }} file(s) generated</span>
+          </div>
         </div>
       </div>
 
@@ -52,8 +59,9 @@
       <div class="input-wrapper">
         <!-- AI Model Selector (Integrated) -->
         <div class="model-selector">
-          <button class="model-btn" (click)="toggleModelDropdown($event)" title="Select AI Model">
+          <button class="model-btn" (click)="toggleModelDropdown($event)" title="Select AI Model" [disabled]="modelLoading">
             <span class="model-name">{{ selectedModel }}</span>
+            <span *ngIf="modelLoading" class="model-loading">...</span>
           </button>
           
           <!-- Model Dropdown -->
@@ -62,6 +70,7 @@
               *ngFor="let model of availableModels" 
               class="model-option"
               [class.selected]="model === selectedModel"
+              [class.loading]="modelLoading"
               (click)="selectModel(model)">
               <span class="model-icon icon-bot"></span>
               <span class="model-name">{{ model }}</span>

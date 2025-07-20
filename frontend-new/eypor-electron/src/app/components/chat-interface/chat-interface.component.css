@@ -304,6 +304,27 @@
   font-size: 11px;
 }
 
+.model-loading {
+  color: var(--accent-color);
+  font-size: 12px;
+  margin-left: 4px;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.model-option.loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Model Dropdown */
 .model-dropdown {
   position: absolute;
@@ -419,4 +440,127 @@
   .message-input-container {
     padding: 12px 16px;
   }
+} 
+
+/* Edit mode styles */
+.editable-message {
+  position: relative;
+}
+
+.editable-message:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+  border-radius: 8px;
+}
+
+.editable-message:hover::after {
+  content: "Right-click to edit files";
+  position: absolute;
+  top: -25px;
+  right: 0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  border: 1px solid var(--border-color);
+}
+
+.file-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--accent-color);
+}
+
+.file-indicator i {
+  font-size: 14px;
+}
+
+/* Context menu styles */
+.context-menu {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+}
+
+.context-menu .menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-menu .menu-item:hover {
+  background-color: #f8f9fa;
+}
+
+.context-menu .menu-item:first-child {
+  border-radius: 6px 6px 0 0;
+}
+
+.context-menu .menu-item:last-child {
+  border-radius: 0 0 6px 6px;
+}
+
+.context-menu .menu-item:only-child {
+  border-radius: 6px;
+}
+
+/* File selection dialog styles */
+.file-selection-dialog {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+}
+
+.file-selection-dialog .file-option {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 4px 0;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-selection-dialog .file-option:hover {
+  background-color: #f8f9fa;
+}
+
+/* Edit mode input styles */
+.message-input.edit-mode {
+  border-color: var(--accent-color) !important;
+  background-color: var(--bg-secondary) !important;
+}
+
+.message-input.edit-mode::placeholder {
+  color: var(--accent-color);
+  font-weight: 500;
+}
+
+/* Edit mode indicator */
+.edit-mode-indicator {
+  position: absolute;
+  top: -8px;
+  left: 16px;
+  background: var(--accent-color);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  z-index: 10;
 } 
