@@ -26,6 +26,10 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatDividerModule } from '@angular/material/divider';
 
+// Plotly imports
+import * as PlotlyJS from 'plotly.js-dist-min';
+import { PlotlyModule } from 'angular-plotly.js';
+
 // App components
 import { AppComponent } from './app.component';
 import { FileSelectionComponent } from './components/file-selection/file-selection.component';
@@ -50,6 +54,9 @@ import { SafePipe } from './pipes/safe.pipe';
 // App routing
 import { AppRoutingModule } from './app-routing.module';
 
+// Configure Plotly
+PlotlyModule.plotlyjs = PlotlyJS;
+
 @NgModule({
   declarations: [
     AppComponent,
@@ -73,6 +80,7 @@ import { AppRoutingModule } from './app-routing.module';
     ReactiveFormsModule,
     HttpClientModule,
     AppRoutingModule,
+    PlotlyModule,
     
     // Material modules
     MatButtonModule,

@@ -263,24 +263,6 @@ export class WorkbenchOutputComponent implements OnInit, OnDestroy, AfterViewChe
     return `http://localhost:8001/files/${encodeURIComponent(file.filename)}/download`;
   }
 
-  getHtmlContentUrl(file: OutputFile): string {
-    if (file.htmlContent) {
-      // Create a data URL from the HTML content
-      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(file.htmlContent);
-      console.log('Created data URL for iframe:', dataUrl.substring(0, 100) + '...');
-      return dataUrl;
-    }
-    return `http://localhost:8001/files/${encodeURIComponent(file.filename)}/download`;
-  }
-
-  onIframeLoad(event: any): void {
-    console.log('Iframe loaded successfully:', event);
-  }
-
-  onIframeError(event: any): void {
-    console.error('Iframe error:', event);
-  }
-
   clearResults(): void {
     this.executionService.clearResults();
   }

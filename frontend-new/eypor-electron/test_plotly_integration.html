@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Plotly Integration Test</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div id="test-chart"></div>
+    <script>
+        // Test data that should be extractable by our component
+        var data = [
+            {
+                x: [1, 2, 3, 4],
+                y: [10, 11, 12, 13],
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Test Data'
+            }
+        ];
+        
+        var layout = {
+            title: 'Test Chart',
+            xaxis: { title: 'X Axis' },
+            yaxis: { title: 'Y Axis' }
+        };
+        
+        var config = {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false
+        };
+        
+        Plotly.newPlot('test-chart', data, layout, config);
+    </script>
+</body>
+</html> 

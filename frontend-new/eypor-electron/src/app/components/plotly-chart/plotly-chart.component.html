@@ -1,15 +1,32 @@
 <div class="plotly-chart-container" [style.width]="width" [style.height]="height">
-  <div #plotlyContainer class="plotly-chart" [style.width]="width" [style.height]="height"></div>
-  
   <!-- Loading indicator -->
-  <div *ngIf="!isInitialized" class="plotly-loading">
+  <div *ngIf="isLoading" class="plotly-loading">
     <mat-spinner diameter="40"></mat-spinner>
     <p>Loading chart...</p>
   </div>
   
   <!-- Error display -->
-  <div *ngIf="data.length === 0 && (!htmlContent || htmlContent.length === 0)" class="plotly-error">
+  <div *ngIf="error" class="plotly-error">
     <mat-icon>error_outline</mat-icon>
+    <p>{{ error }}</p>
+  </div>
+  
+  <!-- Plotly chart using angular-plotly.js -->
+  <plotly-plot 
+    *ngIf="!isLoading && !error && data.length > 0"
+    [data]="data"
+    [layout]="layout"
+    [config]="config"
+    [revision]="revision"
+    [style]="{ width: '100%', height: '100%' }"
+    (plotlyClick)="onPlotlyClick($event)"
+    (plotlyHover)="onPlotlyHover($event)"
+    (plotlyRelayout)="onPlotlyRelayout($event)">
+  </plotly-plot>
+  
+  <!-- No data state -->
+  <div *ngIf="!isLoading && !error && data.length === 0" class="plotly-no-data">
+    <mat-icon>bar_chart</mat-icon>
     <p>No chart data available</p>
   </div>
 </div> 
