@@ -3,10 +3,11 @@ Run:  python visualize_workflow.py
 The image is written to docs/images/data_analyst_workflow.png
 
 Note: The diagram shows:
-- Simplified Agent v2: All nodes in the workflow
+- Simplified Agent v2: All nodes in the workflow including the new edit feature
 - Request Classification: classify_request node routes to different handlers
-- Specialized Handlers: handle_chat, handle_sql_query, handle_visualization, prepare_db_modification
-- Code Execution: execute_code for SQL and visualization requests
+- Specialized Handlers: handle_chat, handle_sql_query, handle_visualization, handle_file_edit, prepare_db_modification
+- Scenario Extraction: extract_scenarios for multi-scenario comparisons
+- Code Execution: execute_code for SQL, visualization, and file editing requests
 - Database Modification: prepare_db_modification → execute_db_modification
 - Control Flow: START/END nodes and conditional routing based on request type
 """
@@ -36,48 +37,75 @@ from backend.langgraph_agent_v2 import create_agent_v2  # type: ignore
 
 def _create_text_diagram(graph_obj, output_file):
     """Create a simple text representation of the workflow"""
-    diagram_text = """Simplified Agent v2 Workflow Diagram
-===============================================
+    diagram_text = """Simplified Agent v2 Workflow Diagram (Updated with Edit Feature)
+===============================================================
 
 START
   |
 classify_request (Request Classification)
   |
-+-----------------+-----------------+-----------------+-----------------+
-|     chat        |   sql_query     | visualization   | db_modification |
-|     Path        |     Path        |     Path        |     Path        |
-+-----------------+-----------------+-----------------+-----------------+
-  |                 |                 |                 |
-handle_chat    handle_sql_query  handle_visualization  prepare_db_modification
-  |                 |                 |                 |
-respond         execute_code      execute_code          execute_db_modification
-  |                 |                 |                 |
-END              respond           respond              respond
-                 |                 |                    |
-                END               END                  END
++-----------------+-----------------+-----------------+-----------------+-----------------+
+|     chat        |   sql_query     | visualization   | file_edit       | db_modification |
+|     Path        |     Path        |     Path        |     Path        |     Path        |
++-----------------+-----------------+-----------------+-----------------+-----------------+
+  |                 |                 |                 |                 |
+handle_chat    handle_sql_query  handle_visualization  handle_file_edit  prepare_db_modification
+  |                 |                 |                 |                 |
+respond         execute_code      execute_code          execute_code      execute_db_modification
+  |                 |                 |                 |                 |
+END              respond           respond              respond           respond
+                 |                 |                    |                 |
+                END               END                  END              END
+
+Scenario Comparison Path:
+START → classify_request → extract_scenarios → handle_scenario_comparison → execute_code → respond → END
 
 Node Descriptions:
 =================
 * classify_request: Analyzes user input and routes to appropriate handler
+* extract_scenarios: Extracts scenario names from comparison requests using regex patterns
 * handle_chat: Processes general Q&A without code execution
-* handle_sql_query: Generates SQL query scripts
-* handle_visualization: Creates chart/graph generation scripts
-* prepare_db_modification: Prepares database parameter changes
-* execute_code: Executes generated Python scripts
-* execute_db_modification: Performs database modifications
-* respond: Generates final response to user
+* handle_sql_query: Generates SQL query scripts with Plotly table output
+* handle_visualization: Creates chart/graph generation scripts (single scenario)
+* handle_file_edit: Handles file editing requests with modification tracking
+* handle_scenario_comparison: Generates multi-scenario comparison analysis
+* prepare_db_modification: Prepares database parameter changes with validation
+* execute_code: Executes generated Python scripts for SQL, visualization, and file editing
+* execute_db_modification: Performs database modifications with percentage calculations
+* respond: Generates final response to user with context and file information
 
 Workflow Paths:
 ==============
-1. Chat Path: START -> classify_request -> handle_chat -> respond -> END
-2. SQL Path: START -> classify_request -> handle_sql_query -> execute_code -> respond -> END
-3. Visualization Path: START -> classify_request -> handle_visualization -> execute_code -> respond -> END
-4. DB Modification Path: START -> classify_request -> prepare_db_modification -> execute_db_modification -> respond -> END
+1. Chat Path: START → classify_request → handle_chat → respond → END
+2. SQL Path: START → classify_request → handle_sql_query → execute_code → respond → END
+3. Visualization Path: START → classify_request → handle_visualization → execute_code → respond → END
+4. File Edit Path: START → classify_request → handle_file_edit → execute_code → respond → END
+5. Scenario Comparison Path: START → classify_request → extract_scenarios → handle_scenario_comparison → execute_code → respond → END
+6. DB Modification Path: START → classify_request → prepare_db_modification → execute_db_modification → respond → END
+
+New Edit Feature Details:
+========================
+* File Editing: Supports editing existing Python files with modification tracking
+* Context Preservation: Maintains original file content and modification history
+* Validation: Validates file modifications before execution
+* Query Tracking: Maps queries to modified files for future reference
+* Execution Integration: Modified files are executed through the standard execute_code node
+* Database Context: Uses current scenario's database context for file operations
+* Error Handling: Comprehensive error handling for file operations
+* History Tracking: Maintains modification history with timestamps and query IDs
+
+State Information Flow:
+======================
+* AgentState: Contains all workflow state including edit mode, file paths, and modification history
+* DatabaseContext: Provides scenario-aware database routing and schema information
+* Edit Mode Fields: edit_mode, editing_file_path, original_file_content, file_modification_history
+* Query Tracking: query_file_mappings, current_query_context for linking queries to files
+* Comparison Fields: comparison_scenarios, comparison_data, comparison_type for multi-scenario operations
 """
     
     # Save as text file
     text_file = output_file.with_suffix('.txt')
-    with open(text_file, 'w') as f:
+    with open(text_file, 'w', encoding='utf-8') as f:
         f.write(diagram_text)
     print(f"Saved text diagram to {text_file}")
 
@@ -109,7 +137,7 @@ def main() -> None:
                 print("Generated Mermaid code using get_mermaid()")
                 # Save Mermaid code to file
                 mermaid_file = OUTPUT_FILE.with_suffix('.mmd')
-                with open(mermaid_file, 'w') as f:
+                with open(mermaid_file, 'w', encoding='utf-8') as f:
                     f.write(mermaid_code)
                 print(f"Saved Mermaid code to {mermaid_file}")
             else:
@@ -126,17 +154,26 @@ def main() -> None:
         print(f"   View the diagram at: file://{OUTPUT_FILE.absolute()}")
         
         print("\nDiagram Legend:")
-        print("Simplified Agent v2 Workflow:")
+        print("Simplified Agent v2 Workflow (Updated with Edit Feature):")
         print("- Request Classification: classify_request (routes based on request type)")
+        print("- Scenario Extraction: extract_scenarios (for multi-scenario comparisons)")
         print("- Specialized Handlers:")
         print("  • handle_chat: General Q&A without code execution")
-        print("  • handle_sql_query: SQL query generation")
-        print("  • handle_visualization: Chart/graph generation")
+        print("  • handle_sql_query: SQL query generation with Plotly tables")
+        print("  • handle_visualization: Chart/graph generation (single scenario)")
+        print("  • handle_file_edit: File editing with modification tracking")
+        print("  • handle_scenario_comparison: Multi-scenario comparison analysis")
         print("  • prepare_db_modification: Database parameter changes")
-        print("- Code Execution: execute_code (for SQL and visualization)")
-        print("- Database Modification: execute_db_modification")
+        print("- Code Execution: execute_code (for SQL, visualization, and file editing)")
+        print("- Database Modification: execute_db_modification (with percentage calculations)")
         print("- Response: respond (final response generation)")
         print("- Control Flow: START/END with conditional routing")
+        print("\nNew Edit Feature:")
+        print("- File Editing: Supports editing existing Python files")
+        print("- Context Preservation: Maintains original content and modification history")
+        print("- Validation: Validates modifications before execution")
+        print("- Query Tracking: Maps queries to modified files")
+        print("- Execution Integration: Modified files executed through standard pipeline")
         
     except Exception as e:
         print(f"❌ Error: {str(e)}")

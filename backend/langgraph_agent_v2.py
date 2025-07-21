@@ -3966,7 +3966,7 @@ Respond with ONLY a JSON array of scenario names, like: ["Base Scenario", "test1
         prompt = f"""
 You are an AI assistant that modifies existing files based on user requests.
 
-ORIGINAL USER QUERY (that created this file):
+ORIGINAL USER QUERY (that created this file), keep this in mind when modifying the file, the user query is the original intent of the file and that should like remain the same:
 {original_query if original_query else "Unknown - file was created without query tracking"}
 
 ORIGINAL FILE CONTENT:
