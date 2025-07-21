@@ -170,7 +170,13 @@ export class ChatInterfaceComponent implements OnInit, AfterViewChecked {
       // Call LangGraph API with the v2 agent
       console.log('Calling LangGraph API with message:', finalMessage);
       
-      const apiCall = this.apiService.langGraphChatV2(finalMessage);
+      // Pass edit mode state to the backend
+      const editModeState = this.editModeState.isActive ? {
+        isActive: this.editModeState.isActive,
+        editingFile: this.editModeState.editingFile || undefined
+      } : undefined;
+      
+      const apiCall = this.apiService.langGraphChatV2(finalMessage, undefined, editModeState);
       
       apiCall.subscribe({
         next: (response) => {

@@ -75,14 +75,61 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, OnChanges {
         this.revision++; // Trigger re-render
         this.cdr.detectChanges();
       } else {
-        console.log('Could not extract Plotly data from HTML');
-        this.error = 'Could not extract chart data from HTML content';
-        this.isLoading = false;
-        this.cdr.detectChanges();
+        console.log('Could not extract Plotly data from HTML, trying iframe fallback');
+        this.renderHtmlFallback();
       }
     } catch (error) {
       console.error('Error processing HTML content:', error);
-      this.error = 'Error processing chart data';
+      this.renderHtmlFallback();
+    }
+  }
+  
+  private renderHtmlFallback() {
+    try {
+      console.log('Rendering HTML fallback for complex chart');
+      
+      // Create a blob URL for the HTML content
+      const blob = new Blob([this.htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create iframe element
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.style.width = '100%';
+      iframe.style.height = '100%';
+      iframe.style.border = 'none';
+      iframe.frameBorder = '0';
+      iframe.allow = 'fullscreen';
+      
+      // Add load event listener
+      iframe.onload = () => {
+        console.log('HTML iframe loaded successfully');
+        this.isInitialized = true;
+        this.isLoading = false;
+        this.error = '';
+        this.cdr.detectChanges();
+      };
+      
+      iframe.onerror = (error) => {
+        console.error('Error loading HTML iframe:', error);
+        this.error = 'Failed to load chart content';
+        this.isLoading = false;
+        this.cdr.detectChanges();
+      };
+      
+      // Clear container and add iframe
+      const container = document.querySelector('.plotly-chart-container');
+      if (container) {
+        container.innerHTML = '';
+        container.appendChild(iframe);
+      }
+      
+      // Clean up blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      
+    } catch (error) {
+      console.error('Error creating HTML fallback:', error);
+      this.error = 'Could not display chart content';
       this.isLoading = false;
       this.cdr.detectChanges();
     }
@@ -92,7 +139,7 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, OnChanges {
     try {
       console.log('Extracting Plotly data from HTML...');
       
-      // Method 1: Look for Plotly.newPlot direct calls
+      // Method 1: Enhanced Plotly.newPlot extraction with better regex
       const newPlotRegex = /Plotly\.newPlot\s*\(\s*["']([^"']+)["']\s*,\s*(\[[\s\S]*?\])\s*,\s*(\{[\s\S]*?\})\s*(?:,\s*(\{[\s\S]*?\}))?\s*\)/;
       const newPlotMatch = htmlContent.match(newPlotRegex);
       
@@ -112,7 +159,27 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, OnChanges {
         }
       }
       
-      // Method 2: Look for variable assignments (data, layout, config)
+      // Method 2: Enhanced script tag extraction for complex structures
+      const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+      let scriptMatch;
+      
+      while ((scriptMatch = scriptRegex.exec(htmlContent)) !== null) {
+        const scriptContent = scriptMatch[1];
+        
+        // Skip scripts that don't contain Plotly data
+        if (!scriptContent.includes('Plotly') && !scriptContent.includes('data') && !scriptContent.includes('layout')) {
+          continue;
+        }
+        
+        console.log('Processing script tag with Plotly content');
+        const extracted = this.extractFromComplexScript(scriptContent);
+        if (extracted.data && extracted.layout) {
+          console.log('Successfully extracted from complex script tag');
+          return extracted;
+        }
+      }
+      
+      // Method 3: Fallback to simple variable assignments
       const dataMatch = htmlContent.match(/(?:var\s+|let\s+|const\s+)?data\s*=\s*(\[[\s\S]*?\]);/);
       const layoutMatch = htmlContent.match(/(?:var\s+|let\s+|const\s+)?layout\s*=\s*(\{[\s\S]*?\});/);
       const configMatch = htmlContent.match(/(?:var\s+|let\s+|const\s+)?config\s*=\s*(\{[\s\S]*?\});/);
@@ -133,22 +200,12 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, OnChanges {
         }
       }
       
-      // Method 3: Extract from script tags
-      const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
-      let scriptMatch;
-      
-      while ((scriptMatch = scriptRegex.exec(htmlContent)) !== null) {
-        const scriptContent = scriptMatch[1];
-        
-        if (!scriptContent.includes('Plotly') && !scriptContent.includes('data')) {
-          continue;
-        }
-        
-        const extracted = this.extractFromScript(scriptContent);
-        if (extracted.data && extracted.layout) {
-          console.log('Successfully extracted from script tag');
-          return extracted;
-        }
+      // Method 4: Last resort - try to extract from the specific structure in your HTML
+      console.log('Trying last resort extraction method...');
+      const lastResort = this.extractFromLastResort(htmlContent);
+      if (lastResort.data && lastResort.layout) {
+        console.log('Successfully extracted using last resort method');
+        return lastResort;
       }
       
       console.warn('Could not extract Plotly data from any method');
@@ -157,6 +214,93 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, OnChanges {
     } catch (error) {
       console.error('Error in extractPlotlyDataFromHTML:', error);
       return { data: null, layout: null, config: null };
+    }
+  }
+  
+  private extractFromComplexScript(scriptContent: string): any {
+    try {
+      console.log('Extracting from complex script content...');
+      
+      // Clean the script content
+      let cleanScript = scriptContent
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+        .replace(/\/\/.*$/gm, ''); // Remove line comments
+      
+      // Method 1: Try to find the exact Plotly.newPlot call structure
+      const newPlotPattern = /Plotly\.newPlot\s*\(\s*["']([^"']+)["']\s*,\s*(\[[\s\S]*?\])\s*,\s*(\{[\s\S]*?\})\s*(?:,\s*(\{[\s\S]*?\}))?\s*\)/;
+      const newPlotMatch = cleanScript.match(newPlotPattern);
+      
+      if (newPlotMatch) {
+        console.log('Found Plotly.newPlot call in complex script');
+        try {
+          const data = this.safeJSONParse(newPlotMatch[2]);
+          const layout = this.safeJSONParse(newPlotMatch[3]);
+          const config = newPlotMatch[4] ? this.safeJSONParse(newPlotMatch[4]) : {};
+          
+          if (data && layout) {
+            console.log('Successfully parsed from newPlot call in complex script');
+            return { data, layout, config };
+          }
+        } catch (e) {
+          console.warn('Failed to parse newPlot call in complex script:', e);
+        }
+      }
+      
+      // Method 2: Look for data and layout arrays/objects in the script
+      // This handles cases where the data is embedded in the script but not in a newPlot call
+      const dataPatterns = [
+        /(\[[\s\S]*?\])\s*,\s*\{[\s\S]*?"type":\s*"bar"[\s\S]*?\}/, // Array with bar type
+        /(\[[\s\S]*?\])\s*,\s*\{[\s\S]*?"type":\s*"scatter"[\s\S]*?\}/, // Array with scatter type
+        /(\[[\s\S]*?\])\s*,\s*\{[\s\S]*?"type":\s*"line"[\s\S]*?\}/, // Array with line type
+        /(\[[\s\S]*?\])\s*,\s*\{[\s\S]*?"marker"[\s\S]*?\}/, // Array with marker
+        /(\[[\s\S]*?\])\s*,\s*\{[\s\S]*?"x":\s*\[[\s\S]*?\]/ // Array with x values
+      ];
+      
+      const layoutPatterns = [
+        /(\{[\s\S]*?"title"[\s\S]*?\})\s*,\s*\{[\s\S]*?"responsive"[\s\S]*?\}/, // Layout with title and responsive
+        /(\{[\s\S]*?"xaxis"[\s\S]*?"yaxis"[\s\S]*?\})/, // Layout with axes
+        /(\{[\s\S]*?"template"[\s\S]*?\})/, // Layout with template
+        /(\{[\s\S]*?"margin"[\s\S]*?\})/, // Layout with margin
+        /(\{[\s\S]*?"barmode"[\s\S]*?\})/ // Layout with barmode
+      ];
+      
+      // Try to find data and layout using these patterns
+      for (const dataPattern of dataPatterns) {
+        const dataMatch = cleanScript.match(dataPattern);
+        if (dataMatch) {
+          try {
+            const data = this.safeJSONParse(dataMatch[1]);
+            if (data && Array.isArray(data) && data.length > 0) {
+              console.log('Found data array in complex script');
+              
+              // Now look for layout
+              for (const layoutPattern of layoutPatterns) {
+                const layoutMatch = cleanScript.match(layoutPattern);
+                if (layoutMatch) {
+                  try {
+                    const layout = this.safeJSONParse(layoutMatch[1]);
+                    if (layout && typeof layout === 'object') {
+                      console.log('Found layout object in complex script');
+                      return { data, layout, config: {} };
+                    }
+                  } catch (e) {
+                    console.warn('Failed to parse layout:', e);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse data:', e);
+          }
+        }
+      }
+      
+      // Method 3: Fallback to the original simple patterns
+      return this.extractFromScript(scriptContent);
+      
+    } catch (error) {
+      console.error('Error in extractFromComplexScript:', error);
+      return {};
     }
   }
   
@@ -297,5 +441,69 @@ export class PlotlyChartComponent implements OnInit, OnDestroy, OnChanges {
 
   public onPlotlyRelayout(event: any) {
     console.log('Plotly relayout event:', event);
+  }
+  
+  private extractFromLastResort(htmlContent: string): any {
+    try {
+      console.log('Attempting last resort extraction...');
+      
+      // Look for the specific structure in your HTML file
+      // The data is in the form: [{"customdata":[...], "hovertemplate":..., "marker":..., "name":..., "x":[...], "y":[...], "type":"bar"}, ...]
+      
+      // Find the data array that contains the actual chart data
+      const dataArrayPattern = /\[\s*\{[\s\S]*?"type":\s*"bar"[\s\S]*?\}\s*(?:,\s*\{[\s\S]*?"type":\s*"bar"[\s\S]*?\}\s*)*\]/;
+      const dataMatch = htmlContent.match(dataArrayPattern);
+      
+      if (dataMatch) {
+        console.log('Found data array in last resort method');
+        try {
+          const data = this.safeJSONParse(dataMatch[0]);
+          if (data && Array.isArray(data) && data.length > 0) {
+            console.log('Successfully parsed data array');
+            
+            // Now look for the layout object
+            // The layout contains: {"template":{...}, "margin":{...}, "barmode":"group", "title":{...}, "xaxis":{...}, "yaxis":{...}, ...}
+            const layoutPattern = /\{\s*"template":\s*\{[\s\S]*?\}\s*,\s*"margin":\s*\{[\s\S]*?\}\s*,\s*"barmode":\s*"group"[\s\S]*?\}/;
+            const layoutMatch = htmlContent.match(layoutPattern);
+            
+            if (layoutMatch) {
+              try {
+                const layout = this.safeJSONParse(layoutMatch[0]);
+                if (layout && typeof layout === 'object') {
+                  console.log('Successfully parsed layout object');
+                  return { data, layout, config: { responsive: true } };
+                }
+              } catch (e) {
+                console.warn('Failed to parse layout in last resort:', e);
+              }
+            }
+            
+            // If layout parsing fails, try a simpler layout pattern
+            const simpleLayoutPattern = /\{\s*"title":\s*\{[\s\S]*?\}\s*,\s*"xaxis":\s*\{[\s\S]*?\}\s*,\s*"yaxis":\s*\{[\s\S]*?\}[\s\S]*?\}/;
+            const simpleLayoutMatch = htmlContent.match(simpleLayoutPattern);
+            
+            if (simpleLayoutMatch) {
+              try {
+                const layout = this.safeJSONParse(simpleLayoutMatch[0]);
+                if (layout && typeof layout === 'object') {
+                  console.log('Successfully parsed simple layout object');
+                  return { data, layout, config: { responsive: true } };
+                }
+              } catch (e) {
+                console.warn('Failed to parse simple layout in last resort:', e);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to parse data in last resort:', e);
+        }
+      }
+      
+      return { data: null, layout: null, config: null };
+      
+    } catch (error) {
+      console.error('Error in extractFromLastResort:', error);
+      return { data: null, layout: null, config: null };
+    }
   }
 } 

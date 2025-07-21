@@ -151,11 +151,13 @@ export class ApiService {
   }
 
   // LangGraph Chat methods
-  langGraphChatV2(message: string, scenarioId?: number): Observable<any> {
+  langGraphChatV2(message: string, scenarioId?: number, editMode?: { isActive: boolean; editingFile?: string }): Observable<any> {
     const payload = {
       role: 'user',
       content: message,
-      thread_id: 'default'
+      thread_id: 'default',
+      edit_mode: editMode?.isActive || false,
+      editing_file_path: editMode?.editingFile || null
     };
     return this.http.post<any>(`${this.baseUrl}/langgraph-chat-v2`, payload);
   }

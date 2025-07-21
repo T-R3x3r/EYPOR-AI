@@ -198,6 +198,8 @@ class ChatMessage(BaseModel):
     role: str
     content: str
     thread_id: Optional[str] = "default"
+    edit_mode: Optional[bool] = False
+    editing_file_path: Optional[str] = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -801,25 +803,73 @@ async def update_file(filename: str, request: FileEditRequest):
     """Update content of a specific file or create a new file"""
     global file_contents, uploaded_files, ai_created_files
     
-    # If file doesn't exist, create it in the current temp directory
-    if filename not in uploaded_files:
-        temp_dir = temp_directories.get('current')
-        if not temp_dir:
-            # Create a temp directory if none exists
-            temp_dir = tempfile.mkdtemp(prefix="ey_project_")
-            temp_directories['current'] = temp_dir
-        
-        file_path = os.path.join(temp_dir, filename)
-        uploaded_files[filename] = file_path
-        ai_created_files.add(filename)  # Mark as AI-created
+    # Use scenario-aware file resolution (same logic as /api/files endpoint)
+    found_path = None
     
-    file_path = uploaded_files[filename]
+    # First check if file is in uploaded_files
+    if filename in uploaded_files:
+        found_path = uploaded_files[filename]
+    
+    # Check if it's a scenario-prefixed file (e.g., "[Base Scenario] file.py")
+    if not found_path and filename.startswith('[') and ']' in filename:
+        scenario_name = filename[1:filename.find(']')]
+        actual_filename = filename[filename.find(']') + 2:]  # Skip "] "
+        
+        # Find the scenario by name
+        all_scenarios = scenario_manager.list_scenarios()
+        for scenario in all_scenarios:
+            if scenario.name == scenario_name:
+                scenario_dir = os.path.dirname(scenario.database_path)
+                scenario_file_path = os.path.join(scenario_dir, actual_filename)
+                if os.path.exists(scenario_file_path):
+                    found_path = scenario_file_path
+                    break
+    
+    # Search ALL scenario directories for the file (cross-scenario compatibility)
+    if not found_path:
+        all_scenarios = scenario_manager.list_scenarios()
+        
+        for scenario in all_scenarios:
+            # Look in the database directory (where both Python and HTML files are stored)
+            db_dir = os.path.dirname(scenario.database_path)
+            scenario_file_path = os.path.join(db_dir, filename)
+            if os.path.exists(scenario_file_path):
+                found_path = scenario_file_path
+                break
+            
+            # Also check in the old scenario directory for backward compatibility
+            old_scenario_dir = os.path.join(scenario_manager.scenarios_dir, f"scenario_{scenario.id}")
+            scenario_file_path = os.path.join(old_scenario_dir, filename)
+            if os.path.exists(scenario_file_path):
+                found_path = scenario_file_path
+                break
+    
+    # If file was found, update it
+    if found_path:
+        if write_file_content(found_path, request.content):
+            # Update the uploaded_files mapping to point to the found file
+            uploaded_files[filename] = found_path
+            file_contents[filename] = request.content
+            return {"message": f"File {filename} updated successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update file")
+    
+    # If file doesn't exist anywhere, create it in the current temp directory
+    temp_dir = temp_directories.get('current')
+    if not temp_dir:
+        # Create a temp directory if none exists
+        temp_dir = tempfile.mkdtemp(prefix="ey_project_")
+        temp_directories['current'] = temp_dir
+    
+    file_path = os.path.join(temp_dir, filename)
+    uploaded_files[filename] = file_path
+    ai_created_files.add(filename)  # Mark as AI-created
     
     if write_file_content(file_path, request.content):
         file_contents[filename] = request.content
-        return {"message": f"File {filename} {'created' if filename in ai_created_files else 'updated'} successfully"}
+        return {"message": f"File {filename} created successfully"}
     else:
-        raise HTTPException(status_code=500, detail="Failed to update file")
+        raise HTTPException(status_code=500, detail="Failed to create file")
 
 @app.post("/run")
 async def run_file(filename: str):
@@ -1830,10 +1880,12 @@ async def langgraph_chat_v2(message: ChatMessage, request: Request = None):
         current_scenario = scenario_manager.get_current_scenario()
         scenario_id = current_scenario.id if current_scenario else None
         
-        # Run the agent
+        # Run the agent with edit mode state if provided
         response, generated_files, execution_output, execution_error = agent.run(
             user_message=message.content,
-            scenario_id=scenario_id
+            scenario_id=scenario_id,
+            edit_mode=message.edit_mode,
+            editing_file_path=message.editing_file_path
         )
         
 

@@ -665,9 +665,12 @@ class SimplifiedAgent:
         
         print(f"🔍 DEBUG: User request: '{user_request}'")
         
-        # Check for edit mode first
-        if self._detect_edit_mode(user_request):
-            print(f"🔍 DEBUG: Edit mode detected, classifying as file_edit")
+        # Check if edit mode is already set by the frontend (button press)
+        edit_mode = state.get("edit_mode", False)
+        editing_file_path = state.get("editing_file_path")
+        
+        if edit_mode and editing_file_path:
+            print(f"🔍 DEBUG: Edit mode already set by frontend for file: {editing_file_path}")
             request_type = "file_edit"
             
             # Get database context for current scenario
@@ -679,14 +682,27 @@ class SimplifiedAgent:
                 "request_type": request_type,
                 "db_context": db_context,
                 "messages": state["messages"] + [AIMessage(content=f"🎯 Request classified as: {request_type}")],
-                # Initialize edit mode fields
+                # Keep edit mode fields as they are
                 "edit_mode": True,
-                "editing_file_path": None,
-                "original_file_content": None,
-                "file_modification_history": [],
-                "query_file_mappings": {},
-                "current_query_context": None
+                "editing_file_path": editing_file_path,
+                "original_file_content": state.get("original_file_content"),
+                "file_modification_history": state.get("file_modification_history", []),
+                "query_file_mappings": state.get("query_file_mappings", {}),
+                "current_query_context": state.get("current_query_context")
             }
+        
+        # Check for database modification patterns
+        request_lower = user_request.lower()
+        db_mod_patterns = ["change", "update", "set", "modify", "alter", "edit"]
+        param_patterns = ["parameter", "param", "cost", "demand", "capacity", "limit", "constraint"]
+        
+        # If this looks like a database modification, classify it as such
+        is_db_modification = (any(pattern in request_lower for pattern in db_mod_patterns) and 
+                            any(pattern in request_lower for pattern in param_patterns))
+        
+        if is_db_modification:
+            request_type = "db_modification"
+            print(f"🔍 DEBUG: Classified as db_modification")
         
         # Check for comparison keywords to identify comparison requests
         comparison_keywords = [
@@ -720,17 +736,8 @@ class SimplifiedAgent:
         print(f"🔍 DEBUG: Not a comparison request, checking other patterns...")
         
         # Simple keyword-based classification with LLM fallback
-        # Check for clear DB modification patterns
-        db_mod_patterns = ["change", "update", "set", "modify", "alter", "edit"]
-        param_patterns = ["parameter", "param", "cost", "demand", "capacity", "limit"]
-        
-        if any(pattern in request_lower for pattern in db_mod_patterns) and \
-           any(pattern in request_lower for pattern in param_patterns):
-            request_type = "db_modification"
-            print(f"🔍 DEBUG: Classified as db_modification")
-        
         # Check for visualization patterns
-        elif any(pattern in request_lower for pattern in [
+        if any(pattern in request_lower for pattern in [
             "chart", "graph", "plot", "visualiz", "draw", "map", "diagram"
         ]):
             request_type = "visualization"
@@ -2547,7 +2554,7 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
         
         return context
     
-    def run(self, user_message: str, scenario_id: Optional[int] = None) -> Tuple[str, List[str], str, str]:
+    def run(self, user_message: str, scenario_id: Optional[int] = None, edit_mode: bool = False, editing_file_path: Optional[str] = None) -> Tuple[str, List[str], str, str]:
         """Run the agent with a user message"""
         try:
             # Initialize state
@@ -2566,9 +2573,9 @@ REFERENCE_COLUMN: [column name for relative calculations if applicable]"""
                 "comparison_data": {},
                 "comparison_type": "",
                 "scenario_name_mapping": {},
-                # Initialize edit mode fields
-                "edit_mode": False,
-                "editing_file_path": None,
+                # Initialize edit mode fields with values from frontend
+                "edit_mode": edit_mode,
+                "editing_file_path": editing_file_path,
                 "original_file_content": None,
                 "file_modification_history": [],
                 # Initialize enhanced query tracking
@@ -3608,15 +3615,7 @@ Respond with ONLY a JSON array of scenario names, like: ["Base Scenario", "test1
         
         return best_match if best_score >= 3 else None
 
-    def _detect_edit_mode(self, user_request: str) -> bool:
-        """Detect if user is in edit mode based on request context"""
-        edit_indicators = [
-            "edit", "modify", "change", "update", "fix", "improve", "add", "remove",
-            "edit mode", "modify file", "change code", "update script"
-        ]
-        
-        request_lower = user_request.lower()
-        return any(indicator in request_lower for indicator in edit_indicators)
+
     
     def _load_file_for_editing(self, file_path: str, db_context: Optional[DatabaseContext] = None) -> str:
         """Load file content for editing with full context"""
