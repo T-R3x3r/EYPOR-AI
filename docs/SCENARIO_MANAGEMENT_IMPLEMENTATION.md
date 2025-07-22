@@ -1,166 +1,86 @@
-# Scenario Management Implementation
+# Scenario Management Implementation (2024)
 
 ## Overview
 
-This document describes the implementation of the core scenario management system for the EYProject application. The system allows users to create and manage multiple scenarios, each with its own database state while sharing uploaded files and analysis templates.
+The scenario management system in EYProject enables users to create, branch, and manage multiple scenarios, each with its own isolated database, while sharing uploaded files and analysis templates. It also supports comparison history for multi-scenario analysis.
+
+---
 
 ## Architecture
 
-### File Structure
+### Directory Structure
 ```
-backend/
-├── scenario_manager.py          # Core scenario management classes
-├── test_scenario_manager.py     # Test script for verification
-└── main.py                      # FastAPI application (to be updated)
-
-project_root/
-├── scenarios/                   # Individual scenario directories
-│   ├── scenario_20250708_202115/
-│   │   └── database.db         # Scenario-specific database
-│   └── scenario_20250708_202116/
-│       └── database.db
-├── shared/                      # Shared resources across scenarios
-│   ├── uploaded_files/         # Original uploaded files
-│   └── analysis_files/         # Analysis templates and queries
-└── metadata.db                 # Scenario metadata database
+EYProjectGit/
+├── backend/
+│   ├── scenario_manager.py         # Core scenario management logic
+│   └── test_scenario_manager.py    # Automated tests for scenario management
+├── scenarios/                      # Individual scenario directories (auto-created)
+│   └── scenario_<timestamp>/
+│       └── database.db             # Scenario-specific SQLite database
+├── shared/
+│   ├── uploaded_files/             # User-uploaded files (shared)
+│   └── analysis_files/             # Analysis templates and queries (shared)
+├── comparisons/                    # Output files from scenario comparisons
+├── metadata.db                     # Central metadata and scenario registry
 ```
 
-### Database Schema
+---
 
-#### scenarios table
-```sql
-CREATE TABLE scenarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    modified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    database_path TEXT NOT NULL,
-    parent_scenario_id INTEGER,
-    is_base_scenario BOOLEAN DEFAULT FALSE,
-    description TEXT,
-    FOREIGN KEY (parent_scenario_id) REFERENCES scenarios(id)
-);
-```
+## Database Schema
 
-#### analysis_files table
-```sql
-CREATE TABLE analysis_files (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filename TEXT NOT NULL,
-    file_type TEXT NOT NULL,
-    content TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by_scenario_id INTEGER,
-    is_global BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (created_by_scenario_id) REFERENCES scenarios(id)
-);
-```
+The scenario system uses a single SQLite database (`metadata.db`) to track all scenarios, analysis files, execution history, and comparison history.
 
-#### execution_history table
-```sql
-CREATE TABLE execution_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    scenario_id INTEGER NOT NULL,
-    command TEXT NOT NULL,
-    output TEXT,
-    error TEXT,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    execution_time_ms INTEGER,
-    FOREIGN KEY (scenario_id) REFERENCES scenarios(id)
-);
-```
+**Key Tables:**
+- `scenarios`: Scenario metadata and relationships
+- `analysis_files`: SQL queries, visualization templates, etc.
+- `execution_history`: Command and script execution logs per scenario
+- `comparison_history`: Multi-scenario comparison records
 
-## Core Classes
+---
+
+## Core Data Classes
 
 ### Scenario
-Represents a scenario with its metadata and state.
-
-**Properties:**
-- `id`: Unique identifier
-- `name`: Human-readable name
-- `created_at`: Creation timestamp
-- `modified_at`: Last modification timestamp
-- `database_path`: Path to scenario-specific database
-- `parent_scenario_id`: ID of parent scenario (for branching)
-- `is_base_scenario`: Whether this is a base scenario
-- `description`: Optional description
-
-**Methods:**
-- `to_dict()`: Convert to dictionary for JSON serialization
-- `from_dict(data)`: Create from dictionary
+Represents a scenario and its metadata.
+- `id`, `name`, `created_at`, `modified_at`, `database_path`, `parent_scenario_id`, `is_base_scenario`, `description`
+- Methods: `to_dict()`, `from_dict()`
 
 ### AnalysisFile
-Represents an analysis file (SQL query, visualization template, etc.).
-
-**Properties:**
-- `id`: Unique identifier
-- `filename`: File name
-- `file_type`: Type of analysis file ('sql_query', 'visualization_template', etc.)
-- `content`: File content
-- `created_at`: Creation timestamp
-- `created_by_scenario_id`: ID of scenario that created it
-- `is_global`: Whether file is shared across all scenarios
+Represents an analysis file (SQL, visualization, etc.).
+- `id`, `filename`, `file_type`, `content`, `created_at`, `created_by_scenario_id`, `is_global`
+- Methods: `to_dict()`, `from_dict()`
 
 ### ExecutionHistory
-Represents execution history for a scenario.
+Tracks execution results for a scenario.
+- `id`, `scenario_id`, `command`, `output`, `error`, `timestamp`, `execution_time_ms`, `output_files`
+- Methods: `to_dict()`, `from_dict()`
 
-**Properties:**
-- `id`: Unique identifier
-- `scenario_id`: ID of associated scenario
-- `command`: Executed command
-- `output`: Command output
-- `error`: Error message (if any)
-- `timestamp`: Execution timestamp
-- `execution_time_ms`: Execution time in milliseconds
+### ComparisonHistory
+Tracks results of scenario comparisons.
+- `id`, `comparison_name`, `scenario_ids`, `scenario_names`, `comparison_type`, `output_file_path`, `created_at`, `created_by_scenario_id`, `description`, `metadata`
+- Methods: `to_dict()`, `from_dict()`
 
-### ScenarioState
-Tracks the current active scenario state.
+---
 
-**Properties:**
-- `current_scenario_id`: ID of currently active scenario
-- `scenarios_dir`: Path to scenarios directory
-- `metadata_db_path`: Path to metadata database
+## ScenarioManager Class
 
-### ScenarioManager
-Main class for managing scenarios and their associated databases.
+The `ScenarioManager` class in `backend/scenario_manager.py` provides all scenario management operations:
 
-**Key Methods:**
+- `create_scenario(name, base_scenario_id=None, description=None, original_db_path=None)`
+- `switch_scenario(scenario_id)`
+- `get_current_scenario()`
+- `copy_database(source_scenario_id, target_scenario_id)`
+- `list_scenarios()`
+- `delete_scenario(scenario_id)`
+- `update_scenario(scenario_id, name=None, description=None)`
+- `add_execution_history(...)`, `get_execution_history(...)`
+- `add_analysis_file(...)`, `get_analysis_files(...)`
+- `add_comparison_history(...)`, `get_comparison_history(...)`, `delete_comparison_history(...)`
+- Utility: `generate_comparison_filename(...)`, `get_comparison_file_path(...)`, `cleanup_old_comparisons(...)`
 
-#### `__init__(project_root)`
-Initialize the scenario manager with project root directory.
+All methods are designed for robust error handling and data integrity.
 
-#### `create_scenario(name, base_scenario_id=None, description=None)`
-Create a new scenario.
-- `name`: Scenario name
-- `base_scenario_id`: ID of scenario to branch from (None for scratch)
-- `description`: Optional description
-
-#### `switch_scenario(scenario_id)`
-Switch to the specified scenario.
-
-#### `get_current_scenario()`
-Get the currently active scenario.
-
-#### `copy_database(source_scenario_id, target_scenario_id)`
-Copy database from source scenario to target scenario.
-
-#### `list_scenarios()`
-List all scenarios.
-
-#### `delete_scenario(scenario_id)`
-Delete a scenario and its associated data.
-
-#### `add_execution_history(scenario_id, command, output=None, error=None, execution_time_ms=None)`
-Add execution history entry for a scenario.
-
-#### `get_execution_history(scenario_id, limit=None)`
-Get execution history for a scenario.
-
-#### `add_analysis_file(filename, file_type, content, created_by_scenario_id=None, is_global=True)`
-Add an analysis file.
-
-#### `get_analysis_files(scenario_id=None)`
-Get analysis files (global or scenario-specific).
+---
 
 ## Usage Examples
 
@@ -168,125 +88,100 @@ Get analysis files (global or scenario-specific).
 ```python
 from scenario_manager import ScenarioManager
 
-# Initialize manager
-manager = ScenarioManager("/path/to/project")
+manager = ScenarioManager("/path/to/EYProjectGit")
 
-# Create base scenario
-base_scenario = manager.create_scenario("Base Scenario", description="Original scenario")
+# Create a base scenario
+base = manager.create_scenario("Base Scenario", description="Original")
 
-# Create branch scenario
-branch_scenario = manager.create_scenario("Branch Scenario", base_scenario_id=base_scenario.id)
+# Branch a new scenario from base
+branch = manager.create_scenario("Branch", base_scenario_id=base.id)
 
-# Switch to branch scenario
-manager.switch_scenario(branch_scenario.id)
+# Switch active scenario
+manager.switch_scenario(branch.id)
 
-# Get current scenario
-current = manager.get_current_scenario()
-print(f"Current scenario: {current.name}")
+# List all scenarios
+scenarios = manager.list_scenarios()
+
+# Delete a scenario
+manager.delete_scenario(branch.id)
 ```
 
 ### Execution History
 ```python
-# Add execution history
 manager.add_execution_history(
-    scenario_id=base_scenario.id,
+    scenario_id=base.id,
     command="python model.py",
-    output="Model executed successfully",
+    output="Success",
     error=None,
-    execution_time_ms=2500
+    execution_time_ms=1200
 )
-
-# Get execution history
-history = manager.get_execution_history(base_scenario.id)
-for entry in history:
-    print(f"{entry.timestamp}: {entry.command}")
+history = manager.get_execution_history(base.id)
 ```
 
 ### Analysis Files
 ```python
-# Add SQL query
-sql_file = manager.add_analysis_file(
-    filename="sales_query.sql",
+manager.add_analysis_file(
+    filename="query.sql",
     file_type="sql_query",
-    content="SELECT * FROM sales WHERE amount > 1000",
+    content="SELECT * FROM table;",
     is_global=True
 )
-
-# Add visualization template
-viz_file = manager.add_analysis_file(
-    filename="chart_template.py",
-    file_type="visualization_template",
-    content="import plotly.express as px\nfig = px.bar(data, x='x', y='y')",
-    is_global=True
-)
-
-# Get analysis files
 files = manager.get_analysis_files()
 ```
 
+### Comparison History
+```python
+manager.add_comparison_history(
+    comparison_name="Base vs Branch",
+    scenario_ids=[base.id, branch.id],
+    scenario_names=[base.name, branch.name],
+    comparison_type="table",
+    output_file_path="comparisons/base_vs_branch.html",
+    description="Comparison of key metrics"
+)
+comparisons = manager.get_comparison_history()
+```
+
+---
+
 ## Integration Points
 
-### With Existing System
-The scenario management system is designed to integrate with the existing EYProject system:
+- **Backend API**: ScenarioManager is used by FastAPI endpoints to provide scenario CRUD, history, and comparison features to the frontend.
+- **Frontend**: Scenario management UI (tabs, dialogs, etc.) interacts with backend endpoints to create, switch, and manage scenarios.
+- **Agent**: All database operations, file edits, and visualizations are routed through the current scenario context.
 
-1. **File Upload**: When files are uploaded, a base scenario is automatically created
-2. **Database Operations**: All database operations use the current scenario's database
-3. **Model Execution**: Models execute using the current scenario's database
-4. **AI Analysis**: AI operates on the current scenario's data
-
-### Global Functions
-```python
-from scenario_manager import get_scenario_manager, set_scenario_manager
-
-# Get global scenario manager instance
-manager = get_scenario_manager()
-
-# Set global scenario manager instance
-set_scenario_manager(manager)
-```
+---
 
 ## Testing
 
-The implementation includes a comprehensive test script (`test_scenario_manager.py`) that verifies:
-
-- Scenario creation (base, branch, scratch)
-- Scenario switching
-- Execution history management
+A comprehensive test script (`backend/test_scenario_manager.py`) verifies:
+- Scenario creation, branching, and deletion
+- Switching and listing scenarios
+- Execution and comparison history
 - Analysis file management
-- Scenario updates and deletion
-- Database copying
 
-Run the test with:
+Run tests with:
 ```bash
 cd backend
 python test_scenario_manager.py
 ```
 
-## Next Steps
+---
 
-1. **API Integration**: Add FastAPI endpoints for scenario management
-2. **Frontend Integration**: Create Angular services and components
-3. **UI Implementation**: Implement tabbed interface for scenarios
-4. **Database Integration**: Update existing database operations to be scenario-aware
-5. **Model Integration**: Update LangGraph agent to use current scenario
+## Performance & Security
+- **Indexes**: Metadata DB uses indexes for fast queries.
+- **Isolation**: Each scenario has its own database file.
+- **Validation**: All operations validate input and state.
+- **Cleanup**: Old comparison files can be auto-removed.
+- **Access Control**: (Planned) Scenario-specific access control for multi-user environments.
 
-## Performance Considerations
-
-- **Lazy Loading**: Scenario data is loaded only when needed
-- **Database Indexing**: Proper indexes for efficient queries
-- **File Management**: Efficient copying and cleanup of scenario data
-- **Memory Management**: Minimal memory footprint for inactive scenarios
+---
 
 ## Error Handling
+- Handles database corruption, missing files, invalid operations, and concurrent access issues gracefully.
 
-The system includes comprehensive error handling for:
-- Database corruption
-- Missing files
-- Invalid scenario operations
-- Concurrent access issues
+---
 
-## Security
+## Summary
 
-- **Isolation**: Complete isolation between scenarios
-- **Validation**: Input validation for all operations
-- **Access Control**: Scenario-specific access control (future enhancement) 
+The scenario management system is the backbone of multi-scenario analysis in EYProject, supporting robust scenario creation, branching, comparison, and integration with all major features of the platform. 

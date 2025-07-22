@@ -1,283 +1,82 @@
-# Database Browser Implementation
+# Database Browser Implementation (2024)
 
-## 🎯 Overview
+## Overview
 
-The Database Browser is a comprehensive SQLite database viewer with advanced features for data exploration, modification, and integration with the AI system.
+The database browser in EYProject provides a comprehensive, scenario-aware SQLite database viewer and editor. It supports table browsing, SQL query execution, whitelist management, and seamless integration with the scenario system and AI features.
 
-## 🚀 Key Features
+---
 
-### 1. **Modern Material Design Interface**
-- Responsive grid layout with Material Design components
-- Real-time search and filtering capabilities
-- Virtual scrolling for large datasets
-- Intuitive navigation and user experience
+## Key Features
 
-### 2. **Complete Database Exploration**
-- View all tables with schema information
-- Browse data with pagination and sorting
-- Export data in multiple formats (.db, SQL, CSV)
-- Real-time search across all columns
+- **Scenario-Aware Context:** All database operations are scoped to the current scenario's database
+- **Table Browsing:** View all tables, columns, and row counts; search and filter tables
+- **Table Data Viewing:** Paginated, sortable, and filterable data tables with virtual scrolling for large datasets
+- **SQL Query Execution:** Run custom SQL queries, view results, and handle errors gracefully
+- **Whitelist Management:** Mark tables as whitelisted for AI/model operations; toggle whitelist status in the UI
+- **Data Editing:** Add, edit, and delete rows and columns (with confirmation dialogs)
+- **Export:** Download database or export as CSV/SQL
+- **Visual Feedback:** Loading indicators, error messages, and scenario context display
+- **Responsive Design:** Works across desktop and mobile, with dark mode support
 
-### 3. **Advanced SQL Integration**
-- Custom SQL query execution
-- Syntax highlighting and error handling
-- Query result formatting and display
-- Natural language query support via AI
+---
 
-### 4. **Data Modification Capabilities**
-- Direct data editing through AI assistance
-- Parameter updates and validation
-- Change tracking and history
-- Transaction-safe operations
+## Implementation Details
 
-## 🔧 Technical Implementation
+### Main Component: DatabaseViewComponent
+**Location:** `src/app/components/database-view/`
 
-### Frontend Components
-
-#### Database Browser Component
-```typescript
-@Component({
-  selector: 'app-sql-query',
-  templateUrl: './sql-query.component.html',
-  styleUrls: ['./sql-query.component.css']
-})
-export class SqlQueryComponent {
-  // Database state management
-  databaseInfo: DatabaseInfo | null = null;
-  tables: TableInfo[] = [];
-  selectedTable: string | null = null;
-  tableData: any[] = [];
-  
-  // Search and filtering
-  searchTerm: string = '';
-  filteredData: any[] = [];
-  
-  // Pagination
-  currentPage: number = 1;
-  pageSize: number = 50;
-  totalPages: number = 1;
-}
-```
-
-#### Table Display with Virtual Scrolling
-```html
-<mat-table [dataSource]="filteredData" class="mat-elevation-z8">
-  <!-- Dynamic column generation -->
-  <ng-container *ngFor="let column of displayedColumns" [matColumnDef]="column">
-    <mat-header-cell *matHeaderCellDef>{{ column }}</mat-header-cell>
-    <mat-cell *matCellDef="let element">{{ element[column] }}</mat-cell>
-  </ng-container>
-  
-  <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-  <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
-</mat-table>
-```
+- Renders the entire database browser UI
+- Subscribes to `ScenarioService.currentScenario$` to update database context on scenario switch
+- Loads database info, tables, and schema from the backend via `ApiService`
+- Handles table selection, search, sorting, and pagination
+- Provides UI for SQL query input and result display
+- Manages whitelist state and UI for table selection
+- Supports row/column editing, deletion, and addition with confirmation dialogs
+- Displays scenario context in the header
 
 ### Backend API Endpoints
+- `/database/info`: Get database info for the current scenario
+- `/database/schema`: Get schema for the current scenario
+- `/sql/execute`: Execute custom SQL queries
+- `/database/whitelist`: Get and update table whitelist
 
-#### Database Information
-```python
-@app.get("/database/info")
-async def get_database_info_endpoint():
-    """Get comprehensive database information"""
-    try:
-        db_path = get_database_path()
-        info = get_database_info(db_path)
-        return info
-    except Exception as e:
-        return {"error": str(e)}
+### Scenario Integration
+- All database operations are routed to the current scenario's database
+- Scenario switching clears and reloads all database state
+- Whitelist status is scenario-specific
 
-@app.get("/database/schema")
-async def get_cached_database_schema():
-    """Get cached database schema for AI agents"""
-    agent = get_or_create_agent()
-    if hasattr(agent, 'cached_database_schema') and agent.cached_database_schema:
-        return agent.cached_database_schema
-    else:
-        return {"error": "No cached schema available"}
-```
+---
 
-#### SQL Execution
-```python
-@app.post("/sql/execute")
-async def execute_raw_sql(sql: str = Form(...)):
-    """Execute raw SQL queries"""
-    try:
-        db_path = get_database_path()
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Execute query
-        cursor.execute(sql)
-        
-        if sql.strip().upper().startswith('SELECT'):
-            results = cursor.fetchall()
-            columns = [description[0] for description in cursor.description]
-            return {
-                "success": True,
-                "results": results,
-                "columns": columns,
-                "row_count": len(results)
-            }
-        else:
-            conn.commit()
-            return {
-                "success": True,
-                "affected_rows": cursor.rowcount,
-                "message": "Query executed successfully"
-            }
-    except Exception as e:
-        return {"error": str(e)}
-```
+## User Experience
 
-## 🔄 Integration with AI System
+- **Scenario Context:** Scenario name and type are always visible in the database browser header
+- **Table List:** Search, filter, and select tables; see row/column counts and whitelist status
+- **Table Data:** Paginated, sortable, and filterable; supports virtual scrolling for large tables
+- **SQL Query:** Input box for custom SQL; results displayed in a formatted table
+- **Whitelist:** Toggle whitelist status for tables; whitelisted tables are visually marked
+- **Editing:** Add/edit/delete rows and columns with confirmation and undo options
+- **Export:** Download database or export as CSV/SQL
+- **Feedback:** Loading spinners, error messages, and success notifications
 
-### Database Modification Workflow
+---
 
-1. **User Request**: "Change the maximum capacity to 5000"
-2. **AI Processing**: Agent analyzes request and identifies target parameter
-3. **Database Update**: System executes SQL UPDATE statement
-4. **Model Discovery**: System finds available Python model files
-5. **Model Selection**: Dialog appears asking which models to run
-6. **Model Execution**: Selected models are executed with updated parameters
+## Performance & Accessibility
+- Virtual scrolling for large tables
+- Debounced search and filtering
+- Keyboard navigation and ARIA labels for accessibility
+- Responsive layout for all devices
+- Dark mode support
 
-### Parameter Synchronization
+---
 
-```python
-def update_database_parameter(table: str, column: str, value: any):
-    """Update database parameter and trigger model discovery"""
-    try:
-        # Execute update
-        sql = f"UPDATE {table} SET {column} = ?"
-        cursor.execute(sql, (value,))
-        conn.commit()
-        
-        # Trigger model discovery
-        available_models = discover_model_files()
-        
-        return {
-            "success": True,
-            "updated_value": value,
-            "available_models": available_models,
-            "requires_model_selection": len(available_models) > 0
-        }
-    except Exception as e:
-        return {"error": str(e)}
-```
+## Extensibility & Future Enhancements
+- Advanced filtering and analytics tools
+- Cross-scenario table comparison
+- AI-assisted query suggestions
+- Bulk editing and import/export features
 
-## 🎯 User Experience Features
+---
 
-### 1. **Real-time Search**
-- Instant filtering as user types
-- Search across all columns
-- Highlighted search results
-- Case-insensitive matching
+## Summary
 
-### 2. **Advanced Filtering**
-- Column-specific filters
-- Multiple filter criteria
-- Date range filtering
-- Numeric range filtering
-
-### 3. **Data Export**
-- Export as SQLite database (.db)
-- Export as SQL dump
-- Export as CSV file
-- Custom export formats
-
-### 4. **Visual Feedback**
-- Loading indicators
-- Success/error messages
-- Progress bars for large operations
-- Toast notifications
-
-## 🔧 Configuration Options
-
-### Database Settings
-```typescript
-interface DatabaseConfig {
-  maxRowsPerPage: number;
-  enableVirtualScrolling: boolean;
-  searchDebounceTime: number;
-  exportFormats: string[];
-  autoRefreshInterval: number;
-}
-```
-
-### Performance Optimization
-```typescript
-// Virtual scrolling for large datasets
-const virtualScrollConfig = {
-  itemSize: 48, // Row height in pixels
-  minBufferPx: 200,
-  maxBufferPx: 500
-};
-
-// Search debouncing
-const searchConfig = {
-  debounceTime: 300,
-  minSearchLength: 2
-};
-```
-
-## 🧪 Testing Scenarios
-
-### Scenario 1: Database Exploration
-```
-User: Opens database browser
-Expected: All tables displayed with schema information
-```
-
-### Scenario 2: Data Search
-```
-User: Types "capacity" in search box
-Expected: All rows containing "capacity" highlighted and filtered
-```
-
-### Scenario 3: Parameter Modification
-```
-User: "Change maximum capacity to 5000"
-Expected: Database updated → Model selection dialog appears
-```
-
-### Scenario 4: SQL Query
-```
-User: Executes custom SQL query
-Expected: Results displayed in formatted table
-```
-
-## 🎯 Benefits
-
-### 1. **Comprehensive Data Access**
-- Full database visibility
-- Real-time data exploration
-- Advanced search capabilities
-- Multiple export options
-
-### 2. **AI Integration**
-- Seamless parameter updates
-- Automatic model discovery
-- Model selection workflow
-- Change tracking
-
-### 3. **User-Friendly Interface**
-- Material Design components
-- Responsive layout
-- Intuitive navigation
-- Visual feedback
-
-### 4. **Performance Optimized**
-- Virtual scrolling
-- Efficient search algorithms
-- Lazy loading
-- Caching mechanisms
-
-## 📋 Implementation Status
-
-### ✅ Completed Features
-- Complete database browser interface
-- SQL query execution
-- Data export functionality
-- Search and filtering
-- Model selection integration
-- Parameter modification workflow
+The database browser in EYProject is a robust, scenario-aware tool for exploring, editing, and querying scenario-specific databases. It provides a modern, user-friendly interface with full integration into the scenario and AI workflow.

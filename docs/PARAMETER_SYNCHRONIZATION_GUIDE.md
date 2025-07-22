@@ -1,27 +1,30 @@
-# 🔄 Parameter Synchronization Guide
+# Parameter Synchronization Guide (2024)
 
 ## Overview
 
-This guide explains how the EYPOR-AI system ensures that when parameters are modified in the Excel part of the converted database, the actual model still runs correctly with those changes. The system uses **automatic parameter synchronization** to prevent the common issue where Excel parameter changes don't automatically propagate to code. EYPOR-AI eliminates this risk by:
-• Converting every workbook into a unified SQLite database.  
-• Rewriting model Python files to fetch parameters from that database.  
-• Validating each change before execution.
+This guide explains how EYProject ensures that when parameters are modified in the scenario database (converted from Excel), all models always run with the latest values. The system uses **automatic parameter synchronization** to prevent issues where parameter changes in the database are not reflected in model execution. This is achieved by:
+- Converting every workbook into a scenario-specific SQLite database
+- Rewriting model Python files to fetch parameters from that database
+- Validating each change before execution
+- Tracking all changes and providing detailed reports
 
-With this mechanism models always see the most current parameters without manual file regeneration.
+With this mechanism, models always see the most current parameters for the active scenario.
 
-## 🏗️ System Architecture
+---
 
-### 1. **Database Conversion**
+## System Architecture
+
+### 1. Database Conversion
 ```
-Excel Files → SQLite Database Tables
+Excel Files → SQLite Database Tables (per scenario)
 ├── HubLocOpti_Inputs.xlsx
 │   ├── Parameters → inputs_params table
-│   ├── Hubs → hubs_data table  
+│   ├── Hubs → hubs_data table
 │   └── Destinations → destinations_data table
 └── Other files → Additional tables
 ```
 
-### 2. **Code Transformation**
+### 2. Code Transformation
 Python model files are automatically updated to use SQL helper functions:
 
 **Before (File-based):**
@@ -37,7 +40,7 @@ import sqlite3
 import pandas as pd
 
 def query_table(query, params=None):
-    conn = sqlite3.connect("project_data.db")
+    conn = sqlite3.connect("/absolute/path/to/scenario_database.db")
     try:
         return pd.read_sql_query(query, conn, params=params)
     finally:
@@ -48,34 +51,33 @@ params = query_table("SELECT * FROM inputs_params")
 hubs = query_table("SELECT * FROM hubs_data")
 ```
 
-### 3. **Parameter Synchronization**
-The system includes a `ModelParameterSync` class that:
-- Tracks parameter changes in real-time
+### 3. Parameter Synchronization
+The system uses a `ModelParameterSync` class that:
+- Tracks parameter changes in real-time (per scenario)
 - Validates that changes are properly applied
 - Ensures models use the latest parameters
-- Provides detailed change reporting
+- Provides detailed change reporting and snapshots
 
-## 🔧 How Parameter Changes Work
+---
+
+## How Parameter Changes Work
 
 ### Step 1: Parameter Modification
 When you modify parameters through the system:
-
-1. **User Request**: "Change maximum hub demand to 20000"
-2. **System Analysis**: Identifies the relevant table and column
-3. **Database Update**: Executes SQL UPDATE statement
-4. **Validation**: Verifies the change was applied correctly
+1. **User Request:** "Change maximum hub demand to 20000"
+2. **System Analysis:** Identifies the relevant table and column in the scenario database
+3. **Database Update:** Executes a safe SQL UPDATE statement
+4. **Validation:** Verifies the change was applied correctly using ModelParameterSync
 
 ### Step 2: Model Execution
 When models are executed:
-
-1. **Parameter Snapshot**: System creates a snapshot of current parameters
-2. **Model Analysis**: Checks if model is properly configured for database access
-3. **Execution**: Model runs using the latest parameters from database
-4. **Validation**: System verifies parameters used and reports any issues
+1. **Parameter Snapshot:** System creates a snapshot of current parameters
+2. **Model Analysis:** Checks if model is properly configured for database access
+3. **Execution:** Model runs using the latest parameters from the scenario database
+4. **Validation:** System verifies parameters used and reports any issues
 
 ### Step 3: Change Tracking
-The system tracks all parameter changes:
-
+The system tracks all parameter changes and snapshots:
 ```python
 # Before modification
 before_snapshot = {
@@ -84,7 +86,7 @@ before_snapshot = {
     "Opening Cost": 1000
 }
 
-# After modification  
+# After modification
 after_snapshot = {
     "Maximum Hub Demand": 20000,  # Changed
     "Operating Cost": 500,         # Unchanged
@@ -104,34 +106,28 @@ change_report = {
 }
 ```
 
-## 📊 Parameter Validation Features
+---
 
-### 1. **Real-time Validation**
-- Validates parameter changes immediately after database updates
-- Ensures changes are properly applied
-- Reports any issues or inconsistencies
+## Parameter Validation Features
 
-### 2. **Model Compatibility Check**
-- Analyzes model files to ensure they use database access
-- Identifies any file-based operations that should be updated
-- Provides recommendations for optimal parameter access
+- **Real-time Validation:** Validates parameter changes immediately after database updates
+- **Model Compatibility Check:** Analyzes model files to ensure they use database access
+- **Execution Monitoring:** Tracks which parameters are used during model execution
+- **Change History:** Maintains snapshots of parameter states and all modifications with timestamps
 
-### 3. **Execution Monitoring**
-- Tracks which parameters are used during model execution
-- Compares before/after parameter states
-- Reports any parameter changes made during execution
+---
 
-### 4. **Change History**
-- Maintains snapshots of parameter states
-- Tracks all modifications with timestamps
-- Provides detailed change reports
-
-## 🚀 Using the System
+## Using the System
 
 ### Modifying Parameters
-
 1. **Through the Chat Interface:**
    ```
    User: "Change the maximum hub demand to 25000"
-   System: Analyzes request → Updates database → Validates change → Reports success
+   System: Analyzes request → Updates scenario database → Validates change → Reports success
    ```
+
+---
+
+## Summary
+
+EYProject's parameter synchronization system ensures robust, scenario-aware, and validated parameter management for all models, eliminating manual errors and guaranteeing that every model run uses the latest data.

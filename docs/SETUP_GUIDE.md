@@ -1,240 +1,193 @@
-# Setup Guide - ChatGPT File Editor Angular Migration
+# EYProject Setup Guide (2024)
 
-This guide will walk you through setting up the complete Angular application with FastAPI backend.
+This guide will help you set up the EYProject platform from scratch on a new PC. It covers all steps for Windows, with notes for Mac/Linux users. The guide assumes you have **no Python, Node.js, or dependencies installed**.
 
-## Quick Start
+---
 
-### Step 1: Install Backend Dependencies
+## What You Get from the Repo
+- **All source code** (backend, frontend, docs)
+- **Batch scripts** for easy setup and launch (Windows)
+- **EY.env.example**: Template for required API keys
+- **No API keys or secret credentials** (you must provide these)
+
+---
+
+## Prerequisites
+
+### 1. Install Python (3.8+ recommended)
+- Download from: https://www.python.org/downloads/
+- During install, check **"Add Python to PATH"**
+- Verify:
+  ```bash
+  python --version
+  pip --version
+  ```
+
+### 2. Install Node.js (16+ recommended)
+- Download from: https://nodejs.org/
+- This includes npm (Node Package Manager)
+- Verify:
+  ```bash
+  node --version
+  npm --version
+  ```
+
+### 3. (Windows only) Install Git Bash or use PowerShell/Command Prompt
+- Download Git Bash: https://gitforwindows.org/
+- Mac/Linux: Use Terminal
+
+---
+
+## Clone the Repository
+
 ```bash
-# Run the batch file (Windows)
-install_backend.bat
-
-# Or manually
-cd backend
-pip install -r requirements.txt
+git clone <your-repo-url>
+cd EYProjectGit
 ```
 
-### Step 2: Install Frontend Dependencies
-```bash
-# Run the batch file (Windows)
-install_frontend.bat
+---
 
-# Or manually
-cd frontend
-npm install
-```
+## Environment Variables
 
-### Step 3: Start the Backend Server
-```bash
-# Run the batch file (Windows)
-start_backend.bat
-
-# Or manually
-cd backend
-python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-```
-
-### Step 4: Start the Frontend Server
-```bash
-# Run the batch file (Windows)
-start_frontend.bat
-
-# Or manually
-cd frontend
-npm start
-```
-
-### Step 5: Access the Application
-- **Frontend**: http://localhost:4200
-- **Backend API**: http://localhost:8001
-- **API Documentation**: http://localhost:8001/docs
-
-## Detailed Setup
-
-### Prerequisites Check
-
-1. **Python 3.8+**
+1. **Copy the example file:**
    ```bash
-   python --version
+   cp EY.env.example EY.env
+   # On Windows (cmd): copy EY.env.example EY.env
    ```
+2. **Open `EY.env` in a text editor.**
+   - Add your API keys (e.g., OpenAI, Gemini)
+   - Example:
+     ```
+     OPENAI_API_KEY="sk-..."
+     GEMINI_API_KEY="..."
+     ```
+3. **Never commit your real keys to git!**
 
-2. **Node.js 16+**
+---
+
+## Install Backend Dependencies
+
+1. **Create a virtual environment (recommended):**
    ```bash
-   node --version
-   npm --version
+   python -m venv .venv
+   # Activate (Windows): .venv\Scripts\activate
+   # Activate (Mac/Linux): source .venv/bin/activate
    ```
+2. **Install Python packages:**
+   ```bash
+   cd backend
+   pip install -r requirements.txt
+   cd ..
+   ```
+- Or run the batch file (Windows):
+  ```
+  install_backend.bat
+  ```
 
-3. **Environment File**
-   - Ensure `EY.env` exists in the root directory
-   - Contains: `OPENAI_API_KEY=your_api_key_here`
+---
 
-### Backend Configuration
+## Install Frontend Dependencies
 
-The FastAPI backend provides:
-- File upload and management
-- Code execution
-- ChatGPT integration
-- RESTful API endpoints
+1. **Navigate to the frontend directory:**
+   ```bash
+   cd frontend-new/eypor-electron
+   npm install
+   cd ../..
+   ```
+- Or run the batch file (Windows):
+  ```
+  install_frontend.bat
+  ```
 
-**Key Features:**
-- Automatic CORS configuration for Angular
-- File content reading with encoding detection
-- Safe file writing operations
-- ChatGPT context building with file contents
-- File edit request parsing and execution
+---
 
-### Frontend Configuration
+## Launch the Application (Recommended: Windows)
 
-The Angular frontend provides:
-- Modern, responsive UI
-- Real-time file management
-- Interactive chat interface
-- File editing capabilities
+- **Use the unified launcher:**
+  ```
+  launch.bat
+  ```
+  - This will:
+    - Stop any old servers
+    - Start backend (FastAPI)
+    - Start frontend (Angular)
+    - Open your browser to http://localhost:4200
 
-**Key Features:**
-- Component-based architecture
-- TypeScript for type safety
-- Custom CSS styling (no emojis)
-- API service for backend communication
-- Error handling and loading states
+- **Manual launch (Mac/Linux or advanced users):**
+  1. **Backend:**
+     ```bash
+     # (Activate your venv if used)
+     cd backend
+     python -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+     ```
+  2. **Frontend:**
+     ```bash
+     cd frontend-new/eypor-electron
+     npm start
+     ```
+  3. **Access:**
+     - Frontend: http://localhost:4200
+     - Backend API: http://localhost:8001
+     - API Docs: http://localhost:8001/docs
 
-## Testing the Setup
+---
 
-### 1. Test Backend
-1. Start the backend server
-2. Visit http://localhost:8001/docs
-3. You should see the FastAPI interactive documentation
+## Testing Your Setup
 
-### 2. Test Frontend
-1. Start the frontend server
-2. Visit http://localhost:4200
-3. You should see the ChatGPT File Editor interface
+1. **Backend:** Visit http://localhost:8001/docs (should load FastAPI docs)
+2. **Frontend:** Visit http://localhost:4200 (should load EYProject UI)
+3. **Integration:**
+   - Upload a file, run a query, use chat, test scenario switching
 
-### 3. Test Integration
-1. Upload a zip file with some Python code
-2. Try running a Python file
-3. Start a chat with ChatGPT
-4. Test file editing functionality
+---
 
 ## Troubleshooting
 
-### Backend Issues
+- **Python/Node not found:**
+  - Ensure both are installed and added to PATH
+- **Port already in use:**
+  - Backend: 8001, Frontend: 4200
+  - Kill processes or change ports in scripts
+- **Dependency errors:**
+  - Backend: `pip install -r requirements.txt --force-reinstall`
+  - Frontend: `rm -rf node_modules package-lock.json && npm install`
+- **CORS errors:**
+  - Ensure both servers are running and on correct ports
+- **API key errors:**
+  - Double-check `EY.env` and restart backend
+- **Permissions:**
+  - Run terminal as administrator if needed (Windows)
+- **Mac/Linux:**
+  - Use Terminal, adjust paths and activation commands as needed
 
-**Port 8001 already in use:**
-```bash
-# Find the process using port 8001
-netstat -ano | findstr :8001
-# Kill the process or change the port in start_backend.bat
-```
-
-**Module not found errors:**
-```bash
-cd backend
-pip install -r requirements.txt --force-reinstall
-```
-
-**OpenAI API key issues:**
-- Check that `EY.env` contains a valid API key
-- Ensure the file is in the root directory
-- Restart the backend server after changes
-
-### Frontend Issues
-
-**Port 4200 already in use:**
-```bash
-# Angular will automatically try the next available port
-# Or manually specify a different port
-npm start -- --port 4201
-```
-
-**Module not found errors:**
-```bash
-cd frontend
-rm -rf node_modules package-lock.json
-npm install
-```
-
-**CORS errors:**
-- Ensure backend is running on port 8001
-- Check that CORS is properly configured in main.py
-- Restart both servers
-
-### Common Solutions
-
-1. **Clear cache and reinstall:**
-   ```bash
-   # Backend
-   cd backend
-   pip cache purge
-   pip install -r requirements.txt
-   
-   # Frontend
-   cd frontend
-   npm cache clean --force
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
-
-2. **Check file permissions:**
-   - Ensure you have write permissions in the project directory
-   - Run as administrator if needed (Windows)
-
-3. **Network issues:**
-   - Check firewall settings
-   - Ensure localhost is accessible
-   - Try different ports if needed
+---
 
 ## Development Workflow
 
-### Making Changes
+- **Backend:** Edit files in `backend/`, server auto-reloads with `--reload`
+- **Frontend:** Edit files in `frontend-new/eypor-electron/src/app/`, Angular auto-reloads
+- **Add new features:**
+  - Backend: Add endpoints in `backend/main.py`
+  - Frontend: Add components/services in `frontend-new/eypor-electron/src/app/`
 
-1. **Backend changes:**
-   - Edit files in the `backend/` directory
-   - Server will auto-reload with `--reload` flag
-   - Check http://localhost:8001/docs for API changes
-
-2. **Frontend changes:**
-   - Edit files in the `frontend/src/` directory
-   - Angular will auto-reload in development mode
-   - Check browser console for errors
-
-### Adding New Features
-
-1. **New API endpoint:**
-   - Add to `backend/main.py`
-   - Update `frontend/src/app/services/api.service.ts`
-   - Test with the API documentation
-
-2. **New component:**
-   - Create in `frontend/src/app/components/`
-   - Add to `app.module.ts`
-   - Update routing if needed
-
-3. **New styling:**
-   - Add to component-specific CSS files
-   - Or update `frontend/src/styles.css` for global styles
+---
 
 ## Production Deployment
 
-### Backend Deployment
-- Use a production ASGI server like Gunicorn
-- Set up proper environment variables
-- Configure CORS for production domain
-- Set up logging and monitoring
+- **Backend:** Use a production ASGI server (e.g., Gunicorn)
+- **Frontend:** Build with `npm run build` and serve static files
+- **Set environment variables securely**
+- **Configure CORS, HTTPS, and security headers**
 
-### Frontend Deployment
-- Build the production version: `npm run build`
-- Serve static files from a web server
-- Configure API base URL for production
-- Set up HTTPS and security headers
+---
 
 ## Support
 
-If you encounter issues:
-1. Check this setup guide
-2. Review the troubleshooting section
-3. Check the browser console for errors
-4. Verify all dependencies are installed
-5. Ensure both servers are running
+- Check this guide and troubleshooting section
+- Review error messages in terminal and browser console
+- Ensure all dependencies are installed and servers are running
+- If stuck, search for error messages or ask for help
 
-The application should now be fully functional with the same capabilities as the original Streamlit version but with a modern, professional web interface. 
+---
+
+The EYProject platform should now be fully functional with scenario management, file editing, chat, and advanced data analysis features. 

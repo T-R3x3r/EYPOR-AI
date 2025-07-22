@@ -99,8 +99,6 @@ The agent supports six distinct workflow paths based on request classification:
 - **Scenario Comparison Path**: `START → classify_request → extract_scenarios → handle_scenario_comparison → execute_code → respond → END`
 - **DB Modification Path**: `START → classify_request → prepare_db_modification → execute_db_modification → respond → END`
 
-> **Note**: Both workflow diagrams are available in high-resolution PNG format (1920x1080) for detailed viewing and documentation purposes.
-
 ---
 
 ## **NEW: File Editing Feature**
@@ -334,14 +332,18 @@ EYProjectGit/
 ## Documentation Map
 The **docs/** folder contains self-contained guides for every subsystem:
 
-• [SETUP_GUIDE](docs/SETUP_GUIDE.md) – local installation & environment variables  
-• [FRONTEND_STARTUP_GUIDE](docs/FRONTEND_STARTUP_GUIDE.md) – developing the Angular client  
-• [SQL_INTEGRATION_GUIDE](docs/SQL_INTEGRATION_GUIDE.md) – how the agent builds, validates and runs SQL  
-• [PARAMETER_SYNCHRONIZATION_GUIDE](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md) – keeping Excel-originated parameters in sync with the database  
-• [NEW_AGENT_WORKFLOW_IMPLEMENTATION](docs/NEW_AGENT_WORKFLOW_IMPLEMENTATION.md) – detailed explanation of the LangGraph workflow  
-• [DATABASE_BROWSER_IMPLEMENTATION](docs/DATABASE_BROWSER_IMPLEMENTATION.md) – database browser implementation details  
-• [HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY](docs/HUMAN_IN_LOOP_IMPLEMENTATION_SUMMARY.md) – human-in-the-loop features  
-• [TEMP_FILE_MANAGEMENT](docs/TEMP_FILE_MANAGEMENT.md) – temporary file handling and cleanup
+• [DATABASE_BROWSER_IMPLEMENTATION.md](docs/DATABASE_BROWSER_IMPLEMENTATION.md) – database browser implementation details  
+• [FRONTEND_SCENARIO_INTEGRATION.md](docs/FRONTEND_SCENARIO_INTEGRATION.md) – frontend scenario state and API integration  
+• [FRONTEND_STARTUP_GUIDE.md](docs/FRONTEND_STARTUP_GUIDE.md) – developing and running the Angular client  
+• [LANGGRAPH_AGENT_V2_IMPLEMENTATION.md](docs/LANGGRAPH_AGENT_V2_IMPLEMENTATION.md) – comprehensive explanation of the LangGraph agent v2  
+• [PARAMETER_SYNCHRONIZATION_GUIDE.md](docs/PARAMETER_SYNCHRONIZATION_GUIDE.md) – keeping Excel-originated parameters in sync with the database  
+• [SCENARIO_AWARE_COMPONENTS_IMPLEMENTATION.md](docs/SCENARIO_AWARE_COMPONENTS_IMPLEMENTATION.md) – scenario-aware frontend component design  
+• [SCENARIO_MANAGEMENT_IMPLEMENTATION.md](docs/SCENARIO_MANAGEMENT_IMPLEMENTATION.md) – backend scenario management and architecture  
+• [SCENARIO_UI_COMPONENTS_IMPLEMENTATION.md](docs/SCENARIO_UI_COMPONENTS_IMPLEMENTATION.md) – scenario UI/UX and tabbed interface  
+• [SETUP_GUIDE.md](docs/SETUP_GUIDE.md) – local installation & environment variables  
+• [SQL_INTEGRATION_GUIDE.md](docs/SQL_INTEGRATION_GUIDE.md) – how the agent builds, validates, and runs SQL  
+• [TABBED_SCENARIO_INTERFACE_IMPLEMENTATION.md](docs/TABBED_SCENARIO_INTERFACE_IMPLEMENTATION.md) – tabbed scenario interface and UX  
+• [TEMP_FILE_MANAGEMENT.md](docs/TEMP_FILE_MANAGEMENT.md) – temporary file/session handling and cleanup
 
 All guides focus on *how the feature works* rather than its development history or bug-fix logs.
 
