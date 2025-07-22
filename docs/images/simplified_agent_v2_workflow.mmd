@@ -4,11 +4,16 @@ graph TD
     classify_request -->|chat| handle_chat[handle_chat<br/>Chat Q&A]
     classify_request -->|sql_query| handle_sql_query[handle_sql_query<br/>SQL Query]
     classify_request -->|visualization| handle_visualization[handle_visualization<br/>Visualization]
+    classify_request -->|file_edit| handle_file_edit[handle_file_edit<br/>File Edit]
+    classify_request -->|scenario_comparison| extract_scenarios[extract_scenarios<br/>Scenario Extract]
     classify_request -->|db_modification| prepare_db_modification[prepare_db_modification<br/>DB Mod Prep]
     
     handle_chat --> respond[respond<br/>Response]
     handle_sql_query --> execute_code[execute_code<br/>Code Execution]
     handle_visualization --> execute_code
+    handle_file_edit --> execute_code
+    extract_scenarios --> handle_scenario_comparison[handle_scenario_comparison<br/>Scenario Compare]
+    handle_scenario_comparison --> execute_code
     execute_code --> respond
     
     prepare_db_modification --> execute_db_modification[execute_db_modification<br/>DB Mod Exec]
@@ -25,7 +30,7 @@ graph TD
     
     class START,END startEnd
     class classify_request classification
-    class handle_chat,handle_sql_query,handle_visualization,prepare_db_modification,execute_db_modification handler
+    class handle_chat,handle_sql_query,handle_visualization,handle_file_edit,extract_scenarios,handle_scenario_comparison,prepare_db_modification,execute_db_modification handler
     class execute_code execution
     class respond response
     

@@ -33,6 +33,19 @@ The system employs a **Simplified Agent v2** architecture that intelligently rou
 
 ![Simplified Agent v2 Workflow](docs/images/data_analyst_workflow.png)
 
+### **Simplified Agent v2 Workflow (Overview)**
+
+![Simplified Agent v2 Workflow Overview](docs/images/simplified_agent_v2_workflow.png)
+
+### **Workflow Diagram Details**
+
+The system features two workflow diagrams:
+
+1. **Detailed Workflow** (`data_analyst_workflow.png`): Complete workflow with all state information, data flow labels, and detailed routing logic
+2. **Simplified Overview** (`simplified_agent_v2_workflow.png`): Clean overview showing the core workflow paths and node relationships
+
+Both diagrams are generated from the actual LangGraph agent code and reflect the current implementation with all features including file editing, scenario comparison, and database modifications.
+
 The workflow features intelligent request classification and specialized processing:
 
 ### **Core Workflow Nodes**
@@ -77,12 +90,16 @@ The workflow features intelligent request classification and specialized process
 
 ### **Workflow Paths**
 
+The agent supports six distinct workflow paths based on request classification:
+
 - **Chat Path**: `START → classify_request → handle_chat → respond → END`
 - **SQL Path**: `START → classify_request → handle_sql_query → execute_code → respond → END`
 - **Visualization Path**: `START → classify_request → handle_visualization → execute_code → respond → END`
 - **File Edit Path**: `START → classify_request → handle_file_edit → execute_code → respond → END`
 - **Scenario Comparison Path**: `START → classify_request → extract_scenarios → handle_scenario_comparison → execute_code → respond → END`
 - **DB Modification Path**: `START → classify_request → prepare_db_modification → execute_db_modification → respond → END`
+
+> **Note**: Both workflow diagrams are available in high-resolution PNG format (1920x1080) for detailed viewing and documentation purposes.
 
 ---
 
@@ -364,8 +381,7 @@ All guides focus on *how the feature works* rather than its development history 
 - **Error Handling**: Better execution error capture and user feedback
 - **Multi-Scenario Support**: Architecture ready for future scenario comparisons
 
-### **Workflow Diagram**
-The updated workflow diagram shows the new v2 agent structure with intelligent request classification and specialized processing paths, including the new file editing feature. The diagram is generated from the actual agent code and reflects the current implementation.
+
 
 ---
 

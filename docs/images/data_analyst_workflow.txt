@@ -1,76 +1,64 @@
-Simplified LangGraph Agent v2 Workflow (Updated with Original Query)
-============================================================
+Simplified Agent v2 Workflow Diagram (Updated with Edit Feature)
+===============================================================
 
-KEY FINDING: The file_edit node DOES get the original user query!
-- _get_query_for_file() retrieves original query from database
-- _build_modification_prompt() includes original query in prompt
-- This helps maintain the original intent when editing files
+START
+  |
+classify_request (Request Classification)
+  |
++-----------------+-----------------+-----------------+-----------------+-----------------+
+|     chat        |   sql_query     | visualization   | file_edit       | db_modification |
+|     Path        |     Path        |     Path        |     Path        |     Path        |
++-----------------+-----------------+-----------------+-----------------+-----------------+
+  |                 |                 |                 |                 |
+handle_chat    handle_sql_query  handle_visualization  handle_file_edit  prepare_db_modification
+  |                 |                 |                 |                 |
+respond         execute_code      execute_code          execute_code      execute_db_modification
+  |                 |                 |                 |                 |
+END              respond           respond              respond           respond
+                 |                 |                    |                 |
+                END               END                  END              END
 
-graph TD
-    %% Start and End
-    START([START])
-    END([END])
-    
-    %% Main classification
-    classify_request[classify_request<br/>Request Classification]
-    
-    %% Handlers
-    handle_chat[handle_chat<br/>Chat Q&A]
-    handle_sql_query[handle_sql_query<br/>SQL Query]
-    handle_visualization[handle_visualization<br/>Visualization]
-    handle_file_edit[handle_file_edit<br/>File Edit]
-    extract_scenarios[extract_scenarios<br/>Scenario Extract]
-    handle_scenario_comparison[handle_scenario_comparison<br/>Scenario Compare]
-    prepare_db_modification[prepare_db_modification<br/>DB Mod Prep]
-    
-    %% Execution nodes
-    execute_code[execute_code<br/>Code Execution]
-    execute_db_modification[execute_db_modification<br/>DB Modification]
-    
-    %% Response
-    respond[respond<br/>Response Generation]
-    
-    %% Main flow
-    START --> classify_request
-    respond --> END
-    
-    %% Classification routes with state info
-    classify_request -->|chat<br/>user_request, messages| handle_chat
-    classify_request -->|sql_query<br/>user_request, db_context| handle_sql_query
-    classify_request -->|visualization<br/>user_request, db_context| handle_visualization
-    classify_request -->|file_edit<br/>user_request, edit_mode, editing_file_path| handle_file_edit
-    classify_request -->|scenario_comparison<br/>user_request, comparison_scenarios| extract_scenarios
-    classify_request -->|db_modification<br/>user_request, db_context| prepare_db_modification
-    
-    %% Scenario comparison flow
-    extract_scenarios -->|comparison_scenarios, comparison_type| handle_scenario_comparison
-    
-    %% Direct to response
-    handle_chat -->|messages, chat_response| respond
-    
-    %% To execution with state info
-    handle_sql_query -->|generated_files, sql_script| execute_code
-    handle_visualization -->|generated_files, viz_script| execute_code
-    handle_file_edit -->|modified_file_path, file_content, original_query| execute_code
-    handle_scenario_comparison -->|comparison_script, multi_db_context| execute_code
-    
-    %% DB modification flow
-    prepare_db_modification -->|modification_request, db_context| execute_db_modification
-    execute_db_modification -->|db_modification_result| respond
-    
-    %% From execution to response
-    execute_code -->|execution_output, generated_files, execution_error| respond
-    
-    %% Styling - White and grey tones
-    classDef startEnd fill:#2E8B57,stroke:#000,stroke-width:2px,color:#fff
-    classDef classify fill:#4682B4,stroke:#000,stroke-width:2px,color:#fff
-    classDef handler fill:#f5f5f5,stroke:#666,stroke-width:2px,color:#333
-    classDef execute fill:#e0e0e0,stroke:#666,stroke-width:2px,color:#333
-    classDef respond fill:#f8f8f8,stroke:#666,stroke-width:2px,color:#333
-    
-    class START,END startEnd
-    class classify_request classify
-    class handle_chat,handle_sql_query,handle_visualization,handle_file_edit,extract_scenarios,handle_scenario_comparison,prepare_db_modification handler
-    class execute_code,execute_db_modification execute
-    class respond respond
-    
+Scenario Comparison Path:
+START → classify_request → extract_scenarios → handle_scenario_comparison → execute_code → respond → END
+
+Node Descriptions:
+=================
+* classify_request: Analyzes user input and routes to appropriate handler
+* extract_scenarios: Extracts scenario names from comparison requests using regex patterns
+* handle_chat: Processes general Q&A without code execution
+* handle_sql_query: Generates SQL query scripts with Plotly table output
+* handle_visualization: Creates chart/graph generation scripts (single scenario)
+* handle_file_edit: Handles file editing requests with modification tracking
+* handle_scenario_comparison: Generates multi-scenario comparison analysis
+* prepare_db_modification: Prepares database parameter changes with validation
+* execute_code: Executes generated Python scripts for SQL, visualization, and file editing
+* execute_db_modification: Performs database modifications with percentage calculations
+* respond: Generates final response to user with context and file information
+
+Workflow Paths:
+==============
+1. Chat Path: START → classify_request → handle_chat → respond → END
+2. SQL Path: START → classify_request → handle_sql_query → execute_code → respond → END
+3. Visualization Path: START → classify_request → handle_visualization → execute_code → respond → END
+4. File Edit Path: START → classify_request → handle_file_edit → execute_code → respond → END
+5. Scenario Comparison Path: START → classify_request → extract_scenarios → handle_scenario_comparison → execute_code → respond → END
+6. DB Modification Path: START → classify_request → prepare_db_modification → execute_db_modification → respond → END
+
+New Edit Feature Details:
+========================
+* File Editing: Supports editing existing Python files with modification tracking
+* Context Preservation: Maintains original file content and modification history
+* Validation: Validates file modifications before execution
+* Query Tracking: Maps queries to modified files for future reference
+* Execution Integration: Modified files are executed through the standard execute_code node
+* Database Context: Uses current scenario's database context for file operations
+* Error Handling: Comprehensive error handling for file operations
+* History Tracking: Maintains modification history with timestamps and query IDs
+
+State Information Flow:
+======================
+* AgentState: Contains all workflow state including edit mode, file paths, and modification history
+* DatabaseContext: Provides scenario-aware database routing and schema information
+* Edit Mode Fields: edit_mode, editing_file_path, original_file_content, file_modification_history
+* Query Tracking: query_file_mappings, current_query_context for linking queries to files
+* Comparison Fields: comparison_scenarios, comparison_data, comparison_type for multi-scenario operations
